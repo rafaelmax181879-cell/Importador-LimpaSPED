@@ -1,6 +1,6 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const path = require('path');
-const { autoUpdater } = require('electron-updater'); // O motor de atualização
+const { autoUpdater } = require('electron-updater');
 
 function createWindow() {
   const splash = new BrowserWindow({
@@ -32,13 +32,12 @@ function createWindow() {
     mainWindow.show(); 
     mainWindow.maximize(); 
     
-    // Procura atualizações silenciosamente
+    // Procura atualizações silenciosamente assim que o sistema abre
     autoUpdater.checkForUpdatesAndNotify();
   }, 7500);
 }
 
 app.whenReady().then(createWindow);
-autoUpdater.checkForUpdatesAndNotify();
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
