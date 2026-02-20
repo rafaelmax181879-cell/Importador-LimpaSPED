@@ -1,9 +1,37 @@
 {
-  "devDependencies": {
-    "electron": "^40.6.0",
-    "electron-builder": "^26.8.1"
+  "name": "importador-limpasped",
+  "version": "1.0.0",
+  "main": "electron.cjs",
+  "author": "Rafael Max",
+  "description": "Sistema de Auditoria Fiscal AUDITTUS",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "gerar:exe": "vite build && electron-builder --win -p always"
+  },
+  "build": {
+    "appId": "com.audittus.corretor",
+    "productName": "Corretor SPED Fiscal",
+    "directories": {
+      "output": "meu_programa_pronto"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "rafaelmax181879-cell",
+        "repo": "Importador-LimpaSPED"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
   },
   "dependencies": {
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.3.9"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "vite": "^6.1.0"
   }
 }

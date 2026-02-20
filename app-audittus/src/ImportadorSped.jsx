@@ -1,257 +1,215 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar } from 'lucide-react';
 
 export default function ImportadorSped() {
-  const [processando, setProcessando] = useState(false);
-  const [progresso, setProgresso] = useState(0);
-  const [mensagemSucesso, setMensagemSucesso] = useState(null);
-  const [urlDownload, setUrlDownload] = useState(null);
-  
-  const inputArquivoRef = useRef(null);
+  const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
+  const [status, setStatus] = useState('aguardando'); 
+  const [dadosGrafico, setDadosGrafico] = useState([]);
+  const [ajustesICMS, setAjustesICMS] = useState([]);
+  const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
+  const [guiasE116, setGuiasE116] = useState([]);
+  const [arquivoProcessado, setArquivoProcessado] = useState(null);
+  const [nomeOriginal, setNomeOriginal] = useState('');
 
-  // NOVA FUNÇÃO: Força o arquivo a ser salvo como ANSI (Windows-1252) para o PVA ler os acentos corretamente
-  const converterParaANSI = (texto) => {
-    const buffer = new Uint8Array(texto.length);
-    for (let i = 0; i < texto.length; i++) {
-      const codigo = texto.charCodeAt(i);
-      // Se for um caractere padrão do Português/ANSI, mantém. Se for emoji ou símbolo não suportado, vira interrogação.
-      buffer[i] = codigo <= 255 ? codigo : 63; 
-    }
-    return buffer;
+  const CORES = ['#004080', '#F59E0B']; 
+
+  const formatarMoeda = (valor) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
   };
 
   const processarArquivo = (event) => {
-    const arquivo = event.target.files[0];
-    if (!arquivo) return;
-
-    setProcessando(true);
-    setProgresso(0);
-    setMensagemSucesso(null);
-    
-    if (urlDownload) {
-      URL.revokeObjectURL(urlDownload);
-      setUrlDownload(null);
-    }
+    const file = event.target.files[0];
+    if (!file) return;
+    setStatus('processando');
+    setMensagem('Limpando registros e processando dados fiscais...');
+    setNomeOriginal(file.name);
 
     const reader = new FileReader();
-    // Lê o arquivo original no formato do Domínio
-    reader.readAsText(arquivo, 'windows-1252');
+    reader.readAsText(file, 'windows-1252');
 
     reader.onload = (e) => {
-      const conteudo = e.target.result;
-      const linhas = conteudo.split(/\r?\n/);
-      const totalLinhas = linhas.length;
-      
-      const termosRemover = [
-        'ISENTO', '0000000', '1111111', '9999999', 
-        '1500300', '0300200', '0300100', 'SEM GTIN'
-      ];
+      const conteudoArquivo = e.target.result;
+      let linhasSped = conteudoArquivo.split(/\r?\n/);
 
-      let linhasProcessadas = [];
-      let contadorC191 = 0;
-      let contadorTermos = 0;
-      let removeu9900C191 = 0;
-      let index = 0;
-      const tamanhoLote = 5000;
+      // --- LIMPEZA ---
+      linhasSped = linhasSped.filter(linha => {
+        const t = linha.trim();
+        return t !== '' && !t.startsWith('|C191|') && !t.startsWith('|C173|');
+      });
+      const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
+      linhasSped = linhasSped.map(linha => linha.replace(textosParaRemover, ''));
 
-      const processarLote = () => {
-        const fim = Math.min(index + tamanhoLote, totalLinhas);
+      // --- EXTRAÇÃO DE DADOS ---
+      let totalDebitos = 0; let totalCreditos = 0;
+      let listaAjustes = []; let listaGuias = [];
+      let saldoCredorFinal = 0; let icmsRecolherFinal = 0;
 
-        for (let i = index; i < fim; i++) {
-          let linha = linhas[i];
-          
-          if (linha.startsWith('|C191|')) {
-            contadorC191++;
-            continue; 
-          }
-
-          if (linha.startsWith('|9900|C191|')) {
-            removeu9900C191 = 1;
-            continue;
-          }
-
-          if (linha.startsWith('|C990|')) {
-            let campos = linha.split('|');
-            let totalAntigo = parseInt(campos[2], 10);
-            campos[2] = (totalAntigo - contadorC191).toString();
-            linhasProcessadas.push(campos.join('|'));
-            continue;
-          }
-
-          if (linha.startsWith('|9990|')) {
-            let campos = linha.split('|');
-            let totalAntigo = parseInt(campos[2], 10);
-            campos[2] = (totalAntigo - removeu9900C191).toString();
-            linhasProcessadas.push(campos.join('|'));
-            continue;
-          }
-
-          if (linha.startsWith('|9999|')) {
-            let campos = linha.split('|');
-            let totalAntigo = parseInt(campos[2], 10);
-            campos[2] = (totalAntigo - contadorC191 - removeu9900C191).toString();
-            linhasProcessadas.push(campos.join('|'));
-            continue;
-          }
-
-          let campos = linha.split('|');
-          for (let j = 0; j < campos.length; j++) {
-            if (termosRemover.includes(campos[j].trim())) {
-              campos[j] = ''; 
-              contadorTermos++;
-            }
-          }
-
-          linhasProcessadas.push(campos.join('|'));
+      linhasSped.forEach(linha => {
+        const colunas = linha.split('|');
+        if (colunas[1] === 'E110') {
+          totalDebitos += parseFloat(colunas[2].replace(',', '.')) || 0;
+          totalCreditos += parseFloat(colunas[6].replace(',', '.')) || 0;
+          icmsRecolherFinal = parseFloat(colunas[13].replace(',', '.')) || 0;
+          saldoCredorFinal = parseFloat(colunas[14].replace(',', '.')) || 0;
         }
-
-        index = fim;
-        
-        const porcentagemAtual = Math.round((index / totalLinhas) * 100);
-        setProgresso(porcentagemAtual);
-
-        if (index < totalLinhas) {
-          setTimeout(processarLote, 0);
-        } else {
-          finalizarProcessamento(linhasProcessadas, contadorC191, contadorTermos);
+        if (colunas[1] === 'E111') {
+          const codAjuste = colunas[2];
+          const valorAjuste = parseFloat(colunas[4].replace(',', '.')) || 0;
+          let descricao = codAjuste === 'RO020003' ? 'ICMS Antecipado' : codAjuste === 'RO050010' ? 'FECOEP a Recolher' : `Ajuste: ${codAjuste}`;
+          listaAjustes.push({ codigo: codAjuste, descricao, valor: valorAjuste });
         }
-      };
+        if (colunas[1] === 'E116') {
+          const v = colunas[4]; 
+          const vencimentoFormatado = v && v.length === 8 ? `${v.substring(0,2)}/${v.substring(2,4)}/${v.substring(4,8)}` : v;
+          listaGuias.push({ codigo: colunas[2], valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: vencimentoFormatado });
+        }
+      });
 
-      processarLote();
+      setDadosGrafico([{ name: 'Total de Créditos', value: totalCreditos }, { name: 'Total de Débitos', value: totalDebitos }]);
+      setAjustesICMS(listaAjustes);
+      setResumoIcms({ saldoCredor: saldoCredorFinal, icmsRecolher: icmsRecolherFinal });
+      setGuiasE116(listaGuias);
+
+      // --- CORREÇÃO DE LINHAS ---
+      const totalC = linhasSped.filter(l => l.startsWith('|C')).length;
+      const total9 = linhasSped.filter(l => l.startsWith('|9')).length;
+      const totalGeral = linhasSped.length;
+      const resultadoFinal = linhasSped.map(linha => {
+        if (linha.startsWith('|C990|')) return `|C990|${totalC}|`;
+        if (linha.startsWith('|9990|')) return `|9990|${total9}|`;
+        if (linha.startsWith('|9999|')) return `|9999|${totalGeral}|`;
+        return linha;
+      }).join('\r\n');
+
+      setArquivoProcessado(resultadoFinal);
+      setStatus('sucesso');
+      setMensagem('Auditoria concluída com sucesso!');
     };
   };
 
-  const finalizarProcessamento = (linhasProcessadas, contadorC191, contadorTermos) => {
-    // IMPORTANTE: Junta usando \r\n (Padrão Windows) em vez de apenas \n
-    const arquivoFinal = linhasProcessadas.join('\r\n');
-    
-    // Converte o texto para a matriz de bytes em ANSI antes de criar o arquivo
-    const bytesFinais = converterParaANSI(arquivoFinal);
-    const blob = new Blob([bytesFinais], { type: 'text/plain' });
-    
-    const url = URL.createObjectURL(blob);
-    
-    setUrlDownload(url);
-    setProcessando(false);
-    setMensagemSucesso(`✅ Sucesso! ${contadorC191} registros C191 removidos. Totalizadores (C990, 9990 e 9999) recalculados perfeitamente.`);
-  };
-
-  const limparTela = () => {
-    if (urlDownload) {
-      URL.revokeObjectURL(urlDownload);
-      setUrlDownload(null);
-    }
-    setMensagemSucesso(null);
-    setProgresso(0);
-    
-    if (inputArquivoRef.current) {
-      inputArquivoRef.current.value = '';
-    }
+  const baixarArquivo = () => {
+    if (!arquivoProcessado) return;
+    const blob = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob); link.download = `AUDITTUS_${nomeOriginal}`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '700px' }}>
-      <h2>Otimizador de SPED Fiscal</h2>
-      <p style={{ color: '#555' }}>
-        Importe seu Arquivo para a Correção Automática Inteligente de Validação do SPED Fiscal - EFD ICMS/IPI.
-      </p>
+    // O contêiner principal agora usa Flexbox para centralizar tudo na tela
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      minHeight: '100vh', 
+      backgroundColor: '#f0f4f8', 
+      padding: '30px', 
+      boxSizing: 'border-box', 
+      fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', 
+      color: '#333' 
+    }}>
       
-      <div style={{ margin: '20px 0', display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <label 
-          style={{
-            backgroundColor: processando ? '#6c757d' : '#0056b3',
-            color: '#fff',
-            padding: '12px 24px',
-            borderRadius: '6px',
-            cursor: processando ? 'wait' : 'pointer',
-            display: 'inline-block',
-            fontWeight: 'bold',
-            transition: '0.3s'
-          }}
-        >
-          {processando ? `Lendo Arquivo... ${progresso}%` : 'Importar SPED (.txt)'}
-          <input 
-            type="file" 
-            accept=".txt" 
-            onChange={processarArquivo} 
-            disabled={processando}
-            style={{ display: 'none' }} 
-            ref={inputArquivoRef} 
-          />
-        </label>
+      {/* Este contêiner interno mantém a largura máxima organizada */}
+      <div style={{ width: '100%', maxWidth: '1200px' }}>
+        
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800', letterSpacing: '-1px' }}>AUDITTUS</h1>
+          <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Validação</p>
+        </div>
 
-        {urlDownload && !processando && (
-          <>
-            <a 
-              href={urlDownload} 
-              download="SPED_AUDITTUS_LIMPO.txt"
-              style={{
-                backgroundColor: '#28a745',
-                color: '#fff',
-                padding: '12px 24px',
-                borderRadius: '6px',
-                textDecoration: 'none',
-                fontWeight: 'bold',
-                display: 'inline-block',
-                transition: '0.3s'
-              }}
-            >
-              📥 Baixar Arquivo Corrigido
-            </a>
+        {status !== 'sucesso' && (
+          <div style={{ maxWidth: '800px', margin: '0 auto', padding: '50px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: 'all 0.3s ease' }}>
+            <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+            {status === 'aguardando' && <UploadCloud size={64} color="#004080" style={{ marginBottom: '20px', opacity: 0.8 }} />}
+            {status === 'processando' && <AlertCircle size={64} color="#F59E0B" style={{ marginBottom: '20px', animation: 'spin 2s linear infinite' }} />}
+            <h2 style={{ margin: '0', color: '#004080', fontSize: '24px' }}>{mensagem}</h2>
+            {status === 'aguardando' && <p style={{ color: '#999', marginTop: '10px' }}>Suporta arquivos SPED Fiscal (.txt)</p>}
+          </div>
+        )}
 
-            <button
-              onClick={limparTela}
-              style={{
-                backgroundColor: '#dc3545',
-                color: '#fff',
-                padding: '12px 24px',
-                borderRadius: '6px',
-                border: 'none',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                display: 'inline-block',
-                transition: '0.3s'
-              }}
-            >
-              🧹 Limpar Tela
-            </button>
-          </>
+        {status === 'sucesso' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'start' }}>
+            
+            {/* --- COLUNA DA ESQUERDA (Gráfico Maior + E111) --- */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+              {/* GRÁFICO AUMENTADO */}
+              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS (E110)</h3>
+                <div style={{ height: '350px', width: '100%' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={dadosGrafico} cx="50%" cy="50%" innerRadius={90} outerRadius={140} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                        {dadosGrafico.map((entry, index) => <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <button onClick={baixarArquivo} style={{ width: '100%', padding: '18px', marginTop: '20px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', transition: 'background 0.3s', boxShadow: '0 5px 15px rgba(0, 64, 128, 0.2)' }}>
+                  <Download size={24} /> Baixar Arquivo Validado
+                </button>
+              </div>
+
+              {/* AJUSTES E111 */}
+              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={24}/> Detalhamento de Ajustes (E111)</h3>
+                <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '10px' }}>
+                  {ajustesICMS.length > 0 ? ajustesICMS.map((ajuste, index) => (
+                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', marginBottom: '10px', borderLeft: `5px solid ${ajuste.codigo === 'RO020003' ? '#F59E0B' : '#004080'}` }}>
+                      <div><span style={{ display: 'block', fontWeight: 'bold', fontSize: '15px', color: '#333' }}>{ajuste.descricao}</span><span style={{ fontSize: '13px', color: '#666', fontFamily: 'monospace' }}>Cód: {ajuste.codigo}</span></div>
+                      <span style={{ fontWeight: 'bold', color: '#004080', fontSize: '16px' }}>{formatarMoeda(ajuste.valor)}</span>
+                    </div>
+                  )) : <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>Nenhum ajuste E111 encontrado.</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* --- COLUNA DA DIREITA (Saldos E110 + Guias E116) --- */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', height: '100%' }}>
+               {/* CARTÕES DE SALDO */}
+              <div style={{ display: 'flex', gap: '20px' }}>
+                <div style={{ flex: 1, backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor a Transportar</p>
+                  <h2 style={{ margin: 0, color: '#10b981', fontSize: '28px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
+                </div>
+                <div style={{ flex: 1, backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Total de ICMS a Recolher</p>
+                  <h2 style={{ margin: 0, color: '#ef4444', fontSize: '28px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
+                </div>
+              </div>
+
+              {/* GUIAS E116 */}
+              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <DollarSign size={24} /> Obrigações a Recolher (E116)
+                </h3>
+                <div style={{ overflowY: 'auto', paddingRight: '10px', flexGrow: 1 }}>
+                  {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
+                    <div key={index} style={{ backgroundColor: '#fff', border: '2px solid #e2e8f0', padding: '20px', borderRadius: '15px', marginBottom: '15px', transition: 'all 0.2s' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <div><span style={{ fontSize: '13px', color: '#666', display: 'block', marginBottom: '5px' }}>Código da Obrigação</span><span style={{ fontWeight: 'bold', color: '#333', fontSize: '16px', fontFamily: 'monospace' }}>{guia.codigo}</span></div>
+                        <span style={{ fontWeight: '800', color: '#ef4444', fontSize: '22px' }}>{formatarMoeda(guia.valor)}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '14px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', width: 'fit-content' }}>
+                        <Calendar size={16} color="#004080" /> <strong>Vencimento:</strong> {guia.vencimento || 'N/A'}
+                      </div>
+                    </div>
+                  )) : (
+                    <div style={{ textAlign: 'center', padding: '40px 0', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                      <CheckCircle size={48} style={{ marginBottom: '15px', opacity: 0.3, color: '#10b981' }} />
+                      <p style={{ fontSize: '18px', fontWeight: '500' }}>Nenhuma guia a recolher (E116) identificada.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+          </div>
         )}
       </div>
-
-      {processando && (
-        <div style={{ width: '100%', backgroundColor: '#e9ecef', borderRadius: '8px', overflow: 'hidden', marginTop: '15px', height: '20px' }}>
-          <div 
-            style={{
-              width: `${progresso}%`,
-              backgroundColor: '#007bff',
-              height: '100%',
-              transition: 'width 0.1s linear',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '12px',
-              fontWeight: 'bold'
-            }}
-          >
-            {progresso > 5 ? `${progresso}%` : ''} 
-          </div>
-        </div>
-      )}
-
-      {mensagemSucesso && (
-        <div style={{ 
-          padding: '15px', 
-          backgroundColor: '#d4edda', 
-          color: '#155724', 
-          borderRadius: '8px', 
-          border: '1px solid #c3e6cb',
-          fontWeight: '500',
-          marginTop: '15px'
-        }}>
-          {mensagemSucesso}
-        </div>
-      )}
     </div>
   );
 }
