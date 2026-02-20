@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw } from 'lucide-react';
 
 export default function ImportadorSped() {
   const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
@@ -10,19 +10,36 @@ export default function ImportadorSped() {
   const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
   const [guiasE116, setGuiasE116] = useState([]);
   const [dadosEmpresa, setDadosEmpresa] = useState({ nome: '', cnpj: '', periodo: '' });
-  
-  // NOVOS ESTADOS: C100 e C190
   const [dadosGraficoOperacoes, setDadosGraficoOperacoes] = useState([]);
   const [listaCfops, setListaCfops] = useState({ entradas: [], saidas: [] });
-
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
 
-  const CORES_ICMS = ['#004080', '#F59E0B']; // Azul e Amarelo
-  const CORES_OPERACOES = ['#10b981', '#4f46e5']; // Verde (Entradas) e Roxo (Saídas)
+  const CORES_ICMS = ['#004080', '#F59E0B']; 
+  const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
 
   const formatarMoeda = (valor) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+  };
+
+  // Função para limpar todos os dados e começar de novo
+  const limparDados = () => {
+    setStatus('aguardando');
+    setMensagem('Arraste seu arquivo SPED ou clique para selecionar');
+    setDadosGraficoIcms([]);
+    setAjustesICMS([]);
+    setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
+    setGuiasE116([]);
+    setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
+    setDadosGraficoOperacoes([]);
+    setListaCfops({ entradas: [], saidas: [] });
+    setArquivoProcessado(null);
+    setNomeOriginal('');
+  };
+
+  // Função segura para gerar o PDF nativamente
+  const gerarPDF = () => {
+    window.print();
   };
 
   const processarArquivo = (event) => {
@@ -40,7 +57,6 @@ export default function ImportadorSped() {
       const conteudoArquivo = e.target.result;
       let linhasSped = conteudoArquivo.split(/\r?\n/);
 
-      // --- LIMPEZA ---
       linhasSped = linhasSped.filter(linha => {
         const t = linha.trim();
         return t !== '' && !t.startsWith('|C191|') && !t.startsWith('|C173|');
@@ -48,7 +64,6 @@ export default function ImportadorSped() {
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
       linhasSped = linhasSped.map(linha => linha.replace(textosParaRemover, ''));
 
-      // --- EXTRAÇÃO DE DADOS ---
       let totalDebitos = 0; let totalCreditos = 0;
       let totalEntradas = 0; let totalSaidas = 0;
       let mapaCfopEntrada = {}; let mapaCfopSaida = {};
@@ -58,7 +73,6 @@ export default function ImportadorSped() {
       linhasSped.forEach(linha => {
         const colunas = linha.split('|');
         
-        // 0000: Empresa
         if (colunas[1] === '0000') {
           const dtIni = colunas[4] || ''; const dtFin = colunas[5] || '';
           const pFormatado = (dtIni.length === 8 && dtFin.length === 8) 
@@ -68,15 +82,13 @@ export default function ImportadorSped() {
           setDadosEmpresa({ nome: colunas[6] || 'Razão Social Não Identificada', cnpj: cnpjFormatado, periodo: pFormatado });
         }
 
-        // C100: Totais de Entradas e Saídas
         if (colunas[1] === 'C100') {
-          const indOper = colunas[2]; // 0-Entrada, 1-Saída
+          const indOper = colunas[2]; 
           const vlDoc = parseFloat(colunas[12]?.replace(',', '.')) || 0;
           if (indOper === '0') totalEntradas += vlDoc;
           else if (indOper === '1') totalSaidas += vlDoc;
         }
 
-        // C190: Agrupamento de CFOPs
         if (colunas[1] === 'C190') {
           const cfop = colunas[3];
           const vlOpr = parseFloat(colunas[5]?.replace(',', '.')) || 0;
@@ -87,7 +99,6 @@ export default function ImportadorSped() {
           }
         }
 
-        // E110: Apuração ICMS
         if (colunas[1] === 'E110') {
           totalDebitos += parseFloat(colunas[2].replace(',', '.')) || 0;
           totalCreditos += parseFloat(colunas[6].replace(',', '.')) || 0;
@@ -95,7 +106,6 @@ export default function ImportadorSped() {
           saldoCredorFinal = parseFloat(colunas[14].replace(',', '.')) || 0;
         }
         
-        // E111: Ajustes
         if (colunas[1] === 'E111') {
           const codAjuste = colunas[2];
           const valorAjuste = parseFloat(colunas[4].replace(',', '.')) || 0;
@@ -103,7 +113,6 @@ export default function ImportadorSped() {
           listaAjustes.push({ codigo: codAjuste, descricao, valor: valorAjuste });
         }
         
-        // E116: Guias
         if (colunas[1] === 'E116') {
           const v = colunas[4]; 
           const vencimentoFormatado = v && v.length === 8 ? `${v.substring(0,2)}/${v.substring(2,4)}/${v.substring(4,8)}` : v;
@@ -111,7 +120,6 @@ export default function ImportadorSped() {
         }
       });
 
-      // Transforma os mapas de CFOP em arrays e ordena do maior para o menor
       const arrEntradas = Object.keys(mapaCfopEntrada).map(k => ({ cfop: k, valor: mapaCfopEntrada[k] })).sort((a,b) => b.valor - a.valor);
       const arrSaidas = Object.keys(mapaCfopSaida).map(k => ({ cfop: k, valor: mapaCfopSaida[k] })).sort((a,b) => b.valor - a.valor);
 
@@ -123,7 +131,6 @@ export default function ImportadorSped() {
       setResumoIcms({ saldoCredor: saldoCredorFinal, icmsRecolher: icmsRecolherFinal });
       setGuiasE116(listaGuias);
 
-      // --- CORREÇÃO DE LINHAS ---
       const totalC = linhasSped.filter(l => l.startsWith('|C')).length;
       const total9 = linhasSped.filter(l => l.startsWith('|9')).length;
       const totalGeral = linhasSped.length;
@@ -149,9 +156,21 @@ export default function ImportadorSped() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
       
-      <div style={{ width: '100%', maxWidth: '1200px' }}>
+      {/* Estilo CSS embutido para esconder os botões na hora de gerar o PDF */}
+      <style>
+        {`
+          @media print {
+            .no-print { display: none !important; }
+            body { background-color: #fff !important; }
+            ::-webkit-scrollbar { display: none; }
+          }
+        `}
+      </style>
+
+      {/* A MÁGICA DA CENTRALIZAÇÃO AQUI: margin: '0 auto' garante que a caixa fique no meio */}
+      <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -184,10 +203,8 @@ export default function ImportadorSped() {
               </div>
             </div>
 
-            {/* LINHA 1: OPERAÇÕES (NOVO GRÁFICO C100 E LISTA CFOP C190) */}
+            {/* LINHA 1: OPERAÇÕES */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'start', marginBottom: '25px' }}>
-              
-              {/* Gráfico Entradas x Saídas */}
               <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <ArrowRightLeft size={24}/> Volume de Operações (C100)
@@ -205,12 +222,9 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* Tabela de CFOPs (Entradas vs Saídas) */}
               <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP (C190)</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
-                  
-                  {/* Coluna CFOP Entradas */}
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
                     <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
@@ -222,8 +236,6 @@ export default function ImportadorSped() {
                       )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
                     </div>
                   </div>
-
-                  {/* Coluna CFOP Saídas */}
                   <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
                     <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
                     <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
@@ -235,15 +247,12 @@ export default function ImportadorSped() {
                       )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
                     </div>
                   </div>
-
                 </div>
               </div>
             </div>
 
-            {/* LINHA 2: APURAÇÃO ICMS ORIGINAL (E110, E111, E116) */}
+            {/* LINHA 2: APURAÇÃO ICMS */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'start' }}>
-              
-              {/* Esquerda: Gráfico E110 e Botão Baixar */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                   <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS (E110)</h3>
@@ -258,13 +267,9 @@ export default function ImportadorSped() {
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <button onClick={baixarArquivo} style={{ width: '100%', padding: '18px', marginTop: '20px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', transition: 'background 0.3s', boxShadow: '0 5px 15px rgba(0, 64, 128, 0.2)' }}>
-                    <Download size={24} /> Baixar Arquivo Validado
-                  </button>
                 </div>
               </div>
 
-              {/* Direita: Saldos E110, Guias E116 e Ajustes E111 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', height: '100%' }}>
                 <div style={{ display: 'flex', gap: '20px' }}>
                   <div style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
@@ -301,8 +306,23 @@ export default function ImportadorSped() {
                   </div>
                 </div>
               </div>
-              
             </div>
+
+            {/* BARRA DE AÇÕES INFERIOR (Oculta ao imprimir o PDF) */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '30px', padding: '20px', backgroundColor: '#fff', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <button onClick={baixarArquivo} style={{ padding: '15px 25px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}>
+                <Download size={20} /> 1. Baixar SPED Validado
+              </button>
+
+              <button onClick={gerarPDF} style={{ padding: '15px 25px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}>
+                <Printer size={20} /> 2. Salvar Relatório (PDF)
+              </button>
+
+              <button onClick={limparDados} style={{ padding: '15px 25px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}>
+                <RefreshCw size={20} /> 3. Limpar / Nova Validação
+              </button>
+            </div>
+
           </div>
         )}
       </div>
