@@ -38,6 +38,7 @@ function createWindow() {
 }
 
 app.whenReady().then(createWindow);
+autoUpdater.checkForUpdatesAndNotify();
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
