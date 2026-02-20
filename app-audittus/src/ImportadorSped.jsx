@@ -22,7 +22,6 @@ export default function ImportadorSped() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
   };
 
-  // Função para limpar todos os dados e começar de novo
   const limparDados = () => {
     setStatus('aguardando');
     setMensagem('Arraste seu arquivo SPED ou clique para selecionar');
@@ -37,7 +36,6 @@ export default function ImportadorSped() {
     setNomeOriginal('');
   };
 
-  // Função segura para gerar o PDF nativamente
   const gerarPDF = () => {
     window.print();
   };
@@ -156,21 +154,58 @@ export default function ImportadorSped() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
+    <div style={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      justifyContent: status !== 'sucesso' ? 'center' : 'flex-start',
+      minHeight: '100vh', 
+      backgroundColor: '#f0f4f8', 
+      padding: '30px', 
+      boxSizing: 'border-box', 
+      fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', 
+      color: '#333' 
+    }}>
       
-      {/* Estilo CSS embutido para esconder os botões na hora de gerar o PDF */}
+      {/* CSS TURBINADO PARA IMPRESSÃO */}
       <style>
         {`
           @media print {
-            .no-print { display: none !important; }
-            body { background-color: #fff !important; }
+            .no-print, button { display: none !important; } /* Esconde botões */
+            body, html, div[style*="backgroundColor: #f0f4f8"] { background-color: #fff !important; height: auto !important; padding: 0 !important; margin: 0 !important; }
             ::-webkit-scrollbar { display: none; }
+
+            /* Força o layout a ser vertical (uma coluna) na impressão */
+            div[style*="display: grid"] {
+              display: flex !important;
+              flex-direction: column !important;
+              gap: 30px !important;
+            }
+            
+            /* Garante que os cartões usem a largura total do papel */
+            div[style*="maxWidth: 1200px"], div[style*="maxWidth: 800px"] {
+                max-width: 100% !important; width: 100% !important; margin: 0 !important;
+            }
+
+            /* Ajusta a altura dos gráficos para o papel */
+            div[style*="height: 300px"] { height: 250px !important; }
+            .recharts-wrapper { margin: 0 auto !important; }
+
+            /* Remove sombras e fundo azul pesado para economizar tinta */
+            div[style*="boxShadow"], div[style*="backgroundColor: #fff"] {
+              box-shadow: none !important; border: 1px solid #eee !important; break-inside: avoid;
+            }
+            /* Banner da empresa em versão "light" para impressão */
+            div[style*="backgroundColor: #004080"] {
+                background-color: #fff !important; color: #004080 !important; border: 2px solid #004080 !important;
+            }
+            div[style*="backgroundColor: #004080"] h2, div[style*="backgroundColor: #004080"] span, div[style*="backgroundColor: #004080"] strong { color: #004080 !important; }
+            div[style*="backgroundColor: #004080"] svg { stroke: #004080 !important; }
           }
         `}
       </style>
 
-      {/* A MÁGICA DA CENTRALIZAÇÃO AQUI: margin: '0 auto' garante que a caixa fique no meio */}
-      <div style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ width: '100%', maxWidth: '1200px' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -178,7 +213,7 @@ export default function ImportadorSped() {
         </div>
 
         {status !== 'sucesso' && (
-          <div style={{ maxWidth: '800px', margin: '0 auto', padding: '50px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: 'all 0.3s ease' }}>
+          <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '50px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: 'all 0.3s ease' }}>
             <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
             {status === 'aguardando' && <UploadCloud size={64} color="#004080" style={{ marginBottom: '20px', opacity: 0.8 }} />}
             {status === 'processando' && <AlertCircle size={64} color="#F59E0B" style={{ marginBottom: '20px', animation: 'spin 2s linear infinite' }} />}
@@ -308,7 +343,7 @@ export default function ImportadorSped() {
               </div>
             </div>
 
-            {/* BARRA DE AÇÕES INFERIOR (Oculta ao imprimir o PDF) */}
+            {/* BARRA DE AÇÕES INFERIOR */}
             <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '30px', padding: '20px', backgroundColor: '#fff', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <button onClick={baixarArquivo} style={{ padding: '15px 25px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}>
                 <Download size={20} /> 1. Baixar SPED Validado
