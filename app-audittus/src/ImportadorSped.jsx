@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2 } from 'lucide-react';
 
 export default function ImportadorSped() {
   const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
@@ -9,6 +9,10 @@ export default function ImportadorSped() {
   const [ajustesICMS, setAjustesICMS] = useState([]);
   const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
   const [guiasE116, setGuiasE116] = useState([]);
+  
+  // NOVO: Estado para guardar os dados da Empresa (Registro 0000)
+  const [dadosEmpresa, setDadosEmpresa] = useState({ nome: '', cnpj: '', periodo: '' });
+
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
 
@@ -24,6 +28,9 @@ export default function ImportadorSped() {
     setStatus('processando');
     setMensagem('Limpando registros e processando dados fiscais...');
     setNomeOriginal(file.name);
+    
+    // Limpa os dados da empresa anterior caso importe um novo arquivo
+    setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
 
     const reader = new FileReader();
     reader.readAsText(file, 'windows-1252');
@@ -47,6 +54,27 @@ export default function ImportadorSped() {
 
       linhasSped.forEach(linha => {
         const colunas = linha.split('|');
+        
+        // NOVO: Captura de Dados da Empresa (Registro 0000)
+        if (colunas[1] === '0000') {
+          const dtIni = colunas[4] || '';
+          const dtFin = colunas[5] || '';
+          const pFormatado = (dtIni.length === 8 && dtFin.length === 8) 
+            ? `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}`
+            : `${dtIni} a ${dtFin}`;
+
+          let c = colunas[7] || '';
+          const cnpjFormatado = c.length === 14 
+            ? `${c.substring(0,2)}.${c.substring(2,5)}.${c.substring(5,8)}/${c.substring(8,12)}-${c.substring(12,14)}`
+            : c;
+
+          setDadosEmpresa({
+            nome: colunas[6] || 'Razão Social Não Identificada',
+            cnpj: cnpjFormatado,
+            periodo: pFormatado
+          });
+        }
+
         if (colunas[1] === 'E110') {
           totalDebitos += parseFloat(colunas[2].replace(',', '.')) || 0;
           totalCreditos += parseFloat(colunas[6].replace(',', '.')) || 0;
@@ -97,21 +125,8 @@ export default function ImportadorSped() {
   };
 
   return (
-    // O contêiner principal agora usa Flexbox para centralizar tudo na tela
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh', 
-      backgroundColor: '#f0f4f8', 
-      padding: '30px', 
-      boxSizing: 'border-box', 
-      fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', 
-      color: '#333' 
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
       
-      {/* Este contêiner interno mantém a largura máxima organizada */}
       <div style={{ width: '100%', maxWidth: '1200px' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
@@ -130,83 +145,99 @@ export default function ImportadorSped() {
         )}
 
         {status === 'sucesso' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'start' }}>
-            
-            {/* --- COLUNA DA ESQUERDA (Gráfico Maior + E111) --- */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-              {/* GRÁFICO AUMENTADO */}
-              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS (E110)</h3>
-                <div style={{ height: '350px', width: '100%' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={dadosGrafico} cx="50%" cy="50%" innerRadius={90} outerRadius={140} paddingAngle={5} dataKey="value" animationDuration={1500}>
-                        {dadosGrafico.map((entry, index) => <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                    </PieChart>
-                  </ResponsiveContainer>
+          <div>
+            {/* NOVO: BANNER DA EMPRESA (REGISTRO 0000) */}
+            <div style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <Building2 size={40} style={{ opacity: 0.9 }} />
+                <div>
+                  <h2 style={{ margin: '0 0 5px 0', fontSize: '24px', fontWeight: '700', letterSpacing: '-0.5px' }}>{dadosEmpresa.nome}</h2>
+                  <span style={{ fontSize: '15px', opacity: 0.8, fontFamily: 'monospace' }}>CNPJ: {dadosEmpresa.cnpj}</span>
                 </div>
-                <button onClick={baixarArquivo} style={{ width: '100%', padding: '18px', marginTop: '20px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', transition: 'background 0.3s', boxShadow: '0 5px 15px rgba(0, 64, 128, 0.2)' }}>
-                  <Download size={24} /> Baixar Arquivo Validado
-                </button>
               </div>
-
-              {/* AJUSTES E111 */}
-              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={24}/> Detalhamento de Ajustes (E111)</h3>
-                <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '10px' }}>
-                  {ajustesICMS.length > 0 ? ajustesICMS.map((ajuste, index) => (
-                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', marginBottom: '10px', borderLeft: `5px solid ${ajuste.codigo === 'RO020003' ? '#F59E0B' : '#004080'}` }}>
-                      <div><span style={{ display: 'block', fontWeight: 'bold', fontSize: '15px', color: '#333' }}>{ajuste.descricao}</span><span style={{ fontSize: '13px', color: '#666', fontFamily: 'monospace' }}>Cód: {ajuste.codigo}</span></div>
-                      <span style={{ fontWeight: 'bold', color: '#004080', fontSize: '16px' }}>{formatarMoeda(ajuste.valor)}</span>
-                    </div>
-                  )) : <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>Nenhum ajuste E111 encontrado.</p>}
-                </div>
+              <div style={{ textAlign: 'right', backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '12px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '4px', fontWeight: '600' }}>
+                  <Calendar size={14}/> Período de Apuração
+                </span>
+                <strong style={{ fontSize: '18px', letterSpacing: '0.5px' }}>{dadosEmpresa.periodo}</strong>
               </div>
             </div>
 
-            {/* --- COLUNA DA DIREITA (Saldos E110 + Guias E116) --- */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', height: '100%' }}>
-               {/* CARTÕES DE SALDO */}
-              <div style={{ display: 'flex', gap: '20px' }}>
-                <div style={{ flex: 1, backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor a Transportar</p>
-                  <h2 style={{ margin: 0, color: '#10b981', fontSize: '28px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
+            {/* O Restante do Dashboard continua igual e centralizado */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'start' }}>
+              
+              {/* COLUNA DA ESQUERDA */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS (E110)</h3>
+                  <div style={{ height: '350px', width: '100%' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={dadosGrafico} cx="50%" cy="50%" innerRadius={90} outerRadius={140} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                          {dadosGrafico.map((entry, index) => <Cell key={`cell-${index}`} fill={CORES[index % CORES.length]} />)}
+                        </Pie>
+                        <Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <button onClick={baixarArquivo} style={{ width: '100%', padding: '18px', marginTop: '20px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', transition: 'background 0.3s', boxShadow: '0 5px 15px rgba(0, 64, 128, 0.2)' }}>
+                    <Download size={24} /> Baixar Arquivo Validado
+                  </button>
                 </div>
-                <div style={{ flex: 1, backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Total de ICMS a Recolher</p>
-                  <h2 style={{ margin: 0, color: '#ef4444', fontSize: '28px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
+
+                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                   <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={24}/> Detalhamento de Ajustes (E111)</h3>
+                  <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '10px' }}>
+                    {ajustesICMS.length > 0 ? ajustesICMS.map((ajuste, index) => (
+                      <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', marginBottom: '10px', borderLeft: `5px solid ${ajuste.codigo === 'RO020003' ? '#F59E0B' : '#004080'}` }}>
+                        <div><span style={{ display: 'block', fontWeight: 'bold', fontSize: '15px', color: '#333' }}>{ajuste.descricao}</span><span style={{ fontSize: '13px', color: '#666', fontFamily: 'monospace' }}>Cód: {ajuste.codigo}</span></div>
+                        <span style={{ fontWeight: 'bold', color: '#004080', fontSize: '16px' }}>{formatarMoeda(ajuste.valor)}</span>
+                      </div>
+                    )) : <p style={{ textAlign: 'center', color: '#999', padding: '20px' }}>Nenhum ajuste E111 encontrado.</p>}
+                  </div>
                 </div>
               </div>
 
-              {/* GUIAS E116 */}
-              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-                <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <DollarSign size={24} /> Obrigações a Recolher (E116)
-                </h3>
-                <div style={{ overflowY: 'auto', paddingRight: '10px', flexGrow: 1 }}>
-                  {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
-                    <div key={index} style={{ backgroundColor: '#fff', border: '2px solid #e2e8f0', padding: '20px', borderRadius: '15px', marginBottom: '15px', transition: 'all 0.2s' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <div><span style={{ fontSize: '13px', color: '#666', display: 'block', marginBottom: '5px' }}>Código da Obrigação</span><span style={{ fontWeight: 'bold', color: '#333', fontSize: '16px', fontFamily: 'monospace' }}>{guia.codigo}</span></div>
-                        <span style={{ fontWeight: '800', color: '#ef4444', fontSize: '22px' }}>{formatarMoeda(guia.valor)}</span>
+              {/* COLUNA DA DIREITA */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', height: '100%' }}>
+                <div style={{ display: 'flex', gap: '20px' }}>
+                  <div style={{ flex: 1, backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor a Transportar</p>
+                    <h2 style={{ margin: 0, color: '#10b981', fontSize: '28px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
+                  </div>
+                  <div style={{ flex: 1, backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Total de ICMS a Recolher</p>
+                    <h2 style={{ margin: 0, color: '#ef4444', fontSize: '28px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <DollarSign size={24} /> Obrigações a Recolher (E116)
+                  </h3>
+                  <div style={{ overflowY: 'auto', paddingRight: '10px', flexGrow: 1 }}>
+                    {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
+                      <div key={index} style={{ backgroundColor: '#fff', border: '2px solid #e2e8f0', padding: '20px', borderRadius: '15px', marginBottom: '15px', transition: 'all 0.2s' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <div><span style={{ fontSize: '13px', color: '#666', display: 'block', marginBottom: '5px' }}>Código da Obrigação</span><span style={{ fontWeight: 'bold', color: '#333', fontSize: '16px', fontFamily: 'monospace' }}>{guia.codigo}</span></div>
+                          <span style={{ fontWeight: '800', color: '#ef4444', fontSize: '22px' }}>{formatarMoeda(guia.valor)}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '14px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', width: 'fit-content' }}>
+                          <Calendar size={16} color="#004080" /> <strong>Vencimento:</strong> {guia.vencimento || 'N/A'}
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#555', fontSize: '14px', backgroundColor: '#f8fafc', padding: '8px 12px', borderRadius: '8px', width: 'fit-content' }}>
-                        <Calendar size={16} color="#004080" /> <strong>Vencimento:</strong> {guia.vencimento || 'N/A'}
+                    )) : (
+                      <div style={{ textAlign: 'center', padding: '40px 0', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                        <CheckCircle size={48} style={{ marginBottom: '15px', opacity: 0.3, color: '#10b981' }} />
+                        <p style={{ fontSize: '18px', fontWeight: '500' }}>Nenhuma guia a recolher (E116) identificada.</p>
                       </div>
-                    </div>
-                  )) : (
-                    <div style={{ textAlign: 'center', padding: '40px 0', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-                      <CheckCircle size={48} style={{ marginBottom: '15px', opacity: 0.3, color: '#10b981' }} />
-                      <p style={{ fontSize: '18px', fontWeight: '500' }}>Nenhuma guia a recolher (E116) identificada.</p>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
+              
             </div>
-            
           </div>
         )}
       </div>
