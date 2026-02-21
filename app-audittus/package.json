@@ -1,6 +1,6 @@
 {
   "name": "importador-limpasped",
-  "version": "1.0.11",
+  "version": "1.0.14ma",
   "main": "electron.cjs",
   "author": "Rafael Max",
   "description": "Sistema de Validação Inteligente Fiscal - AUDITTUS",
