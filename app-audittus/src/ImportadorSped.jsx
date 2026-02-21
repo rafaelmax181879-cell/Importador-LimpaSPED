@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal } from 'lucide-react';
 
 export default function ImportadorSped() {
   const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
@@ -15,6 +15,9 @@ export default function ImportadorSped() {
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
 
+  // ESTADO DO VAF
+  const [dadosVaf, setDadosVaf] = useState({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
+
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
 
@@ -23,30 +26,21 @@ export default function ImportadorSped() {
   };
 
   const limparDados = () => {
-    setStatus('aguardando');
-    setMensagem('Arraste seu arquivo SPED ou clique para selecionar');
-    setDadosGraficoIcms([]);
-    setAjustesICMS([]);
-    setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
-    setGuiasE116([]);
-    setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
-    setDadosGraficoOperacoes([]);
-    setListaCfops({ entradas: [], saidas: [] });
-    setArquivoProcessado(null);
-    setNomeOriginal('');
+    setStatus('aguardando'); setMensagem('Arraste seu arquivo SPED ou clique para selecionar');
+    setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
+    setGuiasE116([]); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
+    setDadosGraficoOperacoes([]); setListaCfops({ entradas: [], saidas: [] });
+    setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
+    setArquivoProcessado(null); setNomeOriginal('');
   };
 
-  const gerarPDF = () => {
-    window.print();
-  };
+  const gerarPDF = () => window.print();
 
   const processarArquivo = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    setStatus('processando');
-    setMensagem('Limpando registros e processando dados fiscais...');
-    setNomeOriginal(file.name);
-    setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
+    setStatus('processando'); setMensagem('Limpando registros e calculando VAF Fiscal...');
+    setNomeOriginal(file.name); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
 
     const reader = new FileReader();
     reader.readAsText(file, 'windows-1252');
@@ -56,14 +50,24 @@ export default function ImportadorSped() {
       let linhasSped = conteudoArquivo.split(/\r?\n/);
 
       linhasSped = linhasSped.filter(linha => {
-        const t = linha.trim();
-        return t !== '' && !t.startsWith('|C191|') && !t.startsWith('|C173|');
+        const t = linha.trim(); return t !== '' && !t.startsWith('|C191|') && !t.startsWith('|C173|');
       });
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
       linhasSped = linhasSped.map(linha => linha.replace(textosParaRemover, ''));
 
+      // LISTAS DE CFOP PARA O VAF
+      const cfopsEntradasBrutas = new Set(['1102','2102','3102','1117','2117','1403','2403','1101','2101','3101','1122','2122','1401','2401']);
+      const cfopsSaidasBrutas = new Set([
+        '5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401',
+        '5351','6351','7351','5352','6352','7352','5353','6353','7353','5354','6354','7354','5355','6355','7355','5356','6356','7356','5357','6357','7357',
+        '5301','6301','7301','5302','6302','7302','5303','6303','7303','5304','6304','7304','5305','6305','7305','5306','6306','7306','5307','6307','7307'
+      ]);
+      const cfopsDevVendas = new Set(['1202','2202','3202','1411','2411','1201','2201','3201','1410','2410','1206','2206','1207','2207']);
+      const cfopsDevCompras = new Set(['5202','6202','7202','5411','6411','5201','6201','7201','5410','6410','5206','6206','5207','6207']);
+
       let totalDebitos = 0; let totalCreditos = 0;
       let totalEntradas = 0; let totalSaidas = 0;
+      let vafEntradas = 0; let vafSaidas = 0; let vafDevVen = 0; let vafDevCom = 0;
       let mapaCfopEntrada = {}; let mapaCfopSaida = {};
       let listaAjustes = []; let listaGuias = [];
       let saldoCredorFinal = 0; let icmsRecolherFinal = 0;
@@ -87,14 +91,22 @@ export default function ImportadorSped() {
           else if (indOper === '1') totalSaidas += vlDoc;
         }
 
-        if (colunas[1] === 'C190') {
+        // C190 (Produtos) e D190 (Serviços) para pegar CFOP exato
+        if (colunas[1] === 'C190' || colunas[1] === 'D190') {
           const cfop = colunas[3];
           const vlOpr = parseFloat(colunas[5]?.replace(',', '.')) || 0;
+          
           if (cfop.startsWith('1') || cfop.startsWith('2') || cfop.startsWith('3')) {
             mapaCfopEntrada[cfop] = (mapaCfopEntrada[cfop] || 0) + vlOpr;
           } else if (cfop.startsWith('5') || cfop.startsWith('6') || cfop.startsWith('7')) {
             mapaCfopSaida[cfop] = (mapaCfopSaida[cfop] || 0) + vlOpr;
           }
+
+          // Filtro VAF
+          if (cfopsEntradasBrutas.has(cfop)) vafEntradas += vlOpr;
+          if (cfopsSaidasBrutas.has(cfop)) vafSaidas += vlOpr;
+          if (cfopsDevVendas.has(cfop)) vafDevVen += vlOpr;
+          if (cfopsDevCompras.has(cfop)) vafDevCom += vlOpr;
         }
 
         if (colunas[1] === 'E110') {
@@ -125,6 +137,9 @@ export default function ImportadorSped() {
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: totalEntradas }, { name: 'Total Saídas', value: totalSaidas }]);
       setListaCfops({ entradas: arrEntradas, saidas: arrSaidas });
       
+      const calculoVaf = (vafSaidas - vafDevVen) - (vafEntradas - vafDevCom);
+      setDadosVaf({ entradasBrutas: vafEntradas, saidasBrutas: vafSaidas, devVendas: vafDevVen, devCompras: vafDevCom, vafTotal: calculoVaf });
+
       setAjustesICMS(listaAjustes);
       setResumoIcms({ saldoCredor: saldoCredorFinal, icmsRecolher: icmsRecolherFinal });
       setGuiasE116(listaGuias);
@@ -141,7 +156,7 @@ export default function ImportadorSped() {
 
       setArquivoProcessado(resultadoFinal);
       setStatus('sucesso');
-      setMensagem('Auditoria concluída com sucesso!');
+      setMensagem('Auditoria e VAF calculados com sucesso!');
     };
   };
 
@@ -154,58 +169,33 @@ export default function ImportadorSped() {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      alignItems: 'center', 
-      justifyContent: status !== 'sucesso' ? 'center' : 'flex-start',
-      minHeight: '100vh', 
-      backgroundColor: '#f0f4f8', 
-      padding: '30px', 
-      boxSizing: 'border-box', 
-      fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', 
-      color: '#333' 
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: status !== 'sucesso' ? 'center' : 'flex-start', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
       
-      {/* CSS TURBINADO PARA IMPRESSÃO */}
       <style>
         {`
           @media print {
-            .no-print, button { display: none !important; } /* Esconde botões */
+            .no-print, button { display: none !important; }
             body, html, div[style*="backgroundColor: #f0f4f8"] { background-color: #fff !important; height: auto !important; padding: 0 !important; margin: 0 !important; }
             ::-webkit-scrollbar { display: none; }
-
-            /* Força o layout a ser vertical (uma coluna) na impressão */
-            div[style*="display: grid"] {
-              display: flex !important;
-              flex-direction: column !important;
-              gap: 30px !important;
-            }
-            
-            /* Garante que os cartões usem a largura total do papel */
-            div[style*="maxWidth: 1200px"], div[style*="maxWidth: 800px"] {
-                max-width: 100% !important; width: 100% !important; margin: 0 !important;
-            }
-
-            /* Ajusta a altura dos gráficos para o papel */
+            div[style*="display: grid"] { display: flex !important; flex-direction: column !important; gap: 30px !important; }
+            div[style*="maxWidth: 1200px"], div[style*="maxWidth: 1400px"], div[style*="maxWidth: 800px"] { max-width: 100% !important; width: 100% !important; margin: 0 !important; }
             div[style*="height: 300px"] { height: 250px !important; }
             .recharts-wrapper { margin: 0 auto !important; }
-
-            /* Remove sombras e fundo azul pesado para economizar tinta */
-            div[style*="boxShadow"], div[style*="backgroundColor: #fff"] {
-              box-shadow: none !important; border: 1px solid #eee !important; break-inside: avoid;
-            }
-            /* Banner da empresa em versão "light" para impressão */
-            div[style*="backgroundColor: #004080"] {
-                background-color: #fff !important; color: #004080 !important; border: 2px solid #004080 !important;
-            }
-            div[style*="backgroundColor: #004080"] h2, div[style*="backgroundColor: #004080"] span, div[style*="backgroundColor: #004080"] strong { color: #004080 !important; }
-            div[style*="backgroundColor: #004080"] svg { stroke: #004080 !important; }
+            div[style*="boxShadow"], div[style*="backgroundColor: #fff"] { box-shadow: none !important; border: 1px solid #eee !important; break-inside: avoid; }
+            
+            /* Ajustes do Banner da Empresa e VAF para Impressão */
+            .print-banner { background: #fff !important; color: #004080 !important; border: 2px solid #004080 !important; }
+            .print-banner h2, .print-banner span, .print-banner strong, .print-banner p { color: #004080 !important; }
+            .print-banner svg { stroke: #004080 !important; }
+            .print-vaf { background: #fff !important; color: #1e3a8a !important; border: 3px solid #3b82f6 !important; }
+            .print-vaf h2, .print-vaf h3, .print-vaf span, .print-vaf p { color: #1e3a8a !important; }
+            .print-vaf-text { color: #333 !important; }
           }
         `}
       </style>
 
-      <div style={{ width: '100%', maxWidth: '1200px' }}>
+      {/* Aumentei a largura máxima para acomodar os 3 painéis confortavelmente */}
+      <div style={{ width: '100%', maxWidth: '1400px' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -224,7 +214,7 @@ export default function ImportadorSped() {
         {status === 'sucesso' && (
           <div>
             {/* BANNER DA EMPRESA */}
-            <div style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)' }}>
+            <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)', WebkitPrintColorAdjust: 'exact' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                 <Building2 size={40} style={{ opacity: 0.9 }} />
                 <div>
@@ -238,11 +228,13 @@ export default function ImportadorSped() {
               </div>
             </div>
 
-            {/* LINHA 1: OPERAÇÕES */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'start', marginBottom: '25px' }}>
-              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+            {/* LINHA 1: GRID TRIPLO (OPERAÇÕES, CFOPS E NOVO VAF) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'start', marginBottom: '25px' }}>
+              
+              {/* 1. Gráfico de Operações */}
+              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', height: '100%' }}>
                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <ArrowRightLeft size={24}/> Volume de Operações (C100)
+                  <ArrowRightLeft size={24}/> Volume de Operações
                 </h3>
                 <div style={{ height: '300px', width: '100%' }}>
                   <ResponsiveContainer width="100%" height="100%">
@@ -257,12 +249,13 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
+              {/* 2. Lista de CFOPs */}
               <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP (C190)</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
-                    <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                    <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
                       {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
                         <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}>
                           <span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span>
@@ -273,7 +266,7 @@ export default function ImportadorSped() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
                     <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
-                    <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                    <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
                       {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
                         <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}>
                           <span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span>
@@ -284,6 +277,53 @@ export default function ImportadorSped() {
                   </div>
                 </div>
               </div>
+
+              {/* 3. NOVO: SUPER PAINEL VAF FISCAL (NA DIREITA) */}
+              <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', height: '100%', display: 'flex', flexDirection: 'column', color: '#fff', WebkitPrintColorAdjust: 'exact' }}>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}>
+                    <Calculator size={26}/> VAF Fiscal do Período
+                  </h3>
+                </div>
+
+                {/* Detalhamento do Cálculo (Lista Vertical) */}
+                <div className="print-vaf-text" style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span>
+                    <strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#fca5a5' }}><Minus size={16}/> Dev. Vendas</span>
+                    <strong style={{ fontSize: '16px', color: '#fca5a5' }}>{formatarMoeda(dadosVaf.devVendas)}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span>
+                    <strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#6ee7b7' }}><Plus size={16}/> Dev. Compras</span>
+                    <strong style={{ fontSize: '16px', color: '#6ee7b7' }}>{formatarMoeda(dadosVaf.devCompras)}</strong>
+                  </div>
+
+                </div>
+
+                {/* Bloco de Resultado Final */}
+                <div style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}>
+                  <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
+                    <Equal size={16}/> Valor Adicionado Gerado
+                  </p>
+                  <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>
+                    {formatarMoeda(dadosVaf.vafTotal)}
+                  </h2>
+                </div>
+
+              </div>
+
             </div>
 
             {/* LINHA 2: APURAÇÃO ICMS */}
