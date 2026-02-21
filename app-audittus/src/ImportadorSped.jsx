@@ -15,7 +15,6 @@ export default function ImportadorSped() {
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
 
-  // ESTADO DO VAF
   const [dadosVaf, setDadosVaf] = useState({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
 
   const CORES_ICMS = ['#004080', '#F59E0B']; 
@@ -55,7 +54,6 @@ export default function ImportadorSped() {
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
       linhasSped = linhasSped.map(linha => linha.replace(textosParaRemover, ''));
 
-      // LISTAS DE CFOP PARA O VAF
       const cfopsEntradasBrutas = new Set(['1102','2102','3102','1117','2117','1403','2403','1101','2101','3101','1122','2122','1401','2401']);
       const cfopsSaidasBrutas = new Set([
         '5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401',
@@ -91,7 +89,6 @@ export default function ImportadorSped() {
           else if (indOper === '1') totalSaidas += vlDoc;
         }
 
-        // C190 (Produtos) e D190 (Serviços) para pegar CFOP exato
         if (colunas[1] === 'C190' || colunas[1] === 'D190') {
           const cfop = colunas[3];
           const vlOpr = parseFloat(colunas[5]?.replace(',', '.')) || 0;
@@ -102,7 +99,6 @@ export default function ImportadorSped() {
             mapaCfopSaida[cfop] = (mapaCfopSaida[cfop] || 0) + vlOpr;
           }
 
-          // Filtro VAF
           if (cfopsEntradasBrutas.has(cfop)) vafEntradas += vlOpr;
           if (cfopsSaidasBrutas.has(cfop)) vafSaidas += vlOpr;
           if (cfopsDevVendas.has(cfop)) vafDevVen += vlOpr;
@@ -126,7 +122,9 @@ export default function ImportadorSped() {
         if (colunas[1] === 'E116') {
           const v = colunas[4]; 
           const vencimentoFormatado = v && v.length === 8 ? `${v.substring(0,2)}/${v.substring(2,4)}/${v.substring(4,8)}` : v;
-          listaGuias.push({ codigo: colunas[2], valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: vencimentoFormatado });
+          // A MÁGICA AQUI: colunas[5] busca o Código de Receita (Ex: 1212) ao invés do Código da Obrigação
+          const codReceita = colunas[5] && colunas[5].trim() !== '' ? colunas[5] : colunas[2]; 
+          listaGuias.push({ codigo: codReceita, valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: vencimentoFormatado });
         }
       });
 
@@ -169,33 +167,61 @@ export default function ImportadorSped() {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: status !== 'sucesso' ? 'center' : 'flex-start', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
+    <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: status !== 'sucesso' ? 'center' : 'flex-start', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
       
       <style>
         {`
           @media print {
+            @page { size: A4 portrait; margin: 15mm; }
             .no-print, button { display: none !important; }
-            body, html, div[style*="backgroundColor: #f0f4f8"] { background-color: #fff !important; height: auto !important; padding: 0 !important; margin: 0 !important; }
+            body, html { background-color: #fff !important; margin: 0 !important; padding: 0 !important; }
+
+            .main-container { background-color: #fff !important; display: block !important; padding: 0 !important; }
+            .content-wrapper { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; }
             ::-webkit-scrollbar { display: none; }
-            div[style*="display: grid"] { display: flex !important; flex-direction: column !important; gap: 30px !important; }
-            div[style*="maxWidth: 1200px"], div[style*="maxWidth: 1400px"], div[style*="maxWidth: 800px"] { max-width: 100% !important; width: 100% !important; margin: 0 !important; }
-            div[style*="height: 300px"] { height: 250px !important; }
-            .recharts-wrapper { margin: 0 auto !important; }
-            div[style*="boxShadow"], div[style*="backgroundColor: #fff"] { box-shadow: none !important; border: 1px solid #eee !important; break-inside: avoid; }
-            
-            /* Ajustes do Banner da Empresa e VAF para Impressão */
-            .print-banner { background: #fff !important; color: #004080 !important; border: 2px solid #004080 !important; }
+
+            .print-grid {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                gap: 25px !important;
+                margin-bottom: 25px !important;
+            }
+            .print-flex-col {
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                width: 100% !important;
+                gap: 25px !important;
+            }
+
+            .print-card, .print-vaf, .print-banner {
+                width: 100% !important;
+                max-width: 650px !important; 
+                margin: 0 auto !important; 
+                page-break-inside: avoid !important; 
+                break-inside: avoid !important;
+                box-shadow: none !important;
+                border: 1px solid #cbd5e1 !important;
+                box-sizing: border-box !important;
+            }
+
+            .print-banner { border: 2px solid #004080 !important; background: #fff !important; color: #004080 !important; }
             .print-banner h2, .print-banner span, .print-banner strong, .print-banner p { color: #004080 !important; }
             .print-banner svg { stroke: #004080 !important; }
-            .print-vaf { background: #fff !important; color: #1e3a8a !important; border: 3px solid #3b82f6 !important; }
-            .print-vaf h2, .print-vaf h3, .print-vaf span, .print-vaf p { color: #1e3a8a !important; }
+
+            .print-vaf { border: 3px solid #3b82f6 !important; background: #fff !important; padding: 25px !important; }
+            .print-vaf h3, .print-vaf span, .print-vaf p { color: #1e3a8a !important; }
             .print-vaf-text { color: #333 !important; }
+            .print-vaf-result { border: 1px solid #cbd5e1 !important; box-shadow: none !important; background: #f8fafc !important; }
+
+            .print-chart { height: 250px !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+            .recharts-wrapper { margin: 0 auto !important; }
           }
         `}
       </style>
 
-      {/* Aumentei a largura máxima para acomodar os 3 painéis confortavelmente */}
-      <div style={{ width: '100%', maxWidth: '1400px' }}>
+      <div className="content-wrapper" style={{ width: '100%', maxWidth: '1400px' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -228,15 +254,14 @@ export default function ImportadorSped() {
               </div>
             </div>
 
-            {/* LINHA 1: GRID TRIPLO (OPERAÇÕES, CFOPS E NOVO VAF) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'start', marginBottom: '25px' }}>
+            {/* LINHA 1: GRID TRIPLO - alignItems: 'stretch' ajusta o crescimento sem sobrepor as outras caixas! */}
+            <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'stretch', marginBottom: '25px' }}>
               
-              {/* 1. Gráfico de Operações */}
-              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', height: '100%' }}>
+              <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <ArrowRightLeft size={24}/> Volume de Operações
                 </h3>
-                <div style={{ height: '300px', width: '100%' }}>
+                <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>
@@ -249,8 +274,7 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* 2. Lista de CFOPs */}
-              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+              <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP (C190)</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -278,42 +302,31 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* 3. NOVO: SUPER PAINEL VAF FISCAL (NA DIREITA) */}
-              <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', height: '100%', display: 'flex', flexDirection: 'column', color: '#fff', WebkitPrintColorAdjust: 'exact' }}>
-                
+              <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', color: '#fff', WebkitPrintColorAdjust: 'exact' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}>
                   <h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}>
                     <Calculator size={26}/> VAF Fiscal do Período
                   </h3>
                 </div>
-
-                {/* Detalhamento do Cálculo (Lista Vertical) */}
                 <div className="print-vaf-text" style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
-                  
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span>
                     <strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong>
                   </div>
-
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#fca5a5' }}><Minus size={16}/> Dev. Vendas</span>
                     <strong style={{ fontSize: '16px', color: '#fca5a5' }}>{formatarMoeda(dadosVaf.devVendas)}</strong>
                   </div>
-
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span>
                     <strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong>
                   </div>
-
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#6ee7b7' }}><Plus size={16}/> Dev. Compras</span>
                     <strong style={{ fontSize: '16px', color: '#6ee7b7' }}>{formatarMoeda(dadosVaf.devCompras)}</strong>
                   </div>
-
                 </div>
-
-                {/* Bloco de Resultado Final */}
-                <div style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}>
+                <div className="print-vaf-result" style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}>
                   <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}>
                     <Equal size={16}/> Valor Adicionado Gerado
                   </p>
@@ -321,43 +334,41 @@ export default function ImportadorSped() {
                     {formatarMoeda(dadosVaf.vafTotal)}
                   </h2>
                 </div>
-
               </div>
 
             </div>
 
             {/* LINHA 2: APURAÇÃO ICMS */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'start' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS (E110)</h3>
-                  <div style={{ height: '300px', width: '100%' }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>
-                          {dadosGraficoIcms.map((entry, index) => <Cell key={`cell-icms-${index}`} fill={CORES_ICMS[index % CORES_ICMS.length]} />)}
-                        </Pie>
-                        <Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+            <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'stretch' }}>
+              
+              <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS (E110)</h3>
+                <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                        {dadosGraficoIcms.map((entry, index) => <Cell key={`cell-icms-${index}`} fill={CORES_ICMS[index % CORES_ICMS.length]} />)}
+                      </Pie>
+                      <Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', height: '100%' }}>
-                <div style={{ display: 'flex', gap: '20px' }}>
-                  <div style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <div className="print-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                <div className="print-flex-col" style={{ display: 'flex', gap: '20px', width: '100%' }}>
+                  <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                     <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor Transportar</p>
                     <h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
                   </div>
-                  <div style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                     <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>ICMS a Recolher</p>
                     <h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
                   <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign size={20} /> Obrigações (E116)</h3>
                   <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
                     {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
@@ -369,7 +380,7 @@ export default function ImportadorSped() {
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
                    <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={20}/> Ajustes (E111)</h3>
                   <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
                     {ajustesICMS.length > 0 ? ajustesICMS.map((ajuste, index) => (
