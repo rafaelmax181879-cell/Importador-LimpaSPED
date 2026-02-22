@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity } from 'lucide-react';
 
 export default function ImportadorSped() {
   const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
   const [status, setStatus] = useState('aguardando'); 
+  const [abaAtiva, setAbaAtiva] = useState('home'); 
+  const [arquivoProcessado, setArquivoProcessado] = useState(null);
+  const [nomeOriginal, setNomeOriginal] = useState('');
+  
   const [dadosGraficoIcms, setDadosGraficoIcms] = useState([]);
   const [ajustesICMS, setAjustesICMS] = useState([]);
   const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
@@ -12,17 +16,18 @@ export default function ImportadorSped() {
   const [dadosEmpresa, setDadosEmpresa] = useState({ nome: '', cnpj: '', periodo: '' });
   const [dadosGraficoOperacoes, setDadosGraficoOperacoes] = useState([]);
   const [listaCfops, setListaCfops] = useState({ entradas: [], saidas: [] });
-  const [arquivoProcessado, setArquivoProcessado] = useState(null);
-  const [nomeOriginal, setNomeOriginal] = useState('');
   const [dadosVaf, setDadosVaf] = useState({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
   const [relatorioCorrecoes, setRelatorioCorrecoes] = useState({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
-  
-  // NOVOS ESTADOS: RANKINGS
-  const [topProdutos, setTopProdutos] = useState([]);
+  const [topProdutos, setTopProdutos] = useState({ vendas: [], compras: [] });
   const [topFornecedores, setTopFornecedores] = useState([]);
+
+  // ESTADOS DO MÓDULO TRIBUTÁRIO DINÂMICO
+  const [dadosTributacao, setDadosTributacao] = useState([]);
+  const [resumoTributacao, setResumoTributacao] = useState({ st: 0, servicos: 0, isento: 0, total: 0 });
 
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
+  const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#14b8a6', '#6366f1'];
 
   const formatarMoeda = (valor) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
@@ -30,12 +35,14 @@ export default function ImportadorSped() {
 
   const limparDados = () => {
     setStatus('aguardando'); setMensagem('Arraste seu arquivo SPED ou clique para selecionar');
+    setAbaAtiva('home');
     setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
     setGuiasE116([]); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
     setDadosGraficoOperacoes([]); setListaCfops({ entradas: [], saidas: [] });
     setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
-    setTopProdutos([]); setTopFornecedores([]);
+    setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]);
+    setDadosTributacao([]); setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 });
     setArquivoProcessado(null); setNomeOriginal('');
   };
 
@@ -44,7 +51,7 @@ export default function ImportadorSped() {
   const processarArquivo = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    setStatus('processando'); setMensagem('Processando Business Intelligence e VAF Fiscal...');
+    setStatus('processando'); setMensagem('Processando Inteligência de Negócios e Análise Tributária...');
     setNomeOriginal(file.name); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' });
 
     const reader = new FileReader();
@@ -70,32 +77,24 @@ export default function ImportadorSped() {
         return linha.replace(textosParaRemover, '');
       });
 
-      // CFOPs CORRIGIDOS (Inclusão Fretes e 5117/6117)
-      const cfopsEntradasBrutas = new Set([
-        '1102','2102','3102','1117','2117','1403','2403','1101','2101','3101','1122','2122','1401','2401',
-        '1351','1352','1353','1354','1355','1356','2351','2352','2353','2354','2355','2356','3351','3352','3353','3354','3355','3356'
-      ]);
-      const cfopsSaidasBrutas = new Set([
-        '5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401','5117','6117',
-        '5351','6351','7351','5352','6352','7352','5353','6353','7353','5354','6354','7354','5355','6355','7355','5356','6356','7356','5357','6357','7357',
-        '5301','6301','7301','5302','6302','7302','5303','6303','7303','5304','6304','7304','5305','6305','7305','5306','6306','7306','5307','6307','7307'
-      ]);
+      const cfopsEntradasBrutas = new Set(['1102','2102','3102','1117','2117','1403','2403','1101','2101','3101','1122','2122','1401','2401','1351','1352','1353','1354','1355','1356','2351','2352','2353','2354','2355','2356','3351','3352','3353','3354','3355','3356']);
+      const cfopsSaidasBrutas = new Set(['5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401','5117','6117','5351','6351','7351','5352','6352','7352','5353','6353','7353','5354','6354','7354','5355','6355','7355','5356','6356','7356','5357','6357','7357','5301','6301','7301','5302','6302','7302','5303','6303','7303','5304','6304','7304','5305','6305','7305','5306','6306','7306','5307','6307','7307']);
       const cfopsDevVendas = new Set(['1202','2202','3202','1411','2411','1201','2201','3201','1410','2410','1206','2206','1207','2207']);
       const cfopsDevCompras = new Set(['5202','6202','7202','5411','6411','5201','6201','7201','5410','6410','5206','6206','5207','6207']);
 
-      let totalDebitos = 0; let totalCreditos = 0;
-      let totalEntradas = 0; let totalSaidas = 0;
+      let totalDebitos = 0; let totalCreditos = 0; let totalEntradas = 0; let totalSaidas = 0;
       let vafEntradas = 0; let vafSaidas = 0; let vafDevVen = 0; let vafDevCom = 0;
       let mapaCfopEntrada = {}; let mapaCfopSaida = {};
       let listaAjustes = []; let listaGuias = [];
       let saldoCredorFinal = 0; let icmsRecolherFinal = 0;
 
-      // Variáveis BI
-      let mapaProdutos = {}; 
-      let mapaParticipantes = {}; 
-      let vendasPorProduto = {}; 
-      let comprasPorFornecedor = {};
-      let operacaoAtual = ''; // Guarda se a NF atual é Entrada (0) ou Saída (1)
+      let mapaProdutos = {}; let mapaParticipantes = {}; 
+      let vendasPorProduto = {}; let comprasPorProduto = {}; let comprasPorFornecedor = {};
+      let operacaoAtual = ''; 
+
+      // Variáveis do Módulo Tributário Dinâmico
+      let mapaTributacao = {};
+      let valST = 0; let valServicos = 0; let valIsento = 0; let totalAnalise = 0;
 
       linhasSped.forEach(linha => {
         const colunas = linha.split('|');
@@ -108,15 +107,13 @@ export default function ImportadorSped() {
           setDadosEmpresa({ nome: colunas[6] || 'Razão Social Não Identificada', cnpj: cnpjFormatado, periodo: pFormatado });
         }
 
-        // CADASTROS PARA O BI
-        if (colunas[1] === '0150') mapaParticipantes[colunas[2]] = colunas[3]; // Participantes (Fornecedores/Clientes)
-        if (colunas[1] === '0200') mapaProdutos[colunas[2]] = colunas[3]; // Produtos
+        if (colunas[1] === '0150') mapaParticipantes[colunas[2]] = colunas[3]; 
+        if (colunas[1] === '0200') mapaProdutos[colunas[2]] = colunas[3]; 
 
         if (colunas[1] === 'C100') {
-          operacaoAtual = colunas[2]; // 0-Entrada, 1-Saída
+          operacaoAtual = colunas[2]; 
           const codPart = colunas[4];
           const vlDoc = parseFloat(colunas[12]?.replace(',', '.')) || 0;
-          
           if (operacaoAtual === '0') {
             totalEntradas += vlDoc;
             if (codPart) comprasPorFornecedor[codPart] = (comprasPorFornecedor[codPart] || 0) + vlDoc;
@@ -125,23 +122,54 @@ export default function ImportadorSped() {
           }
         }
 
-        // ITENS VENDIDOS (BI)
         if (colunas[1] === 'C170') {
-          if (operacaoAtual === '1') { // Se a NF "Pai" é de Saída
-            const codItem = colunas[3];
-            const vlItem = parseFloat(colunas[7]?.replace(',', '.')) || 0;
+          const codItem = colunas[3];
+          const vlItem = parseFloat(colunas[7]?.replace(',', '.')) || 0;
+          if (operacaoAtual === '1') {
             vendasPorProduto[codItem] = (vendasPorProduto[codItem] || 0) + vlItem;
+          } else if (operacaoAtual === '0') {
+            comprasPorProduto[codItem] = (comprasPorProduto[codItem] || 0) + vlItem;
           }
         }
 
         if (colunas[1] === 'C190' || colunas[1] === 'D190') {
-          const cfop = colunas[3];
+          const cfop = colunas[3] || '';
           const vlOpr = parseFloat(colunas[5]?.replace(',', '.')) || 0;
+          const vlIcms = parseFloat(colunas[7]?.replace(',', '.')) || 0;
           
+          // Formata a alíquota para ficar bonita e sem zeros extras
+          let aliqRaw = colunas[4] ? colunas[4].trim() : '';
+          let aliqIcms = '';
+          if (aliqRaw) {
+              let num = parseFloat(aliqRaw.replace(',', '.'));
+              if (!isNaN(num) && num > 0) aliqIcms = num.toString().replace('.', ',');
+          }
+
           if (cfop.startsWith('1') || cfop.startsWith('2') || cfop.startsWith('3')) {
             mapaCfopEntrada[cfop] = (mapaCfopEntrada[cfop] || 0) + vlOpr;
           } else if (cfop.startsWith('5') || cfop.startsWith('6') || cfop.startsWith('7')) {
             mapaCfopSaida[cfop] = (mapaCfopSaida[cfop] || 0) + vlOpr;
+
+            // INTELIGÊNCIA TRIBUTÁRIA DINÂMICA
+            let categoria = '';
+            
+            if (cfop.startsWith('53') || cfop.startsWith('63') || cfop.startsWith('73')) {
+                categoria = 'Prestações de Serviços';
+                valServicos += vlOpr;
+            } else if (cfop.startsWith('54') || cfop.startsWith('64') || cfop.startsWith('74')) {
+                categoria = 'Substituição Tributária (ST)';
+                valST += vlOpr;
+            } else if (vlIcms === 0) {
+                categoria = 'Isentas / Não Tributadas';
+                valIsento += vlOpr;
+            } else if (aliqIcms !== '') {
+                categoria = `Tributadas a ${aliqIcms}%`;
+            } else {
+                categoria = `Outras Operações (CFOP ${cfop})`;
+            }
+
+            mapaTributacao[categoria] = (mapaTributacao[categoria] || 0) + vlOpr;
+            totalAnalise += vlOpr;
           }
 
           if (cfopsEntradasBrutas.has(cfop)) vafEntradas += vlOpr;
@@ -175,23 +203,26 @@ export default function ImportadorSped() {
       const arrEntradas = Object.keys(mapaCfopEntrada).map(k => ({ cfop: k, valor: mapaCfopEntrada[k] })).sort((a,b) => b.valor - a.valor);
       const arrSaidas = Object.keys(mapaCfopSaida).map(k => ({ cfop: k, valor: mapaCfopSaida[k] })).sort((a,b) => b.valor - a.valor);
 
-      // Arrays BI Ordenados
-      const topProd = Object.keys(vendasPorProduto)
-        .map(k => ({ nome: mapaProdutos[k] || `Produto sem cadastro (${k})`, valor: vendasPorProduto[k] }))
-        .sort((a, b) => b.valor - a.valor).slice(0, 10);
-      
-      const topForn = Object.keys(comprasPorFornecedor)
-        .map(k => ({ nome: mapaParticipantes[k] || `Fornecedor sem cadastro (${k})`, valor: comprasPorFornecedor[k] }))
-        .sort((a, b) => b.valor - a.valor).slice(0, 5);
+      const topVendas = Object.keys(vendasPorProduto).map(k => ({ nome: mapaProdutos[k] || `Cód: ${k}`, valor: vendasPorProduto[k] })).sort((a, b) => b.valor - a.valor).slice(0, 10);
+      const topCompras = Object.keys(comprasPorProduto).map(k => ({ nome: mapaProdutos[k] || `Cód: ${k}`, valor: comprasPorProduto[k] })).sort((a, b) => b.valor - a.valor).slice(0, 10);
+      const topForn = Object.keys(comprasPorFornecedor).map(k => ({ nome: mapaParticipantes[k] || `Cód: ${k}`, valor: comprasPorFornecedor[k] })).sort((a, b) => b.valor - a.valor).slice(0, 5);
+
+      // Transforma o Objeto de Tributos em Array Ordenado para o Gráfico e Tabela
+      const arrayTributacao = Object.keys(mapaTributacao)
+        .map(k => ({ name: k, value: mapaTributacao[k] }))
+        .sort((a, b) => b.value - a.value);
 
       setDadosGraficoIcms([{ name: 'Créditos', value: totalCreditos }, { name: 'Débitos', value: totalDebitos }]);
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: totalEntradas }, { name: 'Total Saídas', value: totalSaidas }]);
       setListaCfops({ entradas: arrEntradas, saidas: arrSaidas });
-      setTopProdutos(topProd);
+      setTopProdutos({ vendas: topVendas, compras: topCompras });
       setTopFornecedores(topForn);
       
       const calculoVaf = (vafSaidas - vafDevVen) - (vafEntradas - vafDevCom);
       setDadosVaf({ entradasBrutas: vafEntradas, saidasBrutas: vafSaidas, devVendas: vafDevVen, devCompras: vafDevCom, vafTotal: calculoVaf });
+
+      setResumoTributacao({ st: valST, servicos: valServicos, isento: valIsento, total: totalAnalise });
+      setDadosTributacao(arrayTributacao);
 
       setAjustesICMS(listaAjustes);
       setResumoIcms({ saldoCredor: saldoCredorFinal, icmsRecolher: icmsRecolherFinal });
@@ -210,7 +241,7 @@ export default function ImportadorSped() {
       setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: 3 });
       setArquivoProcessado(resultadoFinal);
       setStatus('sucesso');
-      setMensagem('Dashboard de BI e VAF calculados com sucesso!');
+      setMensagem('Dashboard Tributário processado com sucesso!');
     };
   };
 
@@ -221,6 +252,20 @@ export default function ImportadorSped() {
     link.href = URL.createObjectURL(blob); link.download = `AUDITTUS_${nomeOriginal}`;
     document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
+
+  const exibirVendas = topProdutos.vendas && topProdutos.vendas.length > 0;
+  const exibirCompras = topProdutos.compras && topProdutos.compras.length > 0;
+  const listaProdutosExibicao = exibirVendas ? topProdutos.vendas : (exibirCompras ? topProdutos.compras : []);
+  const tituloProdutosExibicao = exibirVendas ? "Top 10 Produtos Mais Vendidos" : "Top 10 Produtos Mais Comprados";
+  const corBadgeProduto = exibirVendas ? '#10b981' : '#3b82f6';
+
+  const BotoesAcao = () => (
+    <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '30px', padding: '20px', backgroundColor: '#fff', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+        <button onClick={baixarArquivo} style={{ padding: '15px 25px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}><Download size={20} /> Baixar SPED Validado</button>
+        <button onClick={gerarPDF} style={{ padding: '15px 25px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}><Printer size={20} /> Salvar Relatório (PDF)</button>
+        <button onClick={limparDados} style={{ padding: '15px 25px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}><RefreshCw size={20} /> Limpar / Nova Validação</button>
+    </div>
+  );
 
   return (
     <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: status !== 'sucesso' ? 'center' : 'flex-start', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
@@ -235,18 +280,23 @@ export default function ImportadorSped() {
             .content-wrapper { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; display: block !important; }
             .print-dashboard-area { width: 100% !important; max-width: 100% !important; display: block !important; }
             ::-webkit-scrollbar { display: none; }
-            .print-grid { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 25px !important; margin-bottom: 25px !important; }
+            
+            .print-grid, .print-grid-trib { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 25px !important; margin-bottom: 25px !important; }
             .print-flex-col { display: flex !important; flex-direction: column !important; align-items: center !important; width: 100% !important; gap: 25px !important; }
+            
             .print-card, .print-vaf, .print-banner { width: 100% !important; max-width: 650px !important; margin: 0 auto !important; page-break-inside: avoid !important; break-inside: avoid !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important; box-sizing: border-box !important; }
             .print-banner { border: 2px solid #004080 !important; background: #fff !important; color: #004080 !important; }
             .print-banner h2, .print-banner span, .print-banner strong, .print-banner p { color: #004080 !important; }
             .print-banner svg { stroke: #004080 !important; }
+            
             .print-vaf { border: 3px solid #3b82f6 !important; background: #fff !important; padding: 25px !important; }
             .print-vaf h3, .print-vaf span, .print-vaf p { color: #1e3a8a !important; }
             .print-vaf-text { color: #333 !important; }
             .print-vaf-result { border: 1px solid #cbd5e1 !important; box-shadow: none !important; background: #f8fafc !important; }
+            
             .print-chart { height: 250px !important; page-break-inside: avoid !important; break-inside: avoid !important; }
             .recharts-wrapper { margin: 0 auto !important; }
+            .print-trib-list { max-height: none !important; overflow: visible !important; }
           }
         `}
       </style>
@@ -268,171 +318,237 @@ export default function ImportadorSped() {
         )}
 
         {status === 'sucesso' && (
-          <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-            
-            <div className="print-dashboard-area" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-              
-              {/* BANNER DA EMPRESA */}
-              <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)', WebkitPrintColorAdjust: 'exact' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                  <Building2 size={40} style={{ opacity: 0.9 }} />
-                  <div>
-                    <h2 style={{ margin: '0 0 5px 0', fontSize: '24px', fontWeight: '700' }}>{dadosEmpresa.nome}</h2>
-                    <span style={{ fontSize: '15px', opacity: 0.8, fontFamily: 'monospace' }}>CNPJ: {dadosEmpresa.cnpj}</span>
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '12px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '4px', fontWeight: '600' }}><Calendar size={14}/> Período de Apuração</span>
-                  <strong style={{ fontSize: '18px', letterSpacing: '0.5px' }}>{dadosEmpresa.periodo}</strong>
+          <div>
+            {/* MENU DE ABAS SUPERIOR (Oculto na Impressão) */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px' }}>
+              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: abaAtiva === 'home' ? 'none' : '2px solid #004080', borderRadius: '30px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s', boxShadow: abaAtiva === 'home' ? '0 5px 15px rgba(0,64,128,0.2)' : 'none' }}>
+                <LayoutDashboard size={20} /> Dashboard Principal
+              </button>
+              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: abaAtiva === 'tributos' ? 'none' : '2px solid #10b981', borderRadius: '30px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s', boxShadow: abaAtiva === 'tributos' ? '0 5px 15px rgba(16,185,129,0.2)' : 'none' }}>
+                <Tags size={20} /> Análise Tributária
+              </button>
+            </div>
+
+            {/* BANNER DA EMPRESA */}
+            <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)', WebkitPrintColorAdjust: 'exact' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <Building2 size={40} style={{ opacity: 0.9 }} />
+                <div>
+                  <h2 style={{ margin: '0 0 5px 0', fontSize: '24px', fontWeight: '700' }}>{dadosEmpresa.nome}</h2>
+                  <span style={{ fontSize: '15px', opacity: 0.8, fontFamily: 'monospace' }}>CNPJ: {dadosEmpresa.cnpj}</span>
                 </div>
               </div>
+              <div style={{ textAlign: 'right', backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '12px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '4px', fontWeight: '600' }}><Calendar size={14}/> Período de Apuração</span>
+                <strong style={{ fontSize: '18px', letterSpacing: '0.5px' }}>{dadosEmpresa.periodo}</strong>
+              </div>
+            </div>
 
-              {/* LINHA 1: GRID TRIPLO */}
-              <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'stretch', marginBottom: '25px' }}>
-                <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><ArrowRightLeft size={24}/> Volume de Operações</h3>
-                  <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart><Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>{dadosGraficoOperacoes.map((entry, index) => <Cell key={`cell-op-${index}`} fill={CORES_OPERACOES[index % CORES_OPERACOES.length]} />)}</Pie><Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} /><Legend verticalAlign="bottom" height={36} iconType="circle" /></PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
-                      <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                        {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#10b981', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
-                        )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
+            {/* ======================= ABA: DASHBOARD PRINCIPAL ======================= */}
+            {abaAtiva === 'home' && (
+              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
+                <div className="print-dashboard-area" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                  
+                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'stretch', marginBottom: '25px' }}>
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><ArrowRightLeft size={24}/> Volume de Operações</h3>
+                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
+                        <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>{dadosGraficoOperacoes.map((entry, index) => <Cell key={`cell-op-${index}`} fill={CORES_OPERACOES[index % CORES_OPERACOES.length]} />)}</Pie><Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} /><Legend verticalAlign="bottom" height={36} iconType="circle" /></PieChart></ResponsiveContainer>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
-                      <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
-                      <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                        {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#4f46e5', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
-                        )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
+
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
+                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
+                            {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#10b981', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
+                            )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
+                          <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
+                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
+                            {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#4f46e5', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
+                            )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', color: '#fff', WebkitPrintColorAdjust: 'exact' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}><h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}><Calculator size={26}/> VAF Fiscal do Período</h3></div>
+                      <div className="print-vaf-text" style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#fca5a5' }}><Minus size={16}/> Dev. Vendas</span><strong style={{ fontSize: '16px', color: '#fca5a5' }}>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#6ee7b7' }}><Plus size={16}/> Dev. Compras</span><strong style={{ fontSize: '16px', color: '#6ee7b7' }}>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
+                      </div>
+                      <div className="print-vaf-result" style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}><p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Equal size={16}/> Valor Adicionado Gerado</p><h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2></div>
+                    </div>
+                  </div>
+
+                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'stretch' }}>
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS</h3>
+                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>{dadosGraficoIcms.map((entry, index) => <Cell key={`cell-icms-${index}`} fill={CORES_ICMS[index % CORES_ICMS.length]} />)}</Pie><Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} /><Legend verticalAlign="bottom" height={36} iconType="circle" /></PieChart></ResponsiveContainer></div>
+                    </div>
+
+                    <div className="print-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                      <div className="print-flex-col" style={{ display: 'flex', gap: '20px', width: '100%' }}>
+                        <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}><p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor Transportar</p><h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2></div>
+                        <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}><p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>ICMS a Recolher</p><h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2></div>
+                      </div>
+                      <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
+                        <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign size={20} /> Obrigações</h3>
+                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                          {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
+                            <div key={index} style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '10px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ fontSize: '12px', color: '#666', display: 'block' }}>Cód: {guia.codigo}</span><span style={{ fontSize: '12px', color: '#555' }}><Calendar size={12}/> Vencto: {guia.vencimento}</span></div><span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '16px' }}>{formatarMoeda(guia.valor)}</span></div>
+                          )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Sem guias.</p>}
+                        </div>
+                      </div>
+                      <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
+                         <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={20}/> Ajustes</h3>
+                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                          {ajustesICMS.length > 0 ? ajustesICMS.map((ajuste, index) => (
+                            <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><div><span style={{ display: 'block', fontWeight: 'bold', color: '#333' }}>{ajuste.descricao}</span><span style={{ fontSize: '11px', color: '#666' }}>Cód: {ajuste.codigo}</span></div><span style={{ fontWeight: 'bold', color: '#004080' }}>{formatarMoeda(ajuste.valor)}</span></div>
+                          )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Nenhum ajuste.</p>}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', color: '#fff', WebkitPrintColorAdjust: 'exact' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}><h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}><Calculator size={26}/> VAF Fiscal do Período</h3></div>
-                  <div className="print-vaf-text" style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#fca5a5' }}><Minus size={16}/> Dev. Vendas</span><strong style={{ fontSize: '16px', color: '#fca5a5' }}>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#6ee7b7' }}><Plus size={16}/> Dev. Compras</span><strong style={{ fontSize: '16px', color: '#6ee7b7' }}>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
-                  </div>
-                  <div className="print-vaf-result" style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}><p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Equal size={16}/> Valor Adicionado Gerado</p><h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2></div>
-                </div>
-              </div>
-
-              {/* LINHA 2: APURAÇÃO ICMS */}
-              <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'stretch' }}>
-                <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS</h3>
-                  <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>{dadosGraficoIcms.map((entry, index) => <Cell key={`cell-icms-${index}`} fill={CORES_ICMS[index % CORES_ICMS.length]} />)}</Pie><Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} /><Legend verticalAlign="bottom" height={36} iconType="circle" /></PieChart></ResponsiveContainer></div>
-                </div>
-
-                <div className="print-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                  <div className="print-flex-col" style={{ display: 'flex', gap: '20px', width: '100%' }}>
-                    <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}><p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor Transportar</p><h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2></div>
-                    <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}><p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>ICMS a Recolher</p><h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2></div>
-                  </div>
-
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
-                    <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign size={20} /> Obrigações</h3>
-                    <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                      {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
-                        <div key={index} style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '10px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ fontSize: '12px', color: '#666', display: 'block' }}>Cód: {guia.codigo}</span><span style={{ fontSize: '12px', color: '#555' }}><Calendar size={12}/> Vencto: {guia.vencimento}</span></div><span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '16px' }}>{formatarMoeda(guia.valor)}</span></div>
-                      )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Sem guias.</p>}
+                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: '25px' }}>
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Package size={24}/> {tituloProdutosExibicao}</h3>
+                      <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
+                        {listaProdutosExibicao.length > 0 ? listaProdutosExibicao.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}><span style={{ backgroundColor: corBadgeProduto, color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span><span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }} title={item.nome}>{item.nome}</span></div>
+                            <span style={{ color: corBadgeProduto, fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
+                          </div>
+                        )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhum detalhamento de produto cadastrado no período.</p>}
+                      </div>
+                    </div>
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Truck size={24}/> Top 5 Maiores Fornecedores</h3>
+                      <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
+                        {topFornecedores.length > 0 ? topFornecedores.map((item, idx) => (
+                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}><span style={{ backgroundColor: '#f59e0b', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span><span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.nome}>{item.nome}</span></div>
+                            <span style={{ color: '#004080', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
+                          </div>
+                        )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhuma compra identificada no período.</p>}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
-                     <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={20}/> Ajustes</h3>
-                    <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                      {ajustesICMS.length > 0 ? ajustesICMS.map((ajuste, index) => (
-                        <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><div><span style={{ display: 'block', fontWeight: 'bold', color: '#333' }}>{ajuste.descricao}</span><span style={{ fontSize: '11px', color: '#666' }}>Cód: {ajuste.codigo}</span></div><span style={{ fontWeight: 'bold', color: '#004080' }}>{formatarMoeda(ajuste.valor)}</span></div>
-                      )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Nenhum ajuste.</p>}
-                    </div>
+                  <BotoesAcao />
+                </div>
+
+                <div className="no-print" style={{ width: '320px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '20px', padding: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'sticky', top: '30px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
+                    <div style={{ backgroundColor: '#10b981', padding: '12px', borderRadius: '12px', display: 'flex', color: '#fff' }}><Shield size={28} /></div>
+                    <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: '800' }}>Auditoria e Limpeza</h3><p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '13px' }}>Ajustes automáticos</p></div>
                   </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros C191 Removidos</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c191Removidos}</strong></div>
+                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros C173 Removidos</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c173Removidos}</strong></div>
+                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Termos Proibidos Limpos</span><strong style={{ fontSize: '22px', color: '#f59e0b' }}>{relatorioCorrecoes.textosRemovidos}</strong><span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>Ex: ISENTO, Zeros, Sem GTIN</span></div>
+                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Totalizadores Corrigidos</span><strong style={{ fontSize: '22px', color: '#10b981' }}>{relatorioCorrecoes.blocosRecalculados}</strong><span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>C990, 9990, 9999</span></div>
+                  </div>
+                  <div style={{ marginTop: '25px', backgroundColor: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', color: '#fff', boxShadow: '0 5px 15px rgba(0,64,128,0.2)' }}><span style={{ display: 'block', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '5px', fontWeight: '600' }}>Total de Intervenções</span><strong style={{ fontSize: '36px', fontWeight: '900' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos + relatorioCorrecoes.blocosRecalculados}</strong></div>
                 </div>
               </div>
+            )}
 
-              {/* LINHA 3: TOP 10 PRODUTOS E TOP 5 FORNECEDORES (O BI EM AÇÃO) */}
-              <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: '25px' }}>
+            {/* ======================= ABA: ANÁLISE TRIBUTÁRIA (O MÓDULO INTELIGENTE) ======================= */}
+            {abaAtiva === 'tributos' && (
+              <div className="print-dashboard-area" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 
-                <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Package size={24}/> Top 10 Produtos Mais Vendidos
-                  </h3>
-                  <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
-                    {topProdutos.length > 0 ? topProdutos.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                          <span style={{ backgroundColor: '#10b981', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span>
-                          <span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }} title={item.nome}>{item.nome}</span>
-                        </div>
-                        <span style={{ color: '#10b981', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
-                      </div>
-                    )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhum detalhamento de produto (C170) encontrado.</p>}
+                {/* Cartões Superiores de Resumo */}
+                <div className="print-grid-trib" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', alignItems: 'stretch' }}>
+                  
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #004080', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Faturamento Analisado</p>
+                    <h2 style={{ margin: 0, color: '#004080', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
+                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Baseado nas Saídas</span>
                   </div>
+
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #f59e0b', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Substituição Tributária (ST)</p>
+                    <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
+                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 54xx / 64xx / 74xx</span>
+                  </div>
+
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #8b5cf6', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Prestações de Serviços</p>
+                    <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
+                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 53xx / 63xx / 73xx</span>
+                  </div>
+
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Isentas / Não Tributadas</p>
+                    <h2 style={{ margin: 0, color: '#ef4444', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
+                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Sem destaque de ICMS</span>
+                  </div>
+
                 </div>
 
-                <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                  <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <Truck size={24}/> Top 5 Maiores Fornecedores
-                  </h3>
-                  <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
-                    {topFornecedores.length > 0 ? topFornecedores.map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                          <span style={{ backgroundColor: '#f59e0b', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span>
-                          <span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.nome}>{item.nome}</span>
-                        </div>
-                        <span style={{ color: '#004080', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
+                {/* Dashboard Detalhado Dinâmico */}
+                <div className="print-grid-trib" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', alignItems: 'stretch' }}>
+                  
+                  {/* Gráfico Gigante */}
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 20px 0', color: '#004080', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}><Activity size={26}/> Divisão Percentual</h3>
+                    
+                    {resumoTributacao.total > 0 ? (
+                      <div className="print-chart" style={{ height: '400px', width: '100%', flexGrow: 1 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={dadosTributacao} cx="50%" cy="50%" innerRadius={100} outerRadius={150} paddingAngle={4} dataKey="value" animationDuration={1500} label={({ name, percent }) => percent > 0.05 ? `${(percent * 100).toFixed(1)}%` : ''}>
+                              {dadosTributacao.map((entry, index) => <Cell key={`cell-trib-${index}`} fill={CORES_TRIBUTACAO[index % CORES_TRIBUTACAO.length]} />)}
+                            </Pie>
+                            <Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
-                    )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhuma compra identificada no período.</p>}
+                    ) : (
+                       <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                         <p style={{ color: '#999', fontSize: '18px' }}>Sem dados tributários no período.</p>
+                       </div>
+                    )}
                   </div>
+
+                  {/* Tabela de Detalhamento Inteligente */}
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ margin: '0 0 20px 0', color: '#004080', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}><Tags size={26}/> Detalhamento das Saídas</h3>
+                    
+                    <div className="print-trib-list" style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
+                      {dadosTributacao.length > 0 ? dadosTributacao.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '10px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: CORES_TRIBUTACAO[idx % CORES_TRIBUTACAO.length] }}></div>
+                            <span style={{ fontWeight: '700', color: '#444', fontSize: '15px' }}>{item.name}</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                             <span style={{ color: '#004080', fontWeight: '800', fontSize: '16px' }}>{formatarMoeda(item.value)}</span>
+                             <span style={{ fontSize: '12px', color: '#888', fontWeight: '600' }}>{((item.value / resumoTributacao.total) * 100).toFixed(2)}%</span>
+                          </div>
+                        </div>
+                      )) : <p style={{ fontSize: '14px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhuma operação analisada.</p>}
+                    </div>
+                  </div>
+
                 </div>
 
+                <BotoesAcao />
               </div>
-
-              {/* BARRA DE AÇÕES INFERIOR */}
-              <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '30px', padding: '20px', backgroundColor: '#fff', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                <button onClick={baixarArquivo} style={{ padding: '15px 25px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}>
-                  <Download size={20} /> 1. Baixar SPED Validado
-                </button>
-                <button onClick={gerarPDF} style={{ padding: '15px 25px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}>
-                  <Printer size={20} /> 2. Salvar Relatório (PDF)
-                </button>
-                <button onClick={limparDados} style={{ padding: '15px 25px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}>
-                  <RefreshCw size={20} /> 3. Limpar / Nova Validação
-                </button>
-              </div>
-
-            </div>
-
-            {/* PAINEL LATERAL DE AUDITORIA (INVISÍVEL NO PDF) */}
-            <div className="no-print" style={{ width: '320px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '20px', padding: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'sticky', top: '30px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
-                <div style={{ backgroundColor: '#10b981', padding: '12px', borderRadius: '12px', display: 'flex', color: '#fff' }}><Shield size={28} /></div>
-                <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: '800' }}>Auditoria e Limpeza</h3><p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '13px' }}>Ajustes automáticos</p></div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros C191 Removidos</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c191Removidos}</strong></div>
-                <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros C173 Removidos</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c173Removidos}</strong></div>
-                <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Termos Proibidos Limpos</span><strong style={{ fontSize: '22px', color: '#f59e0b' }}>{relatorioCorrecoes.textosRemovidos}</strong><span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>Ex: ISENTO, Zeros, Sem GTIN</span></div>
-                <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Totalizadores Corrigidos</span><strong style={{ fontSize: '22px', color: '#10b981' }}>{relatorioCorrecoes.blocosRecalculados}</strong><span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>C990, 9990, 9999</span></div>
-              </div>
-              <div style={{ marginTop: '25px', backgroundColor: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', color: '#fff', boxShadow: '0 5px 15px rgba(0,64,128,0.2)' }}><span style={{ display: 'block', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '5px', fontWeight: '600' }}>Total de Intervenções</span><strong style={{ fontSize: '36px', fontWeight: '900' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos + relatorioCorrecoes.blocosRecalculados}</strong></div>
-            </div>
+            )}
 
           </div>
         )}
