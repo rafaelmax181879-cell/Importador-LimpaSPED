@@ -84,7 +84,7 @@ export default function ImportadorSped() {
 
       let totalDeb = 0, totalCred = 0, tEnt = 0, tSai = 0, vafEnt = 0, vafSai = 0, vafDV = 0, vafDC = 0;
       let mCfopEnt = {}, mCfopSai = {}, listaAj = [], listaG = [], sCredFinal = 0, iRecFinal = 0;
-      let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = '', dataAtual = '01'; 
+      let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = ''; 
       let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
       
       let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Desagregação de Carnes': 0, 'Simples Remessa': 0, 'Transporte': 0, 'Energia Elétrica': 0, 'Retorno Imob.': 0, 'Outras Entradas': 0 };
@@ -166,7 +166,6 @@ export default function ImportadorSped() {
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       
-      // RESTAURAÇÃO DOS TOTAIS DE ICMS E GUIAS (E110, E111, E116)
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setAjustesICMS(listaAj);
       setGuiasE116(listaG);
@@ -457,7 +456,7 @@ export default function ImportadorSped() {
                   </div>
                 </div>
 
-                {/* FLUXO MENSAL (ROSCA ARREDONDADA E MODERNA) */}
+                {/* FLUXO MENSAL CORRIGIDO: SEM CORTES, COM ALÍQUOTAS E CORES */}
                 <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', color: '#333' }}>
                     <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <PieChartIcon size={28}/> Fluxo Mensal: Compras vs. Vendas
@@ -476,9 +475,9 @@ export default function ImportadorSped() {
                                         cornerRadius={12} 
                                         dataKey="value" 
                                         animationDuration={1500}
-                                        label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                        label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
                                         labelLine={true}
-                                        style={{ fontSize: '12px', fontWeight: 'bold', fill: '#475569' }}
+                                        style={{ fontSize: '12px', fontWeight: 'bold' }}
                                     >
                                         {dadosComparativoMensal.map((entry, index) => <Cell key={index} fill={entry.fill} />)}
                                     </Pie>
@@ -501,7 +500,7 @@ export default function ImportadorSped() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
-                  {/* TRIBUTAÇÃO DAS SAÍDAS */}
+                  {/* TRIBUTAÇÃO DAS SAÍDAS CORRIGIDO: SEM CORTES, COM ALÍQUOTAS E CORES */}
                   <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                     <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <Activity size={24} /> Tributação das Saídas (C190)
@@ -518,9 +517,9 @@ export default function ImportadorSped() {
                               paddingAngle={4} 
                               dataKey="value" 
                               animationDuration={1200}
-                              label={({ percent }) => percent > 0.02 ? `${(percent * 100).toFixed(1)}%` : null}
+                              label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
                               labelLine={true}
-                              style={{ fontSize: '11px', fontWeight: 'bold', fill: '#64748b' }}
+                              style={{ fontSize: '11px', fontWeight: 'bold' }}
                             >
                               {dadosTributacaoSaida.map((e, i) => <Cell key={i} fill={CORES_TRIBUTACAO[i % CORES_TRIBUTACAO.length]} />)}
                             </Pie>
@@ -539,7 +538,7 @@ export default function ImportadorSped() {
                     </div>
                   </div>
 
-                  {/* AQUISIÇÕES POR ESTADO */}
+                  {/* AQUISIÇÕES POR ESTADO CORRIGIDO: SEM CORTES, COM ALÍQUOTAS E CORES */}
                   <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                     <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <MapPin size={24} /> Aquisições por Estado
@@ -556,9 +555,9 @@ export default function ImportadorSped() {
                                paddingAngle={4} 
                                dataKey="value" 
                                animationDuration={1200}
-                               label={({ percent }) => percent > 0.02 ? `${(percent * 100).toFixed(1)}%` : null}
+                               label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
                                labelLine={true}
-                               style={{ fontSize: '11px', fontWeight: 'bold', fill: '#64748b' }}
+                               style={{ fontSize: '11px', fontWeight: 'bold' }}
                             >
                               {dadosEstados.map((e, i) => <Cell key={i} fill={CORES_MAPA[i % CORES_MAPA.length]} />)}
                             </Pie>
@@ -578,7 +577,7 @@ export default function ImportadorSped() {
                   </div>
                 </div>
 
-                {/* ROSCA DE ENTRADAS */}
+                {/* ROSCA DE ENTRADAS CORRIGIDA: SEM CORTES E COM CORES */}
                 <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                     <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <Package size={24}/> Divisão de Entradas (Rosca BI)
@@ -595,9 +594,9 @@ export default function ImportadorSped() {
                                         paddingAngle={4} 
                                         dataKey="value" 
                                         animationDuration={1200}
-                                        label={({ percent }) => percent > 0.02 ? `${(percent * 100).toFixed(1)}%` : null}
+                                        label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
                                         labelLine={true}
-                                        style={{ fontSize: '11px', fontWeight: 'bold', fill: '#64748b' }}
+                                        style={{ fontSize: '11px', fontWeight: 'bold' }}
                                     >
                                         {dadosRoscaEntradas.map((e, i) => <Cell key={i} fill={CORES_ENTRADAS[i % CORES_ENTRADAS.length]} />)}
                                     </Pie>
