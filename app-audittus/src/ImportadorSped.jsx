@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon } from 'lucide-react';
 
 export default function ImportadorSped() {
@@ -84,10 +84,9 @@ export default function ImportadorSped() {
 
       let totalDeb = 0, totalCred = 0, tEnt = 0, tSai = 0, vafEnt = 0, vafSai = 0, vafDV = 0, vafDC = 0;
       let mCfopEnt = {}, mCfopSai = {}, listaAj = [], listaG = [], sCredFinal = 0, iRecFinal = 0;
-      let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = ''; 
+      let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = '', dataAtual = '01'; 
       let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
       
-      // NOMENCLATURAS RESTAURADAS
       let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Desagregação de Carnes': 0, 'Simples Remessa': 0, 'Transporte': 0, 'Energia Elétrica': 0, 'Retorno Imob.': 0, 'Outras Entradas': 0 };
 
       linhasProcessadas.forEach(linha => {
@@ -146,7 +145,12 @@ export default function ImportadorSped() {
           if (cfopsDevCompras.has(cf)) vafDC += vlO; 
         }
         
-        if (colunas[1] === 'E110') { totalDeb += parseFloat(colunas[2].replace(',', '.')) || 0; totalCred += parseFloat(colunas[6].replace(',', '.')) || 0; iRecFinal = parseFloat(colunas[13].replace(',', '.')) || 0; sCredFinal = parseFloat(colunas[14].replace(',', '.')) || 0; }
+        if (colunas[1] === 'E110') { 
+            totalDeb += parseFloat(colunas[2].replace(',', '.')) || 0; 
+            totalCred += parseFloat(colunas[6].replace(',', '.')) || 0; 
+            iRecFinal = parseFloat(colunas[13].replace(',', '.')) || 0; 
+            sCredFinal = parseFloat(colunas[14].replace(',', '.')) || 0; 
+        }
         if (colunas[1] === 'E111') listaAj.push({ codigo: colunas[2], descricao: colunas[2] === 'RO020003' ? 'ICMS Antecipado' : `Ajuste: ${colunas[2]}`, valor: parseFloat(colunas[4].replace(',', '.')) || 0 });
         if (colunas[1] === 'E116') listaG.push({ codigo: colunas[5] || colunas[2], valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: colunas[4] && colunas[4].length === 8 ? `${colunas[4].substring(0,2)}/${colunas[4].substring(2,4)}/${colunas[4].substring(4,8)}` : colunas[4] });
       });
@@ -162,7 +166,11 @@ export default function ImportadorSped() {
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       
-      // ROSCA ARREDONDADA PARA COMPRAS X VENDAS
+      // RESTAURAÇÃO DOS TOTAIS DE ICMS E GUIAS (E110, E111, E116)
+      setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
+      setAjustesICMS(listaAj);
+      setGuiasE116(listaG);
+
       setDadosComparativoMensal([
         { name: 'Vendas', value: vafSai, fill: '#10b981' },
         { name: 'Compras', value: vafEnt, fill: '#3b82f6' },
@@ -183,7 +191,6 @@ export default function ImportadorSped() {
     </div>
   );
 
-  // LÓGICA INTELIGENTE PARA O TÍTULO DO TOP 10 PRODUTOS
   const temVendas = topProdutos.vendas && topProdutos.vendas.length > 0;
   const tituloTopProdutos = temVendas ? "Top 10 Produtos (Vendas)" : "Top 10 Produtos (Compras)";
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
@@ -229,9 +236,9 @@ export default function ImportadorSped() {
         {status === 'sucesso' && (
           <div>
             <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px' }}>
-              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><LayoutDashboard size={20} /> Principal</button>
-              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Tags size={20} /> BI Tributário</button>
-              <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><FileSearch size={20} /> Auditoria</button>
+              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><LayoutDashboard size={20} /> Visão Geral</button>
+              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Tags size={20} /> Módulo Tributário</button>
+              <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><FileSearch size={20} /> Resultados da Auditoria</button>
             </div>
 
             <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)' }}>
@@ -259,7 +266,7 @@ export default function ImportadorSped() {
                       <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                            <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
                               {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
@@ -320,7 +327,7 @@ export default function ImportadorSped() {
                       <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                            <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
                               {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
@@ -423,7 +430,7 @@ export default function ImportadorSped() {
               </div>
             )}
 
-            {/* ABA TRIBUTÁRIA (BI AVANÇADO) */}
+            {/* ABA TRIBUTÁRIA E RESULTADOS (BI AVANÇADO) */}
             {abaAtiva === 'tributos' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 
@@ -450,8 +457,8 @@ export default function ImportadorSped() {
                   </div>
                 </div>
 
-                {/* NOVO MEGA DASH: FLUXO MENSAL (ROSCA ARREDONDADA E MODERNA) */}
-                <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                {/* FLUXO MENSAL (ROSCA ARREDONDADA E MODERNA) */}
+                <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', color: '#333' }}>
                     <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <PieChartIcon size={28}/> Fluxo Mensal: Compras vs. Vendas
                     </h3>
@@ -462,13 +469,16 @@ export default function ImportadorSped() {
                                 <PieChart>
                                     <Pie 
                                         data={dadosComparativoMensal} 
-                                        cx="50%" cy="50%" 
-                                        innerRadius={90} 
-                                        outerRadius={130} 
+                                        cx="45%" cy="50%" 
+                                        innerRadius={70} 
+                                        outerRadius={100} 
                                         paddingAngle={6} 
                                         cornerRadius={12} 
                                         dataKey="value" 
                                         animationDuration={1500}
+                                        label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                        labelLine={true}
+                                        style={{ fontSize: '12px', fontWeight: 'bold', fill: '#475569' }}
                                     >
                                         {dadosComparativoMensal.map((entry, index) => <Cell key={index} fill={entry.fill} />)}
                                     </Pie>
@@ -483,7 +493,6 @@ export default function ImportadorSped() {
                                     <div key={idx} style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '15px', borderLeft: `6px solid ${it.fill}`, display: 'flex', flexDirection: 'column' }}>
                                         <span style={{ fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>{it.name}</span>
                                         <strong style={{ fontSize: '20px', color: '#1e293b' }}>{formatarMoeda(it.value)}</strong>
-                                        <span style={{ fontSize: '12px', color: '#94a3b8', marginTop: '5px', fontWeight: 'bold' }}>{((it.value / (dadosVaf.saidasBrutas + dadosVaf.entradasBrutas + dadosVaf.devVendas + dadosVaf.devCompras)) * 100).toFixed(1)}% do volume</span>
                                     </div>
                                 ))}
                             </div>
@@ -501,7 +510,18 @@ export default function ImportadorSped() {
                       <div style={{ width: '45%', height: '300px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={dadosTributacaoSaida} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" animationDuration={1200}>
+                            <Pie 
+                              data={dadosTributacaoSaida} 
+                              cx="45%" cy="50%" 
+                              innerRadius={60} 
+                              outerRadius={90} 
+                              paddingAngle={4} 
+                              dataKey="value" 
+                              animationDuration={1200}
+                              label={({ percent }) => percent > 0.02 ? `${(percent * 100).toFixed(1)}%` : null}
+                              labelLine={true}
+                              style={{ fontSize: '11px', fontWeight: 'bold', fill: '#64748b' }}
+                            >
                               {dadosTributacaoSaida.map((e, i) => <Cell key={i} fill={CORES_TRIBUTACAO[i % CORES_TRIBUTACAO.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
@@ -528,7 +548,18 @@ export default function ImportadorSped() {
                       <div style={{ width: '45%', height: '300px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={dadosEstados} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" animationDuration={1200}>
+                            <Pie 
+                               data={dadosEstados} 
+                               cx="45%" cy="50%" 
+                               innerRadius={60} 
+                               outerRadius={90} 
+                               paddingAngle={4} 
+                               dataKey="value" 
+                               animationDuration={1200}
+                               label={({ percent }) => percent > 0.02 ? `${(percent * 100).toFixed(1)}%` : null}
+                               labelLine={true}
+                               style={{ fontSize: '11px', fontWeight: 'bold', fill: '#64748b' }}
+                            >
                               {dadosEstados.map((e, i) => <Cell key={i} fill={CORES_MAPA[i % CORES_MAPA.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
@@ -547,7 +578,7 @@ export default function ImportadorSped() {
                   </div>
                 </div>
 
-                {/* ROSCA DE ENTRADAS COM NOMENCLATURAS ANTIGAS APROVADAS */}
+                {/* ROSCA DE ENTRADAS */}
                 <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                     <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <Package size={24}/> Divisão de Entradas (Rosca BI)
@@ -556,7 +587,18 @@ export default function ImportadorSped() {
                         <div style={{ width: '40%', height: '350px' }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                    <Pie data={dadosRoscaEntradas} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={4} dataKey="value" animationDuration={1200}>
+                                    <Pie 
+                                        data={dadosRoscaEntradas} 
+                                        cx="45%" cy="50%" 
+                                        innerRadius={70} 
+                                        outerRadius={100} 
+                                        paddingAngle={4} 
+                                        dataKey="value" 
+                                        animationDuration={1200}
+                                        label={({ percent }) => percent > 0.02 ? `${(percent * 100).toFixed(1)}%` : null}
+                                        labelLine={true}
+                                        style={{ fontSize: '11px', fontWeight: 'bold', fill: '#64748b' }}
+                                    >
                                         {dadosRoscaEntradas.map((e, i) => <Cell key={i} fill={CORES_ENTRADAS[i % CORES_ENTRADAS.length]} />)}
                                     </Pie>
                                     <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
@@ -569,7 +611,6 @@ export default function ImportadorSped() {
                                     <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
                                     <div style={{ textAlign: 'right', minWidth: '90px' }}>
                                         <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
-                                        <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '3px' }}>{((it.value / dadosVaf.entradasBrutas)*100).toFixed(2)}%</span>
                                     </div>
                                 </div>
                             ))}
