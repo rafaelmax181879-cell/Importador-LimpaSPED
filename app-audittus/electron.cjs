@@ -9,7 +9,8 @@ function createWindow() {
     transparent: true,
     frame: false, 
     alwaysOnTop: true,
-    resizable: false
+    resizable: false,
+    icon: path.join(__dirname, 'unnamed.ico') // <--- ÍCONE ATUALIZADO AQUI
   });
 
   splash.loadFile(path.join(__dirname, 'dist', 'splash.html'));
@@ -20,6 +21,7 @@ function createWindow() {
     show: false, 
     autoHideMenuBar: true, 
     title: "Corretor Inteligente - SPED Fiscal",
+    icon: path.join(__dirname, 'unnamed.ico'), // <--- ÍCONE ATUALIZADO AQUI
     webPreferences: {
       nodeIntegration: true,
     },
