@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon } from 'lucide-react';
 
 export default function ImportadorSped() {
@@ -27,8 +27,7 @@ export default function ImportadorSped() {
   const [dadosEstados, setDadosEstados] = useState([]);
   const [logAuditoria, setLogAuditoria] = useState([]);
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
-  const [dadosEvolucaoDiaria, setDadosEvolucaoDiaria] = useState([]); 
-  const [dadosComparativoMensal, setDadosComparativoMensal] = useState([]); // ROSCA ARREDONDADA MENSAL
+  const [dadosComparativoMensal, setDadosComparativoMensal] = useState([]);
 
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
@@ -48,7 +47,7 @@ export default function ImportadorSped() {
     setListaCfops({ entradas: [], saidas: [] }); setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
     setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
-    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setDadosEvolucaoDiaria([]); setDadosComparativoMensal([]);
+    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setDadosComparativoMensal([]);
   };
 
   const processarArquivo = (event) => {
@@ -85,10 +84,10 @@ export default function ImportadorSped() {
 
       let totalDeb = 0, totalCred = 0, tEnt = 0, tSai = 0, vafEnt = 0, vafSai = 0, vafDV = 0, vafDC = 0;
       let mCfopEnt = {}, mCfopSai = {}, listaAj = [], listaG = [], sCredFinal = 0, iRecFinal = 0;
-      let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = '', dataAtual = '01'; 
+      let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = ''; 
       let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
-      let mapaDiario = {}; 
-      // NOMENCLATURAS RESTAURADAS PARA O FORMATO ANTERIOR APROVADO
+      
+      // NOMENCLATURAS RESTAURADAS
       let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Desagregação de Carnes': 0, 'Simples Remessa': 0, 'Transporte': 0, 'Energia Elétrica': 0, 'Retorno Imob.': 0, 'Outras Entradas': 0 };
 
       linhasProcessadas.forEach(linha => {
@@ -106,8 +105,6 @@ export default function ImportadorSped() {
         
         if (colunas[1] === 'C100') { 
             opAt = colunas[2]; 
-            const dtDoc = colunas[10] || ''; 
-            dataAtual = dtDoc.length >= 8 ? dtDoc.substring(0, 2) : '01'; 
             const vlD = parseFloat(colunas[12]?.replace(',', '.')) || 0; 
             if (opAt === '0') { 
                 tEnt += vlD; 
@@ -121,11 +118,8 @@ export default function ImportadorSped() {
           const cf = colunas[3] || '', vlO = parseFloat(colunas[5]?.replace(',', '.')) || 0, vlIc = parseFloat(colunas[7]?.replace(',', '.')) || 0;
           let al = colunas[4] ? parseFloat(colunas[4].replace(',', '.')).toString().replace('.', ',') : '';
           
-          if (!mapaDiario[dataAtual]) mapaDiario[dataAtual] = { dia: dataAtual, Vendas: 0, Compras: 0, 'Dev. Vendas': 0, 'Dev. Compras': 0 };
-
           if (cf.startsWith('1') || cf.startsWith('2') || cf.startsWith('3')) {
             mCfopEnt[cf] = (mCfopEnt[cf] || 0) + vlO;
-            // LÓGICA MANTIDA CONFORME APROVADO ANTERIORMENTE
             if (['1101','1102','2101','2102','3101','3102'].includes(cf)) vlIc > 0 ? dEnt['Revenda/Ind. - Tributadas'] += vlO : dEnt['Revenda/Ind. - Isentas'] += vlO;
             else if (['1401','1403','2401','2403'].includes(cf)) dEnt['Substituição Tributária (ST)'] += vlO;
             else if (['1556','2556'].includes(cf)) dEnt['Uso e Consumo'] += vlO;
@@ -146,10 +140,10 @@ export default function ImportadorSped() {
               mTribSaida[cat] = (mTribSaida[cat] || 0) + vlO; tAnalise += vlO;
             }
           }
-          if (cfopsEntradasBrutas.has(cf)) { vafEnt += vlO; mapaDiario[dataAtual]['Compras'] += vlO; }
-          if (cfopsSaidasBrutas.has(cf)) { vafSai += vlO; mapaDiario[dataAtual]['Vendas'] += vlO; }
-          if (cfopsDevVendas.has(cf)) { vafDV += vlO; mapaDiario[dataAtual]['Dev. Vendas'] += vlO; }
-          if (cfopsDevCompras.has(cf)) { vafDC += vlO; mapaDiario[dataAtual]['Dev. Compras'] += vlO; }
+          if (cfopsEntradasBrutas.has(cf)) vafEnt += vlO; 
+          if (cfopsSaidasBrutas.has(cf)) vafSai += vlO; 
+          if (cfopsDevVendas.has(cf)) vafDV += vlO; 
+          if (cfopsDevCompras.has(cf)) vafDC += vlO; 
         }
         
         if (colunas[1] === 'E110') { totalDeb += parseFloat(colunas[2].replace(',', '.')) || 0; totalCred += parseFloat(colunas[6].replace(',', '.')) || 0; iRecFinal = parseFloat(colunas[13].replace(',', '.')) || 0; sCredFinal = parseFloat(colunas[14].replace(',', '.')) || 0; }
@@ -168,16 +162,13 @@ export default function ImportadorSped() {
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       
-      const arrayDiario = Object.keys(mapaDiario).map(k => mapaDiario[k]).sort((a, b) => parseInt(a.dia) - parseInt(b.dia));
-      setDadosEvolucaoDiaria(arrayDiario);
-
-      // NOVO GRÁFICO DE ROSCA ARREDONDADA PARA COMPRAS X VENDAS
+      // ROSCA ARREDONDADA PARA COMPRAS X VENDAS
       setDadosComparativoMensal([
         { name: 'Vendas', value: vafSai, fill: '#10b981' },
         { name: 'Compras', value: vafEnt, fill: '#3b82f6' },
         { name: 'Dev. Vendas', value: vafDV, fill: '#ef4444' },
         { name: 'Dev. Compras', value: vafDC, fill: '#f59e0b' }
-      ].filter(item => item.value > 0)); // Filtra zerados para o gráfico ficar perfeito
+      ].filter(item => item.value > 0)); 
 
       setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: (contC191 > 0 || contC173 > 0) ? 3 : 0 });
       setLogAuditoria(logTemp); setArquivoProcessado(linhasProcessadas.join('\r\n')); setStatus('sucesso');
@@ -432,9 +423,7 @@ export default function ImportadorSped() {
               </div>
             )}
 
-            {/* ========================================================================= */}
-            {/* ABA TRIBUTÁRIA (BI AVANÇADO)                                                */}
-            {/* ========================================================================= */}
+            {/* ABA TRIBUTÁRIA (BI AVANÇADO) */}
             {abaAtiva === 'tributos' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 
@@ -462,8 +451,10 @@ export default function ImportadorSped() {
                 </div>
 
                 {/* NOVO MEGA DASH: FLUXO MENSAL (ROSCA ARREDONDADA E MODERNA) */}
-                <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', color: '#333' }}>
-                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}><PieChartIcon size={28}/> Fluxo Mensal: Compras vs. Vendas</h3>
+                <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <PieChartIcon size={28}/> Fluxo Mensal: Compras vs. Vendas
+                    </h3>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
                         <div style={{ width: '45%', height: '350px' }}>
@@ -503,70 +494,82 @@ export default function ImportadorSped() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
                   {/* TRIBUTAÇÃO DAS SAÍDAS */}
                   <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                    <h3 style={{ margin: '0 0 20px 0', color: '#004080', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}><Activity size={26}/> Tributação das Saídas (C190)</h3>
-                    <div style={{ height: '320px' }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={dadosTributacaoSaida} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" animationDuration={1200} label={({name, percent}) => `${name}: ${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>
-                            {dadosTributacaoSaida.map((e, i) => <Cell key={i} fill={CORES_TRIBUTACAO[i % CORES_TRIBUTACAO.length]} />)}
-                          </Pie>
-                          <Tooltip formatter={(v) => formatarMoeda(v)} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      {dadosTributacaoSaida.map((it, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '10px' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#555' }}>{it.name}</span><strong style={{ color: '#004080' }}>{formatarMoeda(it.value)}</strong>
-                        </div>
-                      ))}
+                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Activity size={24} /> Tributação das Saídas (C190)
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
+                      <div style={{ width: '45%', height: '300px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={dadosTributacaoSaida} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" animationDuration={1200}>
+                              {dadosTributacaoSaida.map((e, i) => <Cell key={i} fill={CORES_TRIBUTACAO[i % CORES_TRIBUTACAO.length]} />)}
+                            </Pie>
+                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                        {dadosTributacaoSaida.map((it, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_TRIBUTACAO[idx % CORES_TRIBUTACAO.length]}` }}>
+                            <span style={{ fontSize: '13px', color: '#555', fontWeight: '600', lineHeight: '1.2' }}>{it.name}</span>
+                            <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
 
                   {/* AQUISIÇÕES POR ESTADO */}
                   <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                    <h3 style={{ margin: '0 0 20px 0', color: '#004080', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}><MapPin size={26}/> Aquisições por Estado</h3>
-                    <div style={{ height: '320px' }}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={dadosEstados} cx="50%" cy="50%" outerRadius={110} dataKey="value" animationDuration={1200} label={({name, percent}) => `${name}: ${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>
-                            {dadosEstados.map((e, i) => <Cell key={i} fill={CORES_MAPA[i % CORES_MAPA.length]} />)}
-                          </Pie>
-                          <Tooltip formatter={(v) => formatarMoeda(v)} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                    <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                      {dadosEstados.map((it, idx) => (
-                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #f0f4f8' }}>
-                          <span style={{ fontSize: '13px', color: '#555', fontWeight: 'bold' }}>{it.name}</span><strong style={{ color: '#004080' }}>{formatarMoeda(it.value)}</strong>
-                        </div>
-                      ))}
+                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <MapPin size={24} /> Aquisições por Estado
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
+                      <div style={{ width: '45%', height: '300px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={dadosEstados} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" animationDuration={1200}>
+                              {dadosEstados.map((e, i) => <Cell key={i} fill={CORES_MAPA[i % CORES_MAPA.length]} />)}
+                            </Pie>
+                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                        {dadosEstados.map((it, idx) => (
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_MAPA[idx % CORES_MAPA.length]}` }}>
+                            <span style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>{it.name}</span>
+                            <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* ROSCA DE ENTRADAS COM NOMENCLATURAS ANTIGAS APROVADAS */}
                 <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                    <h3 style={{ margin: '0 0 20px 0', color: '#004080', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}><Package size={26}/> Divisão de Entradas (Rosca BI)</h3>
+                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Package size={24}/> Divisão de Entradas (Rosca BI)
+                    </h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
-                        <div style={{ width: '40%', height: '300px' }}>
+                        <div style={{ width: '40%', height: '350px' }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
-                                    <Pie data={dadosRoscaEntradas} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" animationDuration={1200} labelLine={false} label={(props) => props.percent > 0.02 ? `${(props.percent * 100).toFixed(1)}%` : null} style={{ fontSize: '12px', fontWeight: 'bold', fill: '#fff' }}>
+                                    <Pie data={dadosRoscaEntradas} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={4} dataKey="value" animationDuration={1200}>
                                         {dadosRoscaEntradas.map((e, i) => <Cell key={i} fill={CORES_ENTRADAS[i % CORES_ENTRADAS.length]} />)}
                                     </Pie>
-                                    <Tooltip formatter={(v) => formatarMoeda(v)} />
+                                    <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>
-                        <div style={{ width: '60%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div style={{ width: '60%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', maxHeight: '350px', overflowY: 'auto', paddingRight: '10px' }}>
                             {dadosRoscaEntradas.map((it, idx) => (
-                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ENTRADAS[idx % CORES_ENTRADAS.length]}` }}>
-                                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#555' }}>{it.name}</span>
-                                    <div style={{ textAlign: 'right' }}>
-                                        <strong style={{ fontSize: '13px', color: '#004080' }}>{formatarMoeda(it.value)}</strong>
-                                        <span style={{ display: 'block', fontSize: '11px', color: '#999' }}>{((it.value / dadosVaf.entradasBrutas)*100).toFixed(2)}%</span>
+                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ENTRADAS[idx % CORES_ENTRADAS.length]}` }}>
+                                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
+                                    <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                                        <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
+                                        <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '3px' }}>{((it.value / dadosVaf.entradasBrutas)*100).toFixed(2)}%</span>
                                     </div>
                                 </div>
                             ))}
