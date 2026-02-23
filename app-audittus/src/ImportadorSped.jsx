@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, LineChart } from 'lucide-react';
 
 export default function ImportadorSped() {
   const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
@@ -21,26 +21,21 @@ export default function ImportadorSped() {
   const [topProdutos, setTopProdutos] = useState({ vendas: [], compras: [] });
   const [topFornecedores, setTopFornecedores] = useState([]);
 
-  // ESTADOS DO MÓDULO TRIBUTÁRIO, ESTADOS E LOG DE AUDITORIA
-  const [dadosTributacao, setDadosTributacao] = useState([]);
+  // ESTADOS DO MÓDULO TRIBUTÁRIO AVANÇADO
+  const [dadosTributacaoSaida, setDadosTributacaoSaida] = useState([]); 
   const [resumoTributacao, setResumoTributacao] = useState({ st: 0, servicos: 0, isento: 0, total: 0 });
   const [dadosEstados, setDadosEstados] = useState([]);
   const [logAuditoria, setLogAuditoria] = useState([]);
-  const [dadosBarrasEntradas, setDadosBarrasEntradas] = useState([]); // Gráfico de Barras
+  const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
+  const [dadosEvolucaoDiaria, setDadosEvolucaoDiaria] = useState([]); // GRÁFICO DE ÁREA CLARO
 
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
   const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
   const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'];
-  const CORES_BARRAS = ['#34d399', '#f87171', '#fbbf24', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#2dd4bf', '#94a3b8', '#818cf8', '#facc15'];
+  const CORES_ENTRADAS = ['#34d399', '#f87171', '#fbbf24', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#2dd4bf', '#94a3b8', '#818cf8', '#facc15'];
 
-  const mapUfIbge = {
-    '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins',
-    '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia',
-    '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo',
-    '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul',
-    '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior'
-  };
+  const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
 
   const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
@@ -51,14 +46,14 @@ export default function ImportadorSped() {
     setGuiasE116([]); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' }); setDadosGraficoOperacoes([]);
     setListaCfops({ entradas: [], saidas: [] }); setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
-    setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacao([]);
-    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosBarrasEntradas([]);
+    setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
+    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setDadosEvolucaoDiaria([]);
   };
 
   const processarArquivo = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    setStatus('processando'); setMensagem('Auditoria Linha a Linha e Módulo Tributário em andamento...');
+    setStatus('processando'); setMensagem('Processando Evolução Diária e Auditoria Digital...');
     setNomeOriginal(file.name);
 
     const reader = new FileReader();
@@ -68,575 +63,319 @@ export default function ImportadorSped() {
       const conteudoArquivo = e.target.result;
       const linhasOriginais = conteudoArquivo.split(/\r?\n/);
       let linhasProcessadas = [];
-      
-      let contC191 = 0; let contC173 = 0; let contTextos = 0;
-      let logTemp = [];
-      let numLinha = 0;
-
+      let contC191 = 0, contC173 = 0, contTextos = 0, logTemp = [], numLinha = 0;
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
 
       linhasOriginais.forEach((linha) => {
         numLinha++;
-        const t = linha.trim(); 
         const cols = linha.split('|');
-        const reg = cols[1] || 'N/A';
-
-        if (t.startsWith('|C191|')) {
-          contC191++;
-          logTemp.push({ linha: numLinha, registro: 'C191', acao: 'Linha Removida', detalhe: 'Registro C191 excluído.' });
-          return;
-        }
-        if (t.startsWith('|C173|')) {
-          contC173++;
-          logTemp.push({ linha: numLinha, registro: 'C173', acao: 'Linha Removida', detalhe: 'Registro C173 excluído.' });
-          return;
-        }
-
+        if (linha.startsWith('|C191|')) { contC191++; logTemp.push({ linha: numLinha, registro: 'C191', acao: 'Linha Removida', detalhe: 'Registro C191 excluído.' }); return; }
+        if (linha.startsWith('|C173|')) { contC173++; logTemp.push({ linha: numLinha, registro: 'C173', acao: 'Linha Removida', detalhe: 'Registro C173 excluído.' }); return; }
         const matches = linha.match(textosParaRemover);
-        if (matches) {
-          contTextos += matches.length;
-          logTemp.push({ linha: numLinha, registro: reg, acao: 'Termos Limpos', detalhe: `Removido: ${matches.join(', ')}` });
-        }
-        
-        if (t !== '') linhasProcessadas.push(linha.replace(textosParaRemover, ''));
+        if (matches) { contTextos += matches.length; logTemp.push({ linha: numLinha, registro: cols[1], acao: 'Termos Limpos', detalhe: `Removido: ${matches.join(', ')}` }); }
+        if (linha.trim() !== '') linhasProcessadas.push(linha.replace(textosParaRemover, ''));
       });
 
-      // LISTAS DE CFOPS ATUALIZADAS (ENERGIA E DEVOLUÇÕES)
       const cfopsEntradasBrutas = new Set(['1102','2102','3102','1117','2117','1403','2403','1101','2101','3101','1122','2122','1401','2401','1351','1352','1353','1354','1355','1356','2351','2352','2353','2354','2355','2356','3351','3352','3353','3354','3355','3356']);
-      const cfopsSaidasBrutas = new Set(['5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401','5117','6117','5351','6351','7351','5352','6352','7352','5353','6353','7353','5354','6354','7354','5355','6355','7355','5356','6356','7356','5357','6357','7357','5301','6301','7301','5302','6302','7302','5303','6303','7303','5304','6304','7304','5305','6305','7305','5306','6306','7306','5307','6307','7307', '5251','6251','7251','5252','6252','7252','5253','6253','7253','5254','6254','7254','5255','6255','7255','5256','6256','7256','5257','6257','7257','5258','6258','7258']); // ENERGIA INCLUÍDA NO VAF
+      const cfopsSaidasBrutas = new Set(['5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401','5117','6117','5351','6351','7351','5352','6352','7352','5353','6353','7353','5354','6354','7354','5355','6355','7355','5356','6356','7356','5357','6357','7357','5301','6301','7301','5302','6302','7302','5303','6303','7303','5304','6304','7304','5305','6305','7305','5306','6306','7306','5307','6307','7307','5251','6251','7251']);
       const cfopsDevVendas = new Set(['1202','2202','3202','1411','2411','1201','2201','3201','1410','2410','1206','2206','1207','2207']);
       const cfopsDevCompras = new Set(['5202','6202','7202','5411','6411','5201','6201','7201','5410','6410','5206','6206','5207','6207']);
-      
-      const cfopsNaoFaturamento = new Set(['5551','6551','7551','5552','6552','7552','5553','6553','7553','5554','6554','7554','5555','6555','7555','5556','6556','7556','5557','6557','7557','5661','6661','7661','5662','6662','7662','5663','6663','7663','5664','6664','7664','5665','6665','7665','5666','6666','7666','5201','6201','7201','5202','6202','7202','5206','6206','7206','5207','6207','7207','5410','6410','7410','5411','6411','7411','5926','5927','6926','6927']); // LISTA NEGRA DO FATURAMENTO
+      const cfopsNaoFaturamento = new Set(['5551','6551','7551','5552','6552','7552','5553','6553','7553','5554','6554','7554','5555','6555','7555','5556','6556','7556','5557','6557','7557','5661','6661','7661','5662','6662','7662','5663','6663','7663','5664','6664','7664','5665','6665','7665','5666','6666','7666','5201','6201','7201','5202','6202','7202','5206','6206','7206','5207','6207','7207','5410','6410','7410','5411','6411','7411','5926','5927']);
 
-      let totalDebitos = 0; let totalCreditos = 0; let totalEntradas = 0; let totalSaidas = 0;
-      let vafEntradas = 0; let vafSaidas = 0; let vafDevVen = 0; let vafDevCom = 0;
-      let mapaCfopEntrada = {}; let mapaCfopSaida = {};
-      let listaAjustes = []; let listaGuias = [];
-      let saldoCredorFinal = 0; let icmsRecolherFinal = 0;
-
-      let mapaProdutos = {}; let mapaParticipantes = {}; let mapaParticipanteEstado = {};
-      let vendasPorProduto = {}; let comprasPorProduto = {}; let comprasPorFornecedor = {};
-      let operacaoAtual = ''; 
-
-      let mapaTributacao = {};
-      let valST = 0; let valServicos = 0; let valIsento = 0; let totalAnalise = 0;
-      let comprasPorEstadoObj = {}; 
-      
-      // Categorias de Entradas (Dicionário Inteligente)
-      let dictEntradas = { 'Tributadas': 0, 'Não Tributadas/Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Desagregação de Carnes': 0, 'Simples Remessa': 0, 'Transporte': 0, 'Energia Elétrica': 0, 'Retorno Imob.': 0, 'Outras': 0 };
+      let totalDeb = 0, totalCred = 0, tEnt = 0, tSai = 0, vafEnt = 0, vafSai = 0, vafDV = 0, vafDC = 0;
+      let mCfopEnt = {}, mCfopSai = {}, listaAj = [], listaG = [], sCredFinal = 0, iRecFinal = 0;
+      let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = '', dataAtual = '01'; 
+      let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
+      let mapaDiario = {}; 
+      let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Desagregação de Carnes': 0, 'Simples Remessa': 0, 'Transporte': 0, 'Energia Elétrica': 0, 'Retorno Imob.': 0, 'Outras Entradas': 0 };
 
       linhasProcessadas.forEach(linha => {
         const colunas = linha.split('|');
-        
-        if (colunas[1] === '0000') {
-          const dtIni = colunas[4] || ''; const dtFin = colunas[5] || '';
-          const pFormatado = (dtIni.length === 8 && dtFin.length === 8) ? `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}` : `${dtIni} a ${dtFin}`;
-          let c = colunas[7] || '';
-          setDadosEmpresa({ nome: colunas[6] || 'Empresa', cnpj: c.length === 14 ? `${c.substring(0,2)}.${c.substring(2,5)}.${c.substring(5,8)}/${c.substring(8,12)}-${c.substring(12,14)}` : c, periodo: pFormatado });
-        }
-
-        if (colunas[1] === '0150') {
-            mapaParticipantes[colunas[2]] = colunas[3]; 
-            const codPais = colunas[4];
-            let estadoEncontrado = (codPais && codPais !== '01058' && codPais !== '1058') ? 'Exterior' : (colunas[8] && colunas[8].length >= 2 ? (mapUfIbge[colunas[8].substring(0, 2)] || 'Outros') : 'Desconhecido');
-            mapaParticipanteEstado[colunas[2]] = estadoEncontrado;
-        }
-        
-        if (colunas[1] === '0200') mapaProdutos[colunas[2]] = colunas[3]; 
-
-        if (colunas[1] === 'C100') {
-          operacaoAtual = colunas[2]; 
-          const vlDoc = parseFloat(colunas[12]?.replace(',', '.')) || 0;
-          if (operacaoAtual === '0') {
-            totalEntradas += vlDoc;
-            if (colunas[4]) {
-                comprasPorFornecedor[colunas[4]] = (comprasPorFornecedor[colunas[4]] || 0) + vlDoc;
-                const uf = mapaParticipanteEstado[colunas[4]] || 'Desconhecido';
-                comprasPorEstadoObj[uf] = (comprasPorEstadoObj[uf] || 0) + vlDoc;
-            }
-          } else if (operacaoAtual === '1') {
-            totalSaidas += vlDoc;
-          }
-        }
-
-        if (colunas[1] === 'C170') {
-          const vlItem = parseFloat(colunas[7]?.replace(',', '.')) || 0;
-          if (operacaoAtual === '1') vendasPorProduto[colunas[3]] = (vendasPorProduto[colunas[3]] || 0) + vlItem;
-          else if (operacaoAtual === '0') comprasPorProduto[colunas[3]] = (comprasPorProduto[colunas[3]] || 0) + vlItem;
-        }
-
-        if (colunas[1] === 'C190' || colunas[1] === 'D190') {
-          const cfop = colunas[3] || '';
-          const vlOpr = parseFloat(colunas[5]?.replace(',', '.')) || 0;
-          const vlIcms = parseFloat(colunas[7]?.replace(',', '.')) || 0;
-          let aliqIcms = '';
-          if (colunas[4] && colunas[4].trim()) {
-              let num = parseFloat(colunas[4].trim().replace(',', '.'));
-              if (!isNaN(num) && num > 0) aliqIcms = num.toString().replace('.', ',');
-          }
-
-          if (cfop.startsWith('1') || cfop.startsWith('2') || cfop.startsWith('3')) {
-            mapaCfopEntrada[cfop] = (mapaCfopEntrada[cfop] || 0) + vlOpr;
+        if (colunas[1] === '0000') setDadosEmpresa({ nome: colunas[6], cnpj: colunas[7], periodo: `${colunas[4]} a ${colunas[5]}` });
+        if (colunas[1] === '0150') { mPart[colunas[2]] = colunas[3]; mPartEst[colunas[2]] = (colunas[4] && colunas[4] !== '01058') ? 'Exterior' : (colunas[8] ? (mapUfIbge[colunas[8].substring(0, 2)] || 'Outros') : 'N/A'); }
+        if (colunas[1] === '0200') mProd[colunas[2]] = colunas[3]; 
+        if (colunas[1] === 'C100') { 
+            opAt = colunas[2]; 
+            const dtDoc = colunas[10] || ''; 
+            dataAtual = dtDoc.length >= 8 ? dtDoc.substring(0, 2) : '01'; 
+            const vlD = parseFloat(colunas[12]?.replace(',', '.')) || 0; 
             
-            // INTELIGÊNCIA DE ENTRADAS (DICIONÁRIO)
-            if (['1101','1102','2101','2102','3101','3102'].includes(cfop)) {
-                if (vlIcms > 0) dictEntradas['Tributadas'] += vlOpr;
-                else dictEntradas['Não Tributadas/Isentas'] += vlOpr;
-            } else if (['1401','1403','2401','2403'].includes(cfop)) dictEntradas['Substituição Tributária (ST)'] += vlOpr;
-            else if (['1556','2556'].includes(cfop)) dictEntradas['Uso e Consumo'] += vlOpr;
-            else if (['1406','1551','2551'].includes(cfop)) dictEntradas['Ativo Imobilizado'] += vlOpr;
-            else if (['1910','2910'].includes(cfop)) dictEntradas['Bonificações'] += vlOpr;
-            else if (['1653','2653'].includes(cfop)) dictEntradas['Combustíveis'] += vlOpr;
-            else if (['1926','2926'].includes(cfop)) dictEntradas['Desagregação de Carnes'] += vlOpr;
-            else if (['1922','2922'].includes(cfop)) dictEntradas['Simples Remessa'] += vlOpr;
-            else if (['1252','1253','2252','2253'].includes(cfop)) dictEntradas['Energia Elétrica'] += vlOpr;
-            else if (['1554','2554'].includes(cfop)) dictEntradas['Retorno Imob.'] += vlOpr;
-            else if (cfop.substring(1,3) === '35') dictEntradas['Transporte'] += vlOpr; // Pega 135x, 235x, 335x
-            else dictEntradas['Outras'] += vlOpr;
+            if (opAt === '0') { 
+                tEnt += vlD; 
+                if (colunas[4]) { cForn[colunas[4]] = (cForn[colunas[4]] || 0) + vlD; cEstObj[mPartEst[colunas[4]]] = (cEstObj[mPartEst[colunas[4]]] || 0) + vlD; } 
+            } else if (opAt === '1') tSai += vlD; 
+        }
+        if (colunas[1] === 'C170') { const vlI = parseFloat(colunas[7]?.replace(',', '.')) || 0; if (opAt === '1') vProd[colunas[3]] = (vProd[colunas[3]] || 0) + vlI; else if (opAt === '0') cProd[colunas[3]] = (cProd[colunas[3]] || 0) + vlI; }
+        if (colunas[1] === 'C190' || colunas[1] === 'D190') {
+          const cf = colunas[3] || '', vlO = parseFloat(colunas[5]?.replace(',', '.')) || 0, vlIc = parseFloat(colunas[7]?.replace(',', '.')) || 0;
+          let al = colunas[4] ? parseFloat(colunas[4].replace(',', '.')).toString().replace('.', ',') : '';
+          
+          if (!mapaDiario[dataAtual]) mapaDiario[dataAtual] = { dia: dataAtual, Vendas: 0, Compras: 0, 'Dev. Vendas': 0, 'Dev. Compras': 0 };
 
-          } else if (cfop.startsWith('5') || cfop.startsWith('6') || cfop.startsWith('7')) {
-            mapaCfopSaida[cfop] = (mapaCfopSaida[cfop] || 0) + vlOpr;
-
-            // IGNORA CFOPS PROIBIDOS NO FATURAMENTO (Devoluções, Retornos, etc)
-            if (!cfopsNaoFaturamento.has(cfop)) {
-                let categoria = '';
-                if (cfop.startsWith('53') || cfop.startsWith('63') || cfop.startsWith('73')) {
-                    categoria = 'Prestações de Serviços'; valServicos += vlOpr;
-                } else if (cfop.startsWith('54') || cfop.startsWith('64') || cfop.startsWith('74')) {
-                    categoria = 'Substituição Tributária (ST)'; valST += vlOpr;
-                } else if (vlIcms === 0) {
-                    categoria = 'Isentas / Não Tributadas'; valIsento += vlOpr;
-                } else if (aliqIcms !== '') categoria = `Tributadas a ${aliqIcms}%`;
-                else categoria = `Outras Operações (CFOP ${cfop})`;
-
-                mapaTributacao[categoria] = (mapaTributacao[categoria] || 0) + vlOpr;
-                totalAnalise += vlOpr;
+          if (cf.startsWith('1') || cf.startsWith('2') || cf.startsWith('3')) {
+            mCfopEnt[cf] = (mCfopEnt[cf] || 0) + vlO;
+            if (['1101','1102','2101','2102','3101','3102'].includes(cf)) vlIc > 0 ? dEnt['Revenda/Ind. - Tributadas'] += vlO : dEnt['Revenda/Ind. - Isentas'] += vlO;
+            else if (['1401','1403','2401','2403'].includes(cf)) dEnt['Substituição Tributária (ST)'] += vlO;
+            else if (['1556','2556'].includes(cf)) dEnt['Uso e Consumo'] += vlO;
+            else if (['1406','1551','2551'].includes(cf)) dEnt['Ativo Imobilizado'] += vlO;
+            else if (['1910','2910'].includes(cf)) dEnt['Bonificações'] += vlO;
+            else if (['1653','2653'].includes(cf)) dEnt['Combustíveis'] += vlO;
+            else if (['1926','2926'].includes(cf)) dEnt['Desagregação de Carnes'] += vlO;
+            else if (['1922','2922'].includes(cf)) dEnt['Simples Remessa'] += vlO;
+            else if (['1252','1253','2252','2253'].includes(cf)) dEnt['Energia Elétrica'] += vlO;
+            else if (['1554','2554'].includes(cf)) dEnt['Retorno Imob.'] += vlO;
+            else if (cf.substring(1,3) === '35') dEnt['Transporte'] += vlO;
+            else dEnt['Outras Entradas'] += vlO;
+          } else {
+            mCfopSai[cf] = (mCfopSai[cf] || 0) + vlO;
+            if (!cfopsNaoFaturamento.has(cf)) {
+              let cat = cf.startsWith('53') || cf.startsWith('63') ? 'ISS - Serviços' : cf.startsWith('54') || cf.startsWith('64') ? 'Saídas ST' : vlIc === 0 ? 'Saídas Isentas' : al !== '' ? `Tributadas a ${al}%` : `Outras (CFOP ${cf})`;
+              if (cat === 'ISS - Serviços') vServ += vlO; if (cat === 'Saídas ST') vST += vlO; if (cat === 'Saídas Isentas') vIse += vlO;
+              mTribSaida[cat] = (mTribSaida[cat] || 0) + vlO; tAnalise += vlO;
             }
           }
-
-          if (cfopsEntradasBrutas.has(cfop)) vafEntradas += vlOpr;
-          if (cfopsSaidasBrutas.has(cfop)) vafSaidas += vlOpr;
-          if (cfopsDevVendas.has(cfop)) vafDevVen += vlOpr;
-          if (cfopsDevCompras.has(cfop)) vafDevCom += vlOpr;
+          if (cfopsEntradasBrutas.has(cf)) { vafEnt += vlO; mapaDiario[dataAtual]['Compras'] += vlO; }
+          if (cfopsSaidasBrutas.has(cf)) { vafSai += vlO; mapaDiario[dataAtual]['Vendas'] += vlO; }
+          if (cfopsDevVendas.has(cf)) { vafDV += vlO; mapaDiario[dataAtual]['Dev. Vendas'] += vlO; }
+          if (cfopsDevCompras.has(cf)) { vafDC += vlO; mapaDiario[dataAtual]['Dev. Compras'] += vlO; }
         }
-
-        if (colunas[1] === 'E110') {
-          totalDebitos += parseFloat(colunas[2].replace(',', '.')) || 0;
-          totalCreditos += parseFloat(colunas[6].replace(',', '.')) || 0;
-          icmsRecolherFinal = parseFloat(colunas[13].replace(',', '.')) || 0;
-          saldoCredorFinal = parseFloat(colunas[14].replace(',', '.')) || 0;
-        }
-        
-        if (colunas[1] === 'E111') {
-          listaAjustes.push({ codigo: colunas[2], descricao: colunas[2] === 'RO020003' ? 'ICMS Antecipado' : colunas[2] === 'RO050010' ? 'FECOEP a Recolher' : `Ajuste: ${colunas[2]}`, valor: parseFloat(colunas[4].replace(',', '.')) || 0 });
-        }
-        
-        if (colunas[1] === 'E116') {
-          const v = colunas[4]; 
-          listaGuias.push({ codigo: (colunas[5] && colunas[5].trim() !== '') ? colunas[5] : colunas[2], valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: v && v.length === 8 ? `${v.substring(0,2)}/${v.substring(2,4)}/${v.substring(4,8)}` : v });
-        }
+        if (colunas[1] === 'E110') { totalDeb += parseFloat(colunas[2].replace(',', '.')) || 0; totalCred += parseFloat(colunas[6].replace(',', '.')) || 0; iRecFinal = parseFloat(colunas[13].replace(',', '.')) || 0; sCredFinal = parseFloat(colunas[14].replace(',', '.')) || 0; }
+        if (colunas[1] === 'E111') listaAj.push({ codigo: colunas[2], descricao: colunas[2] === 'RO020003' ? 'ICMS Antecipado' : `Ajuste: ${colunas[2]}`, valor: parseFloat(colunas[4].replace(',', '.')) || 0 });
+        if (colunas[1] === 'E116') listaG.push({ codigo: colunas[5] || colunas[2], valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: colunas[4] });
       });
 
-      // CONVERSÕES FINAIS
-      setListaCfops({ entradas: Object.keys(mapaCfopEntrada).map(k => ({ cfop: k, valor: mapaCfopEntrada[k] })).sort((a,b) => b.valor - a.valor), saidas: Object.keys(mapaCfopSaida).map(k => ({ cfop: k, valor: mapaCfopSaida[k] })).sort((a,b) => b.valor - a.valor) });
-      setTopProdutos({ vendas: Object.keys(vendasPorProduto).map(k => ({ nome: mapaProdutos[k] || `Cód: ${k}`, valor: vendasPorProduto[k] })).sort((a, b) => b.valor - a.valor).slice(0, 10), compras: Object.keys(comprasPorProduto).map(k => ({ nome: mapaProdutos[k] || `Cód: ${k}`, valor: comprasPorProduto[k] })).sort((a, b) => b.valor - a.valor).slice(0, 10) });
-      setTopFornecedores(Object.keys(comprasPorFornecedor).map(k => ({ nome: mapaParticipantes[k] || `Cód: ${k}`, valor: comprasPorFornecedor[k] })).sort((a, b) => b.valor - a.valor).slice(0, 5));
-      setDadosEstados(Object.keys(comprasPorEstadoObj).map(k => ({ name: k, value: comprasPorEstadoObj[k] })).sort((a, b) => b.value - a.value));
-      setDadosTributacao(Object.keys(mapaTributacao).map(k => ({ name: k, value: mapaTributacao[k] })).sort((a, b) => b.value - a.value));
+      setListaCfops({ entradas: Object.keys(mCfopEnt).map(k => ({ cfop: k, valor: mCfopEnt[k] })).sort((a,b) => b.valor - a.valor), saidas: Object.keys(mCfopSai).map(k => ({ cfop: k, valor: mCfopSai[k] })).sort((a,b) => b.valor - a.valor) });
+      setTopProdutos({ vendas: Object.keys(vProd).map(k => ({ nome: mProd[k] || k, valor: vProd[k] })).sort((a,b) => b.valor - a.valor).slice(0, 10), compras: Object.keys(cProd).map(k => ({ nome: mProd[k] || k, valor: cProd[k] })).sort((a,b) => b.valor - a.valor).slice(0, 10) });
+      setTopFornecedores(Object.keys(cForn).map(k => ({ nome: mPart[k] || k, valor: cForn[k] })).sort((a,b) => b.valor - a.valor).slice(0, 5));
+      setDadosEstados(Object.keys(cEstObj).map(k => ({ name: k, value: cEstObj[k] })).sort((a,b) => b.value - a.value));
+      setDadosTributacaoSaida(Object.keys(mTribSaida).map(k => ({ name: k, value: mTribSaida[k] })).sort((a,b) => b.value - a.value));
+      setDadosRoscaEntradas(Object.keys(dEnt).filter(k => dEnt[k] > 0).map(k => ({ name: k, value: dEnt[k] })).sort((a,b) => b.value - a.value));
+      setDadosVaf({ entradasBrutas: vafEnt, saidasBrutas: vafSai, devVendas: vafDV, devCompras: vafDC, vafTotal: (vafSai - vafDV) - (vafEnt - vafDC) });
+      setDadosGraficoIcms([{ name: 'Créditos', value: totalCred }, { name: 'Débitos', value: totalDeb }]);
+      setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
+      setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       
-      // Gráfico de Barras Formatado
-      const dadosBarrasArray = Object.keys(dictEntradas).filter(k => dictEntradas[k] > 0).map(k => ({ name: k, value: dictEntradas[k] })).sort((a, b) => b.value - a.value);
-      let objBarras = { name: 'Compras' };
-      dadosBarrasArray.forEach(item => objBarras[item.name] = item.value);
-      setDadosBarrasEntradas([{...objBarras}]);
+      const arrayDiario = Object.keys(mapaDiario).map(k => mapaDiario[k]).sort((a, b) => parseInt(a.dia) - parseInt(b.dia));
+      setDadosEvolucaoDiaria(arrayDiario);
 
-      const calculoVaf = (vafSaidas - vafDevVen) - (vafEntradas - vafDevCom);
-      setDadosVaf({ entradasBrutas: vafEntradas, saidasBrutas: vafSaidas, devVendas: vafDevVen, devCompras: vafDevCom, vafTotal: calculoVaf });
-
-      setDadosGraficoIcms([{ name: 'Créditos', value: totalCreditos }, { name: 'Débitos', value: totalDebitos }]);
-      setDadosGraficoOperacoes([{ name: 'Total Entradas', value: totalEntradas }, { name: 'Total Saídas', value: totalSaidas }]);
-      setResumoTributacao({ st: valST, servicos: valServicos, isento: valIsento, total: totalAnalise });
-      setAjustesICMS(listaAjustes); setResumoIcms({ saldoCredor: saldoCredorFinal, icmsRecolher: icmsRecolherFinal }); setGuiasE116(listaGuias);
-
-      // LÓGICA INTELIGENTE DOS TOTALIZADORES
-      let mudouEstrutura = (contC191 > 0 || contC173 > 0);
-      const totalC = linhasProcessadas.filter(l => l.startsWith('|C')).length;
-      const total9 = linhasProcessadas.filter(l => l.startsWith('|9')).length;
-      const totalGeral = linhasProcessadas.length;
-      
-      const resultadoFinal = mudouEstrutura ? linhasProcessadas.map(linha => {
-        if (linha.startsWith('|C990|')) return `|C990|${totalC}|`;
-        if (linha.startsWith('|9990|')) return `|9990|${total9}|`;
-        if (linha.startsWith('|9999|')) return `|9999|${totalGeral}|`;
-        return linha;
-      }).join('\r\n') : linhasProcessadas.join('\r\n');
-
-      setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: mudouEstrutura ? 3 : 0 });
-      setLogAuditoria(logTemp);
-      setArquivoProcessado(resultadoFinal);
-      setStatus('sucesso'); setMensagem('Auditoria e Dashboards gerados com sucesso!');
+      setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: (contC191 > 0 || contC173 > 0) ? 3 : 0 });
+      setLogAuditoria(logTemp); setArquivoProcessado(linhasProcessadas.join('\r\n')); setStatus('sucesso');
     };
-  };
-
-  const baixarArquivo = () => {
-    if (!arquivoProcessado) return;
-    const blob = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob); link.download = `AUDITTUS_${nomeOriginal}`;
-    document.body.appendChild(link); link.click(); document.body.removeChild(link);
   };
 
   const BotoesAcao = () => (
     <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '30px', padding: '20px', backgroundColor: '#fff', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-        <button onClick={baixarArquivo} style={{ padding: '15px 25px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}><Download size={20} /> Baixar SPED Validado</button>
-        <button onClick={() => window.print()} style={{ padding: '15px 25px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}><Printer size={20} /> Salvar Relatório Atual (PDF)</button>
-        <button onClick={limparDados} style={{ padding: '15px 25px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', transition: 'background 0.3s' }}><RefreshCw size={20} /> Limpar / Nova Validação</button>
+        <button onClick={() => { const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_${nomeOriginal}`; l.click(); }} style={{ padding: '15px 25px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}><Download size={20} /> Baixar SPED Validado</button>
+        <button onClick={() => window.print()} style={{ padding: '15px 25px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}><Printer size={20} /> Salvar Relatório (PDF)</button>
+        <button onClick={limparDados} style={{ padding: '15px 25px', backgroundColor: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}><RefreshCw size={20} /> Nova Validação</button>
     </div>
   );
 
   return (
-    <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: status !== 'sucesso' ? 'center' : 'flex-start', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#333' }}>
-      
-      <style>
-        {`
-          @media print {
-            @page { size: A4 portrait; margin: 15mm; }
-            .no-print, button { display: none !important; }
-            body, html { background-color: #fff !important; margin: 0 !important; padding: 0 !important; }
-            .main-container { background-color: #fff !important; display: block !important; padding: 0 !important; }
-            .content-wrapper { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; display: block !important; }
-            .print-dashboard-area { width: 100% !important; max-width: 100% !important; display: block !important; }
-            ::-webkit-scrollbar { display: none; }
-            .print-grid { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 25px !important; margin-bottom: 25px !important; }
-            .print-grid-trib { display: flex !important; flex-direction: column !important; align-items: center !important; gap: 25px !important; margin-bottom: 25px !important; width: 100% !important; }
-            .print-flex-col { display: flex !important; flex-direction: column !important; align-items: center !important; width: 100% !important; gap: 25px !important; }
-            .print-card, .print-vaf, .print-banner { width: 100% !important; max-width: 650px !important; margin: 0 auto !important; page-break-inside: avoid !important; break-inside: avoid !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important; box-sizing: border-box !important; }
-            .print-banner { border: 2px solid #004080 !important; background: #fff !important; color: #004080 !important; }
-            .print-banner h2, .print-banner span, .print-banner strong, .print-banner p { color: #004080 !important; }
-            .print-banner svg { stroke: #004080 !important; }
-            .print-vaf { border: 3px solid #3b82f6 !important; background: #fff !important; padding: 25px !important; }
-            .print-vaf h3, .print-vaf span, .print-vaf p { color: #1e3a8a !important; }
-            .print-vaf-text { color: #333 !important; }
-            .print-vaf-result { border: 1px solid #cbd5e1 !important; box-shadow: none !important; background: #f8fafc !important; }
-            .print-chart { height: 250px !important; page-break-inside: avoid !important; break-inside: avoid !important; }
-            .recharts-wrapper { margin: 0 auto !important; }
-            .print-trib-list { max-height: none !important; overflow: visible !important; }
-          }
-        `}
-      </style>
-
+    <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif' }}>
       <div className="content-wrapper" style={{ width: '100%', maxWidth: '1600px' }}>
-        
         <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800', letterSpacing: '-1px' }}>AUDITTUS</h1>
-          <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Validação</p>
+          <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
+          <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
         </div>
 
         {status !== 'sucesso' && (
-          <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '50px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: 'all 0.3s ease' }}>
+          <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '60px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative' }}>
             <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
-            {status === 'aguardando' && <UploadCloud size={64} color="#004080" style={{ marginBottom: '20px', opacity: 0.8 }} />}
-            {status === 'processando' && <AlertCircle size={64} color="#F59E0B" style={{ marginBottom: '20px', animation: 'spin 2s linear infinite' }} />}
-            <h2 style={{ margin: '0', color: '#004080', fontSize: '24px' }}>{mensagem}</h2>
+            <UploadCloud size={64} color="#004080" style={{ marginBottom: '20px', opacity: 0.8 }} />
+            <h2 style={{ margin: '0', color: '#004080', fontSize: '24px' }}>Arraste seu SPED Fiscal ou clique aqui</h2>
           </div>
         )}
 
         {status === 'sucesso' && (
           <div>
             <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px' }}>
-              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: abaAtiva === 'home' ? 'none' : '2px solid #004080', borderRadius: '30px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s', boxShadow: abaAtiva === 'home' ? '0 5px 15px rgba(0,64,128,0.2)' : 'none' }}>
-                <LayoutDashboard size={20} /> Dashboard Principal
-              </button>
-              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: abaAtiva === 'tributos' ? 'none' : '2px solid #10b981', borderRadius: '30px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s', boxShadow: abaAtiva === 'tributos' ? '0 5px 15px rgba(16,185,129,0.2)' : 'none' }}>
-                <Tags size={20} /> Análise Tributária
-              </button>
-              <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: abaAtiva === 'auditoria' ? 'none' : '2px solid #ef4444', borderRadius: '30px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s', boxShadow: abaAtiva === 'auditoria' ? '0 5px 15px rgba(239,68,68,0.2)' : 'none' }}>
-                <FileSearch size={20} /> Ver Resultados Detalhados (Auditoria)
-              </button>
+              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer' }}><LayoutDashboard size={20} /> Principal</button>
+              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer' }}><Tags size={20} /> BI Tributário</button>
+              <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer' }}><FileSearch size={20} /> Auditoria</button>
             </div>
 
-            <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)', WebkitPrintColorAdjust: 'exact' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <Building2 size={40} style={{ opacity: 0.9 }} />
-                <div>
-                  <h2 style={{ margin: '0 0 5px 0', fontSize: '24px', fontWeight: '700' }}>{dadosEmpresa.nome}</h2>
-                  <span style={{ fontSize: '15px', opacity: 0.8, fontFamily: 'monospace' }}>CNPJ: {dadosEmpresa.cnpj}</span>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right', backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '12px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '4px', fontWeight: '600' }}><Calendar size={14}/> Período de Apuração</span>
-                <strong style={{ fontSize: '18px', letterSpacing: '0.5px' }}>{dadosEmpresa.periodo}</strong>
-              </div>
+            <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}><Building2 size={40} /><div><h2 style={{ margin: 0, fontSize: '22px' }}>{dadosEmpresa.nome}</h2><span style={{ fontSize: '14px', opacity: 0.8 }}>CNPJ: {dadosEmpresa.cnpj}</span></div></div>
+              <div style={{ textAlign: 'right' }}><span style={{ fontSize: '12px', opacity: 0.8 }}>PERÍODO</span><strong style={{ display: 'block', fontSize: '18px' }}>{dadosEmpresa.periodo}</strong></div>
             </div>
 
-            {/* ======================= ABA: DASHBOARD PRINCIPAL ======================= */}
+            {/* ABA PRINCIPAL (HOME) */}
             {abaAtiva === 'home' && (
-              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-                <div className="print-dashboard-area" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                  
-                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'stretch', marginBottom: '25px' }}>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><ArrowRightLeft size={24}/> Volume de Operações</h3>
-                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
-                        <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>{dadosGraficoOperacoes.map((entry, index) => <Cell key={`cell-op-${index}`} fill={CORES_OPERACOES[index % CORES_OPERACOES.length]} />)}</Pie><Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} /><Legend verticalAlign="bottom" height={36} iconType="circle" /></PieChart></ResponsiveContainer>
-                      </div>
+              <div style={{ display: 'flex', gap: '30px' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '25px' }}>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' }}>
+                       <h3 style={{ color: '#004080', fontSize: '18px', marginBottom: '15px' }}><ArrowRightLeft size={20}/> Operações</h3>
+                       <div style={{ height: '220px' }}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={55} outerRadius={75} dataKey="value" animationDuration={1000}>{dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}</Pie><Tooltip formatter={(v) => formatarMoeda(v)} /><Legend /></PieChart></ResponsiveContainer></div>
                     </div>
-
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
-                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                            {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#10b981', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
-                            )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
-                          <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
-                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                            {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#4f46e5', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
-                            )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
-                          </div>
-                        </div>
-                      </div>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' }}>
+                       <h3 style={{ color: '#004080', fontSize: '18px', marginBottom: '15px' }}>Resumo CFOP</h3>
+                       <div style={{ maxHeight: '220px', overflowY: 'auto', fontSize: '12px' }}>
+                          <div style={{ color: '#10b981', fontWeight: 'bold' }}>Entradas</div>{listaCfops.entradas.slice(0,3).map((it, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span>{it.cfop}</span><span>{formatarMoeda(it.valor)}</span></div>)}
+                          <div style={{ color: '#4f46e5', fontWeight: 'bold', marginTop: '10px' }}>Saídas</div>{listaCfops.saidas.slice(0,3).map((it, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span>{it.cfop}</span><span>{formatarMoeda(it.valor)}</span></div>)}
+                       </div>
                     </div>
-
-                    <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', color: '#fff', WebkitPrintColorAdjust: 'exact', position: 'relative' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}><h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}><Calculator size={26}/> VAF Fiscal do Período</h3></div>
-                      <div className="print-vaf-text" style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#fca5a5' }}><Minus size={16}/> Dev. Vendas</span><strong style={{ fontSize: '16px', color: '#fca5a5' }}>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#6ee7b7' }}><Plus size={16}/> Dev. Compras</span><strong style={{ fontSize: '16px', color: '#6ee7b7' }}>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
-                      </div>
-                      <div className="print-vaf-result" style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Equal size={16}/> Valor Adicionado Gerado</p>
-                        <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2>
-                      </div>
-                      {/* ALERTA VAF NEGATIVO */}
-                      {dadosVaf.vafTotal < 0 && (
-                        <div style={{ position: 'absolute', bottom: '-40px', left: '0', right: '0', textAlign: 'center' }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fee2e2', color: '#ef4444', padding: '6px 15px', borderRadius: '20px', fontWeight: '800', fontSize: '14px', boxShadow: '0 4px 6px rgba(239, 68, 68, 0.2)' }}><AlertTriangle size={18} /> ATENÇÃO! VAF Negativo</span>
-                        </div>
-                      )}
+                    <div style={{ background: 'linear-gradient(135deg, #004080, #0284c7)', color: '#fff', padding: '25px', borderRadius: '20px', position: 'relative' }}>
+                       <h3><Calculator size={22}/> VAF Fiscal</h3>
+                       <div style={{ margin: '12px 0' }}>
+                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}><span>Saídas</span><strong>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
+                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}><span>Entradas</span><strong>-{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
+                       </div>
+                       <div style={{ backgroundColor: '#fff', color: '#004080', padding: '12px', borderRadius: '15px', textAlign: 'center' }}>
+                         <span style={{ fontSize: '11px', fontWeight: 'bold' }}>VALOR ADICIONADO</span><h2 style={{ margin: 0, fontSize: '24px' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2>
+                       </div>
+                       {dadosVaf.vafTotal < 0 && <div style={{ position: 'absolute', bottom: '-35px', left: 0, width: '100%', textAlign: 'center' }}><span style={{ backgroundColor: '#fee2e2', color: '#ef4444', padding: '5px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: '800' }}><AlertTriangle size={14}/> ATENÇÃO! VAF Negativo</span></div>}
                     </div>
                   </div>
-
-                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: dadosVaf.vafTotal < 0 ? '40px' : '0' }}>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS</h3>
-                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={5} dataKey="value" animationDuration={1500}>{dadosGraficoIcms.map((entry, index) => <Cell key={`cell-icms-${index}`} fill={CORES_ICMS[index % CORES_ICMS.length]} />)}</Pie><Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} /><Legend verticalAlign="bottom" height={36} iconType="circle" /></PieChart></ResponsiveContainer></div>
-                    </div>
-
-                    <div className="print-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                      <div className="print-flex-col" style={{ display: 'flex', gap: '20px', width: '100%' }}>
-                        <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}><p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor Transportar</p><h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2></div>
-                        <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}><p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>ICMS a Recolher</p><h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2></div>
-                      </div>
-                      <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
-                        <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign size={20} /> Obrigações</h3>
-                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                          {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
-                            <div key={index} style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '10px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><span style={{ fontSize: '12px', color: '#666', display: 'block' }}>Cód: {guia.codigo}</span><span style={{ fontSize: '12px', color: '#555' }}><Calendar size={12}/> Vencto: {guia.vencimento}</span></div><span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '16px' }}>{formatarMoeda(guia.valor)}</span></div>
-                          )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Sem guias.</p>}
-                        </div>
-                      </div>
-                      <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
-                         <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><FileText size={20}/> Ajustes</h3>
-                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                          {ajustesICMS.length > 0 ? ajustesICMS.map((ajuste, index) => (
-                            <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><div><span style={{ display: 'block', fontWeight: 'bold', color: '#333' }}>{ajuste.descricao}</span><span style={{ fontSize: '11px', color: '#666' }}>Cód: {ajuste.codigo}</span></div><span style={{ fontWeight: 'bold', color: '#004080' }}>{formatarMoeda(ajuste.valor)}</span></div>
-                          )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Nenhum ajuste.</p>}
-                        </div>
-                      </div>
-                    </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', marginTop: '10px' }}>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px' }}><h3 style={{ color: '#004080' }}><Package size={20}/> Top 10 Produtos</h3>{topProdutos.vendas.map((it, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f4f8' }}><span style={{ fontSize: '12px' }}>{it.nome}</span><strong style={{ fontSize: '12px' }}>{formatarMoeda(it.valor)}</strong></div>)}</div>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px' }}><h3 style={{ color: '#004080' }}><Truck size={20}/> Top 5 Fornecedores</h3>{topFornecedores.map((it, idx) => <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #f0f4f8' }}><span style={{ fontSize: '13px' }}>{it.nome}</span><strong>{formatarMoeda(it.valor)}</strong></div>)}</div>
                   </div>
-
-                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: '25px' }}>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Package size={24}/> Top 10 Produtos (Vendas/Compras)</h3>
-                      <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
-                        {(topProdutos.vendas && topProdutos.vendas.length > 0 ? topProdutos.vendas : (topProdutos.compras && topProdutos.compras.length > 0 ? topProdutos.compras : [])).length > 0 ? (topProdutos.vendas && topProdutos.vendas.length > 0 ? topProdutos.vendas : topProdutos.compras).map((item, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}><span style={{ backgroundColor: '#10b981', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span><span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }} title={item.nome}>{item.nome}</span></div>
-                            <span style={{ color: '#10b981', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
-                          </div>
-                        )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhum detalhamento de produto cadastrado no período.</p>}
-                      </div>
-                    </div>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Truck size={24}/> Top 5 Maiores Fornecedores</h3>
-                      <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
-                        {topFornecedores.length > 0 ? topFornecedores.map((item, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}><span style={{ backgroundColor: '#f59e0b', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span><span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.nome}>{item.nome}</span></div>
-                            <span style={{ color: '#004080', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
-                          </div>
-                        )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhuma compra identificada no período.</p>}
-                      </div>
-                    </div>
-                  </div>
-
                   <BotoesAcao />
                 </div>
-
-                <div className="no-print" style={{ width: '320px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '20px', padding: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'sticky', top: '30px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
-                    <div style={{ backgroundColor: '#10b981', padding: '12px', borderRadius: '12px', display: 'flex', color: '#fff' }}><Shield size={28} /></div>
-                    <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: '800' }}>Auditoria e Limpeza</h3><p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '13px' }}>Ajustes automáticos</p></div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros C191 Removidos</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c191Removidos}</strong></div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros C173 Removidos</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c173Removidos}</strong></div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Termos Proibidos Limpos</span><strong style={{ fontSize: '22px', color: '#f59e0b' }}>{relatorioCorrecoes.textosRemovidos}</strong><span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>Ex: ISENTO, Zeros, Sem GTIN</span></div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Totalizadores Corrigidos</span><strong style={{ fontSize: '22px', color: '#10b981' }}>{relatorioCorrecoes.blocosRecalculados}</strong><span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>C990, 9990, 9999</span></div>
-                  </div>
-                  <div style={{ marginTop: '25px', backgroundColor: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', color: '#fff', boxShadow: '0 5px 15px rgba(0,64,128,0.2)' }}><span style={{ display: 'block', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '5px', fontWeight: '600' }}>Total de Intervenções</span><strong style={{ fontSize: '36px', fontWeight: '900' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos + relatorioCorrecoes.blocosRecalculados}</strong></div>
+                <div style={{ width: '320px', backgroundColor: '#fff', borderRadius: '20px', padding: '25px' }} className="no-print">
+                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}><Shield color="#10b981"/> Auditoria</h3>
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
+                     <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}><span>Linhas Removidas</span><h4 style={{ margin: 0 }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos}</h4></div>
+                     <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}><span>Termos Limpos</span><h4 style={{ margin: 0 }}>{relatorioCorrecoes.textosRemovidos}</h4></div>
+                     <div style={{ backgroundColor: '#004080', padding: '15px', borderRadius: '12px', color: '#fff', textAlign: 'center' }}><span>Total Intervenções</span><h2 style={{ margin: 0 }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos}</h2></div>
+                   </div>
                 </div>
               </div>
             )}
 
-            {/* ======================= ABA: ANÁLISE TRIBUTÁRIA E ESTADOS ======================= */}
+            {/* ABA TRIBUTÁRIA (BI AVANÇADO) */}
             {abaAtiva === 'tributos' && (
-              <div className="print-dashboard-area" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '25px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 
-                <div className="print-grid-trib" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', alignItems: 'stretch' }}>
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #004080', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Faturamento Analisado</p>
-                    <h2 style={{ margin: 0, color: '#004080', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Baseado nas Saídas</span>
+                {/* MEGA DASH: GRÁFICO DE ÁREA DIÁRIA COM TEMA CLARO E LIMPO */}
+                <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)', color: '#333' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '25px' }}>
+                        <h3 style={{ margin: 0, color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}><LineChart size={28}/> Evolução Diária de Operações</h3>
+                        
+                        {/* Legenda Dinâmica Superior */}
+                        <div style={{ display: 'flex', gap: '20px', fontSize: '14px', fontWeight: '700', color: '#555' }}>
+                            {dadosVaf.saidasBrutas > 0 && <span style={{ display: 'flex', alignItems: 'center', gap:'5px' }}><div style={{width:'12px', height:'12px', borderRadius:'3px', background:'#10b981'}}></div> Vendas: {((dadosVaf.saidasBrutas / (dadosVaf.saidasBrutas + dadosVaf.entradasBrutas + dadosVaf.devVendas + dadosVaf.devCompras)) * 100).toFixed(1)}%</span>}
+                            {dadosVaf.entradasBrutas > 0 && <span style={{ display: 'flex', alignItems: 'center', gap:'5px' }}><div style={{width:'12px', height:'12px', borderRadius:'3px', background:'#3b82f6'}}></div> Compras: {((dadosVaf.entradasBrutas / (dadosVaf.saidasBrutas + dadosVaf.entradasBrutas + dadosVaf.devVendas + dadosVaf.devCompras)) * 100).toFixed(1)}%</span>}
+                            {dadosVaf.devVendas > 0 && <span style={{ display: 'flex', alignItems: 'center', gap:'5px' }}><div style={{width:'12px', height:'12px', borderRadius:'3px', background:'#ef4444'}}></div> Dev. Vendas: {((dadosVaf.devVendas / (dadosVaf.saidasBrutas + dadosVaf.entradasBrutas + dadosVaf.devVendas + dadosVaf.devCompras)) * 100).toFixed(1)}%</span>}
+                            {dadosVaf.devCompras > 0 && <span style={{ display: 'flex', alignItems: 'center', gap:'5px' }}><div style={{width:'12px', height:'12px', borderRadius:'3px', background:'#f59e0b'}}></div> Dev. Compras: {((dadosVaf.devCompras / (dadosVaf.saidasBrutas + dadosVaf.entradasBrutas + dadosVaf.devVendas + dadosVaf.devCompras)) * 100).toFixed(1)}%</span>}
+                        </div>
+                    </div>
+
+                    <div style={{ height: '350px', width: '100%' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={dadosEvolucaoDiaria} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorVen" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.6}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
+                                    <linearGradient id="colorCom" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#3b82f6" stopOpacity={0.5}/><stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
+                                    <linearGradient id="colorDV" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#ef4444" stopOpacity={0.5}/><stop offset="95%" stopColor="#ef4444" stopOpacity={0}/></linearGradient>
+                                    <linearGradient id="colorDC" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f59e0b" stopOpacity={0.5}/><stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.8} />
+                                <XAxis dataKey="dia" tick={{ fill: '#64748b', fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => `Dia ${v}`} />
+                                <YAxis tickFormatter={(v) => `R$ ${(v/1000).toFixed(0)}k`} tick={{ fill: '#64748b', fontSize: 12 }} tickLine={false} axisLine={false} />
+                                <Tooltip contentStyle={{ backgroundColor: '#fff', border: 'none', borderRadius: '12px', color: '#333', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} formatter={(v) => formatarMoeda(v)} labelStyle={{ color: '#004080', fontWeight: 'bold', marginBottom: '5px' }} labelFormatter={(v) => `Movimento Dia ${v}`} />
+                                <Area type="monotone" dataKey="Vendas" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorVen)" animationDuration={2000} />
+                                <Area type="monotone" dataKey="Compras" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorCom)" animationDuration={2000} />
+                                <Area type="monotone" dataKey="Dev. Vendas" stroke="#ef4444" strokeWidth={2} fillOpacity={1} fill="url(#colorDV)" animationDuration={2000} />
+                                <Area type="monotone" dataKey="Dev. Compras" stroke="#f59e0b" strokeWidth={2} fillOpacity={1} fill="url(#colorDC)" animationDuration={2000} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
+                  {/* LADO ESQUERDO: RESTAURADO - TRIBUTAÇÃO DE SAÍDAS (POR ALÍQUOTA) */}
+                  <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' }}>
+                    <h3 style={{ color: '#004080', marginBottom: '20px' }}><Activity size={22}/> Tributação das Saídas (C190)</h3>
+                    <div style={{ height: '320px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={dadosTributacaoSaida} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" animationDuration={1200} label={({name, percent}) => `${name}: ${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>
+                            {dadosTributacaoSaida.map((e, i) => <Cell key={i} fill={CORES_TRIBUTACAO[i % CORES_TRIBUTACAO.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatarMoeda(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {dadosTributacaoSaida.map((it, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '10px' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#555' }}>{it.name}</span><strong style={{ color: '#004080' }}>{formatarMoeda(it.value)}</strong>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #f59e0b', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Substituição Tributária (ST)</p>
-                    <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 54xx / 64xx / 74xx</span>
-                  </div>
-
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #8b5cf6', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Prestações de Serviços</p>
-                    <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 53xx / 63xx / 73xx</span>
-                  </div>
-
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Isentas / Não Tributadas</p>
-                    <h2 style={{ margin: 0, color: '#ef4444', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Sem destaque de ICMS</span>
+                  {/* LADO DIREITO: AQUISIÇÕES POR ESTADO */}
+                  <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' }}>
+                    <h3 style={{ color: '#004080', marginBottom: '20px' }}><MapPin size={22}/> Aquisições por Estado</h3>
+                    <div style={{ height: '320px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={dadosEstados} cx="50%" cy="50%" outerRadius={110} dataKey="value" animationDuration={1200} label={({name, percent}) => `${name}: ${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>
+                            {dadosEstados.map((e, i) => <Cell key={i} fill={CORES_MAPA[i % CORES_MAPA.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatarMoeda(v)} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      {dadosEstados.map((it, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', borderBottom: '1px solid #f0f4f8' }}>
+                          <span style={{ fontSize: '13px', color: '#555', fontWeight: 'bold' }}>{it.name}</span><strong style={{ color: '#004080' }}>{formatarMoeda(it.value)}</strong>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
-                <div className="print-grid-trib" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'stretch' }}>
-                  
-                  {/* ESQUERDA: GRÁFICO BARRAS EMPILHADAS (NOVO) */}
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ margin: '0 0 20px 0', color: '#004080', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}><Package size={26}/> Divisão de Entradas (Compras)</h3>
-                    
-                    {dadosBarrasEntradas.length > 0 && Object.keys(dadosBarrasEntradas[0]).length > 1 ? (
-                      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '350px' }}>
-                        <ResponsiveContainer width="100%" height="80%">
-                          <BarChart data={dadosBarrasEntradas} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                            <XAxis dataKey="name" hide />
-                            <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
-                            <Tooltip formatter={(value, name) => [formatarMoeda(value), name]} cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                            {Object.keys(dadosBarrasEntradas[0]).filter(k => k !== 'name').map((chave, idx) => (
-                              <Bar key={idx} dataKey={chave} stackId="a" fill={CORES_BARRAS[idx % CORES_BARRAS.length]} animationDuration={1500} />
+                {/* ROSCA DE ENTRADAS COM RELATÓRIO FIXO */}
+                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' }}>
+                    <h3 style={{ color: '#004080', marginBottom: '20px' }}><Package size={22}/> Divisão de Entradas (Rosca BI)</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+                        <div style={{ width: '40%', height: '300px' }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={dadosRoscaEntradas} cx="50%" cy="50%" innerRadius={70} outerRadius={110} dataKey="value" animationDuration={1200} label={({percent}) => percent > 0.02 ? `${(percent*100).toFixed(1)}%` : ''} labelLine={false} style={{ fontSize: '12px', fontWeight: 'bold', fill: '#fff' }}>
+                                        {dadosRoscaEntradas.map((e, i) => <Cell key={i} fill={CORES_ENTRADAS[i % CORES_ENTRADAS.length]} />)}
+                                    </Pie>
+                                    <Tooltip formatter={(v) => formatarMoeda(v)} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div style={{ width: '60%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            {dadosRoscaEntradas.map((it, idx) => (
+                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ENTRADAS[idx % CORES_ENTRADAS.length]}` }}>
+                                    <span style={{ fontSize: '12px', fontWeight: '800', color: '#555' }}>{it.name}</span>
+                                    <div style={{ textAlign: 'right' }}>
+                                        <strong style={{ fontSize: '13px', color: '#004080' }}>{formatarMoeda(it.value)}</strong>
+                                        <span style={{ display: 'block', fontSize: '11px', color: '#999' }}>{((it.value / dadosVaf.entradasBrutas)*100).toFixed(2)}%</span>
+                                    </div>
+                                </div>
                             ))}
-                          </BarChart>
-                        </ResponsiveContainer>
-                        <div style={{ marginTop: '15px', maxHeight: '70px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center' }}>
-                            {Object.keys(dadosBarrasEntradas[0]).filter(k => k !== 'name').map((chave, idx) => (
-                              <span key={idx} style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', color: '#555', fontWeight: '600' }}><span style={{ width: '10px', height: '10px', backgroundColor: CORES_BARRAS[idx % CORES_BARRAS.length], borderRadius: '2px' }}></span>{chave}</span>
-                            ))}
                         </div>
-                      </div>
-                    ) : (
-                       <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', fontSize: '18px' }}>Sem dados de entradas.</p></div>
-                    )}
-                  </div>
-
-                  {/* DIREITA: GRÁFICO DE ESTADOS SÓLIDO COM LINHAS (NOVO) */}
-                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ margin: '0 0 20px 0', color: '#004080', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}><MapPin size={26}/> Aquisições por Estado</h3>
-                    
-                    {dadosEstados.length > 0 ? (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexGrow: 1 }}>
-                        <div className="print-chart" style={{ width: '55%', height: '350px' }}>
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie data={dadosEstados} cx="50%" cy="50%" innerRadius={0} outerRadius={90} dataKey="value" animationDuration={1500} label={({ name, percent }) => `${(percent * 100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>
-                                {dadosEstados.map((entry, index) => <Cell key={`cell-est-${index}`} fill={CORES_MAPA[index % CORES_MAPA.length]} />)}
-                              </Pie>
-                              <Tooltip formatter={(value) => formatarMoeda(value)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                        <div className="print-trib-list" style={{ width: '45%', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                          <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px' }}>Detalhamento</h4>
-                          {dadosEstados.map((item, idx) => (
-                            <div key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: '8px', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-                              <div style={{ width: '12px', height: '12px', borderRadius: '4px', backgroundColor: CORES_MAPA[idx % CORES_MAPA.length], marginRight: '8px' }}></div>
-                              <span style={{ fontWeight: '600', color: '#555', fontSize: '12px', flex: 1 }}>{item.name}</span>
-                              <span style={{ fontWeight: 'bold', color: '#333', fontSize: '12px' }}>{formatarMoeda(item.value)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                       <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p style={{ color: '#999', fontSize: '18px' }}>Não foram identificadas compras.</p></div>
-                    )}
-                  </div>
+                    </div>
                 </div>
 
                 <BotoesAcao />
               </div>
             )}
 
-            {/* ======================= ABA: AUDITORIA E LIMPEZA (PDF DETALHADO) ======================= */}
+            {/* ABA AUDITORIA (LOG) */}
             {abaAtiva === 'auditoria' && (
-              <div className="print-dashboard-area" style={{ width: '100%', backgroundColor: '#fff', padding: '40px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
-                  <div>
-                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2>
-                    <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '15px' }}>Registro linha a linha das exclusões e limpezas automáticas</p>
-                  </div>
-                  <div className="no-print">
-                    <button onClick={() => window.print()} style={{ padding: '12px 20px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}><Printer size={18} /> Imprimir / PDF</button>
-                  </div>
+              <div style={{ backgroundColor: '#fff', padding: '40px', borderRadius: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
+                   <h2><Shield color="#10b981"/> Relatório Detalhado de Auditoria</h2>
+                   <button onClick={() => window.print()} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold' }}><Printer size={18}/> Salvar PDF</button>
                 </div>
-
-                {logAuditoria.length > 0 ? (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#004080', color: '#fff', textAlign: 'left' }}>
-                        <th style={{ padding: '15px', borderRadius: '10px 0 0 0' }}>Linha do SPED</th>
-                        <th style={{ padding: '15px' }}>Registro</th>
-                        <th style={{ padding: '15px' }}>Ação Realizada</th>
-                        <th style={{ padding: '15px', borderRadius: '0 10px 0 0' }}>Detalhes do Ajuste</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {logAuditoria.map((log, index) => (
-                        <tr key={index} style={{ borderBottom: '1px solid #f0f4f8', backgroundColor: index % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                          <td style={{ padding: '15px', fontWeight: 'bold', color: '#444' }}>{log.linha}</td>
-                          <td style={{ padding: '15px', color: '#004080', fontWeight: '600' }}>{log.registro}</td>
-                          <td style={{ padding: '15px' }}><span style={{ backgroundColor: log.acao === 'Linha Removida' ? '#fee2e2' : '#fef3c7', color: log.acao === 'Linha Removida' ? '#ef4444' : '#d97706', padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>{log.acao}</span></td>
-                          <td style={{ padding: '15px', color: '#555' }}>{log.detalhe}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '50px', color: '#999', fontSize: '18px' }}>Nenhuma irregularidade encontrada no arquivo.</div>
-                )}
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr style={{ backgroundColor: '#004080', color: '#fff', textAlign: 'left' }}><th style={{ padding: '15px' }}>Linha</th><th style={{ padding: '15px' }}>Registro</th><th style={{ padding: '15px' }}>Ação</th><th style={{ padding: '15px' }}>Detalhe</th></tr></thead>
+                  <tbody>{logAuditoria.map((log, i) => <tr key={i} style={{ borderBottom: '1px solid #f0f4f8' }}><td style={{ padding: '12px' }}>{log.linha}</td><td style={{ padding: '12px', fontWeight: 'bold' }}>{log.registro}</td><td style={{ padding: '12px' }}><span style={{ backgroundColor: log.acao.includes('Removida') ? '#fee2e2' : '#fef3c7', color: log.acao.includes('Removida') ? '#ef4444' : '#d97706', padding: '4px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 'bold' }}>{log.acao}</span></td><td style={{ padding: '12px', color: '#666' }}>{log.detalhe}</td></tr>)}</tbody>
+                </table>
               </div>
             )}
-
           </div>
         )}
       </div>
