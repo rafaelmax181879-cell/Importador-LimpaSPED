@@ -215,16 +215,15 @@ export default function ImportadorSped() {
           .card-dash { background-color: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; min-width: 0; }
           .sidebar-auditoria { width: 100%; background-color: #fff; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); position: sticky; top: 30px; }
           
-          /* Gráficos Alinhados e Centralizados */
+          /* Gráficos Alinhados e Centralizados na Tela */
           .chart-flex { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; }
-          .chart-left { width: 45%; height: 320px; display: flex; align-items: center; justify-content: center; }
-          .chart-right { width: 55%; display: flex; flex-direction: column; gap: 15px; max-height: 320px; overflow-y: auto; padding-right: 10px; }
+          .chart-left { width: 50%; height: 320px; display: flex; align-items: center; justify-content: center; }
+          .chart-right { width: 50%; display: flex; flex-direction: column; gap: 15px; max-height: 320px; overflow-y: auto; padding-right: 10px; }
 
           @media (max-width: 1400px) {
             .grid-3 { grid-template-columns: 1fr 1fr; }
             .grid-4 { grid-template-columns: 1fr 1fr; }
           }
-          /* Quebra de tela calibrada para Notebooks comuns (1366x768) */
           @media (max-width: 1024px) {
             .dashboard-layout { display: flex; flex-direction: column; }
             .sidebar-auditoria { position: static; width: 100%; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
@@ -240,28 +239,31 @@ export default function ImportadorSped() {
             .grid-2-inner { grid-template-columns: 1fr; }
           }
 
-          /* Modo de Impressão Blindado */
+          /* MODO DE IMPRESSÃO BLINDADO (FIM DOS GRÁFICOS CORTADOS) */
           @media print {
             @page { size: A4 portrait; margin: 15mm; }
             .no-print, button { display: none !important; }
             body, html { background-color: #fff !important; margin: 0 !important; padding: 0 !important; }
-            .main-container { background-color: #fff !important; display: block !important; padding: 0 !important; }
+            .main-container { background-color: #fff !important; display: block !important; padding: 0 !important; min-height: 0 !important; }
             .content-wrapper { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; display: block !important; }
             ::-webkit-scrollbar { display: none; }
             .dashboard-layout { display: block !important; }
-            .grid-3, .grid-2, .grid-4 { display: flex !important; flex-direction: column !important; gap: 25px !important; margin-bottom: 25px !important; width: 100% !important; }
+            .grid-3, .grid-2, .grid-4 { display: flex !important; flex-direction: column !important; gap: 25px !important; margin-bottom: 25px !important; width: 100% !important; page-break-inside: avoid !important; }
             .card-dash, .print-vaf, .print-banner { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; page-break-inside: avoid !important; break-inside: avoid !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important; box-sizing: border-box !important; }
             .print-banner { border: 2px solid #004080 !important; background: #fff !important; color: #004080 !important; }
             
-            /* Correção do empilhamento e centralização perfeita para o PDF */
-            .chart-flex { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 20px !important; width: 100% !important; }
+            /* Engenharia de Impressão: Alinhamento Central e Expansão Lateral */
+            .chart-flex { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; gap: 20px !important; width: 100% !important; }
             .chart-left { width: 100% !important; height: 350px !important; display: flex !important; justify-content: center !important; align-items: center !important; }
-            .chart-right { width: 100% !important; max-height: none !important; overflow: visible !important; display: flex !important; flex-direction: column !important; align-items: center !important; text-align: center !important; }
-            .chart-right h4 { text-align: center !important; width: 100% !important; }
-            .grid-2-inner { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 15px !important; width: 100% !important; text-align: left !important; }
             
-            /* Força o SVG interno do gráfico a se alinhar ao meio */
-            .recharts-wrapper { margin: 0 auto !important; }
+            /* Legendas forçadas para a esquerda e ocupando 100% do papel */
+            .chart-right { width: 100% !important; max-height: none !important; overflow: visible !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; text-align: left !important; padding: 0 !important; }
+            .chart-right h4 { text-align: left !important; width: 100% !important; border-bottom: 2px solid #f0f4f8 !important; padding-bottom: 10px !important; margin-bottom: 15px !important; }
+            .chart-right > div { display: flex !important; width: 100% !important; box-sizing: border-box !important; margin-bottom: 8px !important; } 
+            
+            /* Bloqueio contra cortes da biblioteca Recharts */
+            .recharts-wrapper, .recharts-surface { overflow: visible !important; margin: 0 auto !important; }
+            .grid-2-inner { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 15px !important; width: 100% !important; }
           }
         `}
       </style>
@@ -316,7 +318,7 @@ export default function ImportadorSped() {
                       <div className="print-chart" style={{ height: '280px', width: '100%', flexGrow: 1 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                            <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={5} dataKey="value" animationDuration={1500}>
                               {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
@@ -377,7 +379,7 @@ export default function ImportadorSped() {
                       <div className="print-chart" style={{ height: '280px', width: '100%', flexGrow: 1 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
-                            <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                            <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={5} dataKey="value" animationDuration={1500}>
                               {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
                             </Pie>
                             <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
@@ -521,13 +523,13 @@ export default function ImportadorSped() {
                                       <Pie 
                                           data={dadosComparativoMensal} 
                                           cx="50%" cy="50%" 
-                                          innerRadius={70} 
-                                          outerRadius={100} 
+                                          innerRadius={55} 
+                                          outerRadius={85} 
                                           paddingAngle={6} 
                                           cornerRadius={12} 
                                           dataKey="value" 
                                           animationDuration={1500}
-                                          label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
+                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
                                           labelLine={true}
                                           style={{ fontSize: '12px', fontWeight: 'bold' }}
                                       >
@@ -563,12 +565,12 @@ export default function ImportadorSped() {
                               <Pie 
                                 data={dadosTributacaoSaida} 
                                 cx="50%" cy="50%" 
-                                innerRadius={60} 
-                                outerRadius={90} 
+                                innerRadius={55} 
+                                outerRadius={85} 
                                 paddingAngle={4} 
                                 dataKey="value" 
                                 animationDuration={1200}
-                                label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
+                                label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
                                 labelLine={true}
                                 style={{ fontSize: '11px', fontWeight: 'bold' }}
                               >
@@ -600,12 +602,12 @@ export default function ImportadorSped() {
                               <Pie 
                                  data={dadosEstados} 
                                  cx="50%" cy="50%" 
-                                 innerRadius={60} 
-                                 outerRadius={90} 
+                                 innerRadius={55} 
+                                 outerRadius={85} 
                                  paddingAngle={4} 
                                  dataKey="value" 
                                  animationDuration={1200}
-                                 label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
+                                 label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
                                  labelLine={true}
                                  style={{ fontSize: '11px', fontWeight: 'bold' }}
                               >
@@ -638,12 +640,12 @@ export default function ImportadorSped() {
                                       <Pie 
                                           data={dadosRoscaEntradas} 
                                           cx="50%" cy="50%" 
-                                          innerRadius={70} 
-                                          outerRadius={100} 
+                                          innerRadius={55} 
+                                          outerRadius={85} 
                                           paddingAngle={4} 
                                           dataKey="value" 
                                           animationDuration={1200}
-                                          label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
+                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
                                           labelLine={true}
                                           style={{ fontSize: '11px', fontWeight: 'bold' }}
                                       >
