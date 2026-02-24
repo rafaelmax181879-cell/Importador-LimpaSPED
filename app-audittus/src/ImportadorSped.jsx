@@ -3,7 +3,7 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, AreaChart, A
 import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon } from 'lucide-react';
 
 export default function ImportadorSped() {
-  const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
+  const [mensagem, setMensagem] = useState('Processando Visão Executiva e Auditoria...');
   const [status, setStatus] = useState('aguardando'); 
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
@@ -40,7 +40,7 @@ export default function ImportadorSped() {
   const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
 
   const limparDados = () => {
-    setStatus('aguardando'); setMensagem('Arraste seu arquivo SPED ou clique para selecionar');
+    setStatus('aguardando');
     setAbaAtiva('home'); setArquivoProcessado(null); setNomeOriginal('');
     setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
     setGuiasE116([]); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' }); setDadosGraficoOperacoes([]);
@@ -53,7 +53,7 @@ export default function ImportadorSped() {
   const processarArquivo = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    setStatus('processando'); setMensagem('Gerando Visão Executiva e Auditoria Digital...');
+    setStatus('processando'); 
     setNomeOriginal(file.name);
 
     const reader = new FileReader();
@@ -195,10 +195,11 @@ export default function ImportadorSped() {
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
 
   return (
-    <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif' }}>
+    <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: status === 'sucesso' ? 'flex-start' : 'center', minHeight: '100vh', width: '100vw', margin: 0, padding: status === 'sucesso' ? '30px' : '0', backgroundColor: '#f4f7f9', boxSizing: 'border-box', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       
       <style>
         {`
+          body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f4f7f9; }
           @media print {
             @page { size: A4 portrait; margin: 15mm; }
             .no-print, button { display: none !important; }
@@ -218,441 +219,472 @@ export default function ImportadorSped() {
         `}
       </style>
 
-      <div className="content-wrapper" style={{ width: '100%', maxWidth: '1600px' }}>
-        <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
-          <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
-        </div>
-
-        {status !== 'sucesso' && (
-          <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '60px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative' }}>
-            <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
-            <UploadCloud size={64} color="#004080" style={{ marginBottom: '20px', opacity: 0.8 }} />
-            <h2 style={{ margin: '0', color: '#004080', fontSize: '24px' }}>Arraste seu SPED Fiscal ou clique aqui</h2>
+      {status !== 'sucesso' && (
+        <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+          
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h1 style={{ color: '#004080', margin: '0', fontSize: '42px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
+            <p style={{ margin: '10px 0 0 0', color: '#64748b', fontSize: '18px', fontWeight: '500' }}>Plataforma de Inteligência e Auditoria Fiscal</p>
           </div>
-        )}
 
-        {status === 'sucesso' && (
-          <div>
-            <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px' }}>
-              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><LayoutDashboard size={20} /> Visão Geral</button>
-              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Tags size={20} /> Módulo Tributário</button>
-              <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><FileSearch size={20} /> Resultados da Auditoria</button>
-            </div>
-
-            <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <Building2 size={40} />
-                <div>
-                  <h2 style={{ margin: 0, fontSize: '22px' }}>{dadosEmpresa.nome}</h2>
-                  <span style={{ fontSize: '14px', opacity: 0.8 }}>CNPJ: {dadosEmpresa.cnpj}</span>
+          <div style={{ width: '100%', maxWidth: '700px', backgroundColor: '#fff', padding: '60px 40px', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0, 64, 128, 0.08)', position: 'relative', transition: 'all 0.3s ease', border: '2px dashed #cbd5e1' }}>
+            <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
+            
+            {status === 'aguardando' && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', pointerEvents: 'none' }}>
+                <div style={{ backgroundColor: '#f0f4f8', padding: '25px', borderRadius: '50%' }}>
+                  <UploadCloud size={56} color="#004080" strokeWidth={1.5} />
                 </div>
-              </div>
-              <div style={{ textAlign: 'right', backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '12px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', opacity: 0.8 }}><Calendar size={14}/> PERÍODO</span>
-                <strong style={{ display: 'block', fontSize: '18px' }}>{dadosEmpresa.periodo}</strong>
-              </div>
-            </div>
-
-            {/* ABA PRINCIPAL (HOME) */}
-            {abaAtiva === 'home' && (
-              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
-                
-                <div className="print-dashboard-area" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'stretch', marginBottom: '25px' }}>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><ArrowRightLeft size={24}/> Volume de Operações</h3>
-                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
-                              {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
-                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                            {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#10b981', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
-                            )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
-                          <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
-                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                            {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#4f46e5', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
-                            )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', color: '#fff', position: 'relative' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}>
-                        <h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}><Calculator size={26}/> VAF Fiscal do Período</h3>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#fca5a5' }}><Minus size={16}/> Dev. Vendas</span><strong style={{ fontSize: '16px', color: '#fca5a5' }}>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#6ee7b7' }}><Plus size={16}/> Dev. Compras</span><strong style={{ fontSize: '16px', color: '#6ee7b7' }}>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
-                      </div>
-                      <div style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Equal size={16}/> Valor Adicionado Gerado</p>
-                        <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2>
-                      </div>
-                      
-                      {dadosVaf.vafTotal < 0 && (
-                        <div style={{ position: 'absolute', bottom: '-40px', left: '0', right: '0', textAlign: 'center' }}>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fee2e2', color: '#ef4444', padding: '6px 15px', borderRadius: '20px', fontWeight: '800', fontSize: '14px', boxShadow: '0 4px 6px rgba(239, 68, 68, 0.2)' }}><AlertTriangle size={18} /> ATENÇÃO! VAF Negativo</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: dadosVaf.vafTotal < 0 ? '40px' : '0' }}>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS</h3>
-                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
-                              {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    <div className="print-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                      <div className="print-flex-col" style={{ display: 'flex', gap: '20px', width: '100%' }}>
-                        <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                          <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor Transportar</p>
-                          <h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
-                        </div>
-                        <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                          <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>ICMS a Recolher</p>
-                          <h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
-                        </div>
-                      </div>
-                      
-                      <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
-                        <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign size={20} /> Obrigações e Guias</h3>
-                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                          {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
-                            <div key={index} style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '10px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <div>
-                                <span style={{ fontSize: '12px', color: '#666', display: 'block' }}>Cód: {guia.codigo}</span>
-                                <span style={{ fontSize: '12px', color: '#555' }}><Calendar size={12}/> Vencto: {guia.vencimento}</span>
-                              </div>
-                              <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '16px' }}>{formatarMoeda(guia.valor)}</span>
-                            </div>
-                          )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Sem guias apuradas.</p>}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: '25px' }}>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Package size={24}/> {tituloTopProdutos}</h3>
-                      <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
-                        {listaExibicaoProdutos.length > 0 ? listaExibicaoProdutos.map((item, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                              <span style={{ backgroundColor: '#10b981', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span>
-                              <span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }} title={item.nome}>{item.nome}</span>
-                            </div>
-                            <span style={{ color: '#10b981', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
-                          </div>
-                        )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhum detalhamento de produto cadastrado no período.</p>}
-                      </div>
-                    </div>
-                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Truck size={24}/> Top 5 Maiores Fornecedores</h3>
-                      <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
-                        {topFornecedores.length > 0 ? topFornecedores.map((item, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-                              <span style={{ backgroundColor: '#f59e0b', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span>
-                              <span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.nome}>{item.nome}</span>
-                            </div>
-                            <span style={{ color: '#004080', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
-                          </div>
-                        )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhuma compra identificada no período.</p>}
-                      </div>
-                    </div>
-                  </div>
-
-                  <BotoesAcao />
+                <div style={{ textAlign: 'center' }}>
+                  <h2 style={{ margin: '0 0 10px 0', color: '#1e293b', fontSize: '24px', fontWeight: '700' }}>Arraste seu arquivo SPED aqui</h2>
+                  <p style={{ margin: 0, color: '#64748b', fontSize: '16px' }}>ou <span style={{ color: '#004080', fontWeight: 'bold', textDecoration: 'underline' }}>clique para procurar</span> no seu computador</p>
                 </div>
-
-                <div className="no-print" style={{ width: '320px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '20px', padding: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'sticky', top: '30px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
-                    <div style={{ backgroundColor: '#10b981', padding: '12px', borderRadius: '12px', display: 'flex', color: '#fff' }}><Shield size={28} /></div>
-                    <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: '800' }}>Auditoria Automática</h3><p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '13px' }}>Ajustes e Correções</p></div>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
-                      <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros Removidos (C191/C173)</span>
-                      <strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos}</strong>
-                    </div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}>
-                      <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Termos Proibidos Limpos</span>
-                      <strong style={{ fontSize: '22px', color: '#f59e0b' }}>{relatorioCorrecoes.textosRemovidos}</strong>
-                      <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>Ex: ISENTO, Zeros, Sem GTIN</span>
-                    </div>
-                    <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981' }}>
-                      <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Totalizadores Corrigidos</span>
-                      <strong style={{ fontSize: '22px', color: '#10b981' }}>{relatorioCorrecoes.blocosRecalculados}</strong>
-                      <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>C990, 9990, 9999</span>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: '25px', backgroundColor: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', color: '#fff', boxShadow: '0 5px 15px rgba(0,64,128,0.2)' }}>
-                    <span style={{ display: 'block', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '5px', fontWeight: '600' }}>Total de Intervenções</span>
-                    <strong style={{ fontSize: '36px', fontWeight: '900' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos + relatorioCorrecoes.blocosRecalculados}</strong>
-                  </div>
+                <div style={{ marginTop: '20px', padding: '8px 16px', backgroundColor: '#f8fafc', borderRadius: '20px', border: '1px solid #e2e8f0' }}>
+                  <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '600' }}>Formato suportado: .TXT (EFD ICMS/IPI)</span>
                 </div>
-
               </div>
             )}
 
-            {/* ABA TRIBUTÁRIA E RESULTADOS (BI AVANÇADO) */}
-            {abaAtiva === 'tributos' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
-                  <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #004080', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Faturamento Analisado</p>
-                    <h2 style={{ margin: 0, color: '#004080', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Baseado nas Saídas</span>
+            {status === 'processando' && (
+               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', pointerEvents: 'none' }}>
+                 <div style={{ backgroundColor: '#fffbeb', padding: '25px', borderRadius: '50%' }}>
+                    <AlertCircle size={56} color="#f59e0b" strokeWidth={1.5} style={{ animation: 'spin 2s linear infinite' }} />
+                 </div>
+                 <div style={{ textAlign: 'center' }}>
+                    <h2 style={{ margin: '0 0 10px 0', color: '#1e293b', fontSize: '24px', fontWeight: '700' }}>{mensagem}</h2>
+                    <p style={{ margin: 0, color: '#64748b', fontSize: '16px' }}>Por favor, aguarde enquanto cruzamos os dados...</p>
+                 </div>
+               </div>
+            )}
+          </div>
+          <div style={{ marginTop: '40px', color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>
+            Processamento 100% local. Seus dados estão seguros.
+          </div>
+        </div>
+      )}
+
+      {status === 'sucesso' && (
+        <div className="content-wrapper" style={{ width: '100%', maxWidth: '1600px' }}>
+          
+          <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
+            <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+          </div>
+
+          <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px' }}>
+            <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><LayoutDashboard size={20} /> Visão Geral</button>
+            <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Tags size={20} /> Módulo Tributário</button>
+            <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><FileSearch size={20} /> Resultados da Auditoria</button>
+          </div>
+
+          <div className="print-banner" style={{ backgroundColor: '#004080', color: '#fff', padding: '20px 30px', borderRadius: '20px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0, 64, 128, 0.15)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              <Building2 size={40} />
+              <div>
+                <h2 style={{ margin: 0, fontSize: '22px' }}>{dadosEmpresa.nome}</h2>
+                <span style={{ fontSize: '14px', opacity: 0.8 }}>CNPJ: {dadosEmpresa.cnpj}</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right', backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '12px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', opacity: 0.8 }}><Calendar size={14}/> PERÍODO</span>
+              <strong style={{ display: 'block', fontSize: '18px' }}>{dadosEmpresa.periodo}</strong>
+            </div>
+          </div>
+
+          {/* ABA PRINCIPAL (HOME) */}
+          {abaAtiva === 'home' && (
+            <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start' }}>
+              
+              <div className="print-dashboard-area" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1.2fr', gap: '25px', alignItems: 'stretch', marginBottom: '25px' }}>
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><ArrowRightLeft size={24}/> Volume de Operações</h3>
+                    <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                            {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
-                  <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #f59e0b', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Substituição Tributária (ST)</p>
-                    <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 54xx / 64xx / 74xx</span>
+
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
+                        <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
+                          {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#10b981', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
+                          )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
+                        <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
+                        <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
+                          {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#4f46e5', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
+                          )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #8b5cf6', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Prestações de Serviços</p>
-                    <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 53xx / 63xx / 73xx</span>
-                  </div>
-                  <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                    <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Isentas / Não Tributadas</p>
-                    <h2 style={{ margin: 0, color: '#ef4444', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
-                    <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Sem destaque de ICMS</span>
+
+                  <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', color: '#fff', position: 'relative' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}>
+                      <h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}><Calculator size={26}/> VAF Fiscal do Período</h3>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#fca5a5' }}><Minus size={16}/> Dev. Vendas</span><strong style={{ fontSize: '16px', color: '#fca5a5' }}>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600', color: '#6ee7b7' }}><Plus size={16}/> Dev. Compras</span><strong style={{ fontSize: '16px', color: '#6ee7b7' }}>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
+                    </div>
+                    <div style={{ backgroundColor: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px', boxShadow: '0 5px 15px rgba(0,0,0,0.15)' }}>
+                      <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px' }}><Equal size={16}/> Valor Adicionado Gerado</p>
+                      <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2>
+                    </div>
+                    
+                    {dadosVaf.vafTotal < 0 && (
+                      <div style={{ position: 'absolute', bottom: '-40px', left: '0', right: '0', textAlign: 'center' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', backgroundColor: '#fee2e2', color: '#ef4444', padding: '6px 15px', borderRadius: '20px', fontWeight: '800', fontSize: '14px', boxShadow: '0 4px 6px rgba(239, 68, 68, 0.2)' }}><AlertTriangle size={18} /> ATENÇÃO! VAF Negativo</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* FLUXO MENSAL CORRIGIDO: SEM CORTES, COM ALÍQUOTAS E CORES */}
-                <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', color: '#333' }}>
-                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <PieChartIcon size={28}/> Fluxo Mensal: Compras vs. Vendas
-                    </h3>
+                <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: dadosVaf.vafTotal < 0 ? '40px' : '0' }}>
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS</h3>
+                    <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                            {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
-                        <div style={{ width: '45%', height: '350px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie 
-                                        data={dadosComparativoMensal} 
-                                        cx="45%" cy="50%" 
-                                        innerRadius={70} 
-                                        outerRadius={100} 
-                                        paddingAngle={6} 
-                                        cornerRadius={12} 
-                                        dataKey="value" 
-                                        animationDuration={1500}
-                                        label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
-                                        labelLine={true}
-                                        style={{ fontSize: '12px', fontWeight: 'bold' }}
-                                    >
-                                        {dadosComparativoMensal.map((entry, index) => <Cell key={index} fill={entry.fill} />)}
-                                    </Pie>
-                                    <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <h4 style={{ fontSize: '16px', color: '#666', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px' }}>Detalhamento Financeiro</h4>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                                {dadosComparativoMensal.map((it, idx) => (
-                                    <div key={idx} style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '15px', borderLeft: `6px solid ${it.fill}`, display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>{it.name}</span>
-                                        <strong style={{ fontSize: '20px', color: '#1e293b' }}>{formatarMoeda(it.value)}</strong>
-                                    </div>
-                                ))}
+                  <div className="print-flex-col" style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                    <div className="print-flex-col" style={{ display: 'flex', gap: '20px', width: '100%' }}>
+                      <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                        <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor Transportar</p>
+                        <h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
+                      </div>
+                      <div className="print-card" style={{ flex: 1, backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                        <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>ICMS a Recolher</p>
+                        <h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
+                      </div>
+                    </div>
+                    
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
+                      <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign size={20} /> Obrigações e Guias</h3>
+                      <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                        {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
+                          <div key={index} style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '10px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <span style={{ fontSize: '12px', color: '#666', display: 'block' }}>Cód: {guia.codigo}</span>
+                              <span style={{ fontSize: '12px', color: '#555' }}><Calendar size={12}/> Vencto: {guia.vencimento}</span>
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
-                  {/* TRIBUTAÇÃO DAS SAÍDAS CORRIGIDO: SEM CORTES, COM ALÍQUOTAS E CORES */}
-                  <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Activity size={24} /> Tributação das Saídas (C190)
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
-                      <div style={{ width: '45%', height: '300px' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie 
-                              data={dadosTributacaoSaida} 
-                              cx="45%" cy="50%" 
-                              innerRadius={60} 
-                              outerRadius={90} 
-                              paddingAngle={4} 
-                              dataKey="value" 
-                              animationDuration={1200}
-                              label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
-                              labelLine={true}
-                              style={{ fontSize: '11px', fontWeight: 'bold' }}
-                            >
-                              {dadosTributacaoSaida.map((e, i) => <Cell key={i} fill={CORES_TRIBUTACAO[i % CORES_TRIBUTACAO.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                        {dadosTributacaoSaida.map((it, idx) => (
-                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_TRIBUTACAO[idx % CORES_TRIBUTACAO.length]}` }}>
-                            <span style={{ fontSize: '13px', color: '#555', fontWeight: '600', lineHeight: '1.2' }}>{it.name}</span>
-                            <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
+                            <span style={{ fontWeight: 'bold', color: '#ef4444', fontSize: '16px' }}>{formatarMoeda(guia.valor)}</span>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AQUISIÇÕES POR ESTADO CORRIGIDO: SEM CORTES, COM ALÍQUOTAS E CORES */}
-                  <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <MapPin size={24} /> Aquisições por Estado
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
-                      <div style={{ width: '45%', height: '300px' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie 
-                               data={dadosEstados} 
-                               cx="45%" cy="50%" 
-                               innerRadius={60} 
-                               outerRadius={90} 
-                               paddingAngle={4} 
-                               dataKey="value" 
-                               animationDuration={1200}
-                               label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
-                               labelLine={true}
-                               style={{ fontSize: '11px', fontWeight: 'bold' }}
-                            >
-                              {dadosEstados.map((e, i) => <Cell key={i} fill={CORES_MAPA[i % CORES_MAPA.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                        {dadosEstados.map((it, idx) => (
-                          <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_MAPA[idx % CORES_MAPA.length]}` }}>
-                            <span style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>{it.name}</span>
-                            <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
-                          </div>
-                        ))}
+                        )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center' }}>Sem guias apuradas.</p>}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* ROSCA DE ENTRADAS CORRIGIDA: SEM CORTES E COM CORES */}
-                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                    <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <Package size={24}/> Divisão de Entradas (Rosca BI)
-                    </h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
-                        <div style={{ width: '40%', height: '350px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie 
-                                        data={dadosRoscaEntradas} 
-                                        cx="45%" cy="50%" 
-                                        innerRadius={70} 
-                                        outerRadius={100} 
-                                        paddingAngle={4} 
-                                        dataKey="value" 
-                                        animationDuration={1200}
-                                        label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
-                                        labelLine={true}
-                                        style={{ fontSize: '11px', fontWeight: 'bold' }}
-                                    >
-                                        {dadosRoscaEntradas.map((e, i) => <Cell key={i} fill={CORES_ENTRADAS[i % CORES_ENTRADAS.length]} />)}
-                                    </Pie>
-                                    <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                                </PieChart>
-                            </ResponsiveContainer>
+                <div className="print-grid" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '25px', alignItems: 'stretch', marginTop: '25px' }}>
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Package size={24}/> {tituloTopProdutos}</h3>
+                    <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
+                      {listaExibicaoProdutos.length > 0 ? listaExibicaoProdutos.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                            <span style={{ backgroundColor: '#10b981', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span>
+                            <span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '300px' }} title={item.nome}>{item.nome}</span>
+                          </div>
+                          <span style={{ color: '#10b981', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
                         </div>
-                        <div style={{ width: '60%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', maxHeight: '350px', overflowY: 'auto', paddingRight: '10px' }}>
-                            {dadosRoscaEntradas.map((it, idx) => (
-                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ENTRADAS[idx % CORES_ENTRADAS.length]}` }}>
-                                    <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
-                                    <div style={{ textAlign: 'right', minWidth: '90px' }}>
-                                        <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                      )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhum detalhamento de produto cadastrado no período.</p>}
                     </div>
+                  </div>
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Truck size={24}/> Top 5 Maiores Fornecedores</h3>
+                    <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
+                      {topFornecedores.length > 0 ? topFornecedores.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 10px', borderBottom: '1px solid #f0f4f8', backgroundColor: idx % 2 === 0 ? '#fafafa' : '#fff', borderRadius: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                            <span style={{ backgroundColor: '#f59e0b', color: '#fff', minWidth: '24px', height: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', borderRadius: '50%', fontSize: '12px', fontWeight: 'bold' }}>{idx + 1}</span>
+                            <span style={{ fontWeight: '600', color: '#444', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }} title={item.nome}>{item.nome}</span>
+                          </div>
+                          <span style={{ color: '#004080', fontWeight: '700', fontSize: '15px', marginLeft: '10px' }}>{formatarMoeda(item.valor)}</span>
+                        </div>
+                      )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhuma compra identificada no período.</p>}
+                    </div>
+                  </div>
                 </div>
 
                 <BotoesAcao />
               </div>
-            )}
 
-            {/* ABA AUDITORIA (LOG) */}
-            {abaAtiva === 'auditoria' && (
-              <div style={{ backgroundColor: '#fff', padding: '40px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
-                   <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2>
-                   <button onClick={() => window.print()} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Printer size={18}/> Salvar PDF</button>
+              <div className="no-print" style={{ width: '320px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '20px', padding: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'sticky', top: '30px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
+                  <div style={{ backgroundColor: '#10b981', padding: '12px', borderRadius: '12px', display: 'flex', color: '#fff' }}><Shield size={28} /></div>
+                  <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: '800' }}>Auditoria Automática</h3><p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '13px' }}>Ajustes e Correções</p></div>
                 </div>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#004080', color: '#fff', textAlign: 'left' }}>
-                      <th style={{ padding: '15px' }}>Linha</th>
-                      <th style={{ padding: '15px' }}>Registro</th>
-                      <th style={{ padding: '15px' }}>Ação Realizada</th>
-                      <th style={{ padding: '15px' }}>Detalhe do Ajuste</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {logAuditoria.map((log, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid #f0f4f8', backgroundColor: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
-                        <td style={{ padding: '12px' }}>{log.linha}</td>
-                        <td style={{ padding: '12px', fontWeight: 'bold' }}>{log.registro}</td>
-                        <td style={{ padding: '12px' }}><span style={{ backgroundColor: log.acao.includes('Removida') ? '#fee2e2' : '#fef3c7', color: log.acao.includes('Removida') ? '#ef4444' : '#d97706', padding: '4px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 'bold' }}>{log.acao}</span></td>
-                        <td style={{ padding: '12px', color: '#666' }}>{log.detalhe}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
+                    <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Registros Removidos (C191/C173)</span>
+                    <strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos}</strong>
+                  </div>
+                  <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}>
+                    <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Termos Proibidos Limpos</span>
+                    <strong style={{ fontSize: '22px', color: '#f59e0b' }}>{relatorioCorrecoes.textosRemovidos}</strong>
+                    <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>Ex: ISENTO, Zeros, Sem GTIN</span>
+                  </div>
+                  <div style={{ backgroundColor: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981' }}>
+                    <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: '600' }}>Totalizadores Corrigidos</span>
+                    <strong style={{ fontSize: '22px', color: '#10b981' }}>{relatorioCorrecoes.blocosRecalculados}</strong>
+                    <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>C990, 9990, 9999</span>
+                  </div>
+                </div>
+                <div style={{ marginTop: '25px', backgroundColor: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', color: '#fff', boxShadow: '0 5px 15px rgba(0,64,128,0.2)' }}>
+                  <span style={{ display: 'block', fontSize: '12px', textTransform: 'uppercase', opacity: 0.8, marginBottom: '5px', fontWeight: '600' }}>Total de Intervenções</span>
+                  <strong style={{ fontSize: '36px', fontWeight: '900' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos + relatorioCorrecoes.blocosRecalculados}</strong>
+                </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
+
+            </div>
+          )}
+
+          {/* ABA TRIBUTÁRIA E RESULTADOS (BI AVANÇADO) */}
+          {abaAtiva === 'tributos' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
+                <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #004080', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Faturamento Analisado</p>
+                  <h2 style={{ margin: 0, color: '#004080', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
+                  <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Baseado nas Saídas</span>
+                </div>
+                <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #f59e0b', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Substituição Tributária (ST)</p>
+                  <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
+                  <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 54xx / 64xx / 74xx</span>
+                </div>
+                <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #8b5cf6', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Prestações de Serviços</p>
+                  <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
+                  <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 53xx / 63xx / 73xx</span>
+                </div>
+                <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Isentas / Não Tributadas</p>
+                  <h2 style={{ margin: 0, color: '#ef4444', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
+                  <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Sem destaque de ICMS</span>
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', color: '#333' }}>
+                  <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <PieChartIcon size={28}/> Fluxo Mensal: Compras vs. Vendas
+                  </h3>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+                      <div style={{ width: '45%', height: '350px' }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie 
+                                      data={dadosComparativoMensal} 
+                                      cx="45%" cy="50%" 
+                                      innerRadius={70} 
+                                      outerRadius={100} 
+                                      paddingAngle={6} 
+                                      cornerRadius={12} 
+                                      dataKey="value" 
+                                      animationDuration={1500}
+                                      label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                                      labelLine={true}
+                                      style={{ fontSize: '12px', fontWeight: 'bold' }}
+                                  >
+                                      {dadosComparativoMensal.map((entry, index) => <Cell key={index} fill={entry.fill} />)}
+                                  </Pie>
+                                  <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+                      <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                          <h4 style={{ fontSize: '16px', color: '#666', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px' }}>Detalhamento Financeiro</h4>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                              {dadosComparativoMensal.map((it, idx) => (
+                                  <div key={idx} style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '15px', borderLeft: `6px solid ${it.fill}`, display: 'flex', flexDirection: 'column' }}>
+                                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>{it.name}</span>
+                                      <strong style={{ fontSize: '20px', color: '#1e293b' }}>{formatarMoeda(it.value)}</strong>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
+                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Activity size={24} /> Tributação das Saídas (C190)
+                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
+                    <div style={{ width: '45%', height: '300px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie 
+                            data={dadosTributacaoSaida} 
+                            cx="45%" cy="50%" 
+                            innerRadius={60} 
+                            outerRadius={90} 
+                            paddingAngle={4} 
+                            dataKey="value" 
+                            animationDuration={1200}
+                            label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                            labelLine={true}
+                            style={{ fontSize: '11px', fontWeight: 'bold' }}
+                          >
+                            {dadosTributacaoSaida.map((e, i) => <Cell key={i} fill={CORES_TRIBUTACAO[i % CORES_TRIBUTACAO.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                      {dadosTributacaoSaida.map((it, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_TRIBUTACAO[idx % CORES_TRIBUTACAO.length]}` }}>
+                          <span style={{ fontSize: '13px', color: '#555', fontWeight: '600', lineHeight: '1.2' }}>{it.name}</span>
+                          <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <MapPin size={24} /> Aquisições por Estado
+                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px' }}>
+                    <div style={{ width: '45%', height: '300px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie 
+                             data={dadosEstados} 
+                             cx="45%" cy="50%" 
+                             innerRadius={60} 
+                             outerRadius={90} 
+                             paddingAngle={4} 
+                             dataKey="value" 
+                             animationDuration={1200}
+                             label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                             labelLine={true}
+                             style={{ fontSize: '11px', fontWeight: 'bold' }}
+                          >
+                            {dadosEstados.map((e, i) => <Cell key={i} fill={CORES_MAPA[i % CORES_MAPA.length]} />)}
+                          </Pie>
+                          <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div style={{ width: '55%', display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
+                      {dadosEstados.map((it, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_MAPA[idx % CORES_MAPA.length]}` }}>
+                          <span style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>{it.name}</span>
+                          <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Package size={24}/> Divisão de Entradas (Rosca BI)
+                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+                      <div style={{ width: '40%', height: '350px' }}>
+                          <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                  <Pie 
+                                      data={dadosRoscaEntradas} 
+                                      cx="45%" cy="50%" 
+                                      innerRadius={70} 
+                                      outerRadius={100} 
+                                      paddingAngle={4} 
+                                      dataKey="value" 
+                                      animationDuration={1200}
+                                      label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                                      labelLine={true}
+                                      style={{ fontSize: '11px', fontWeight: 'bold' }}
+                                  >
+                                      {dadosRoscaEntradas.map((e, i) => <Cell key={i} fill={CORES_ENTRADAS[i % CORES_ENTRADAS.length]} />)}
+                                  </Pie>
+                                  <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                              </PieChart>
+                          </ResponsiveContainer>
+                      </div>
+                      <div style={{ width: '60%', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', maxHeight: '350px', overflowY: 'auto', paddingRight: '10px' }}>
+                          {dadosRoscaEntradas.map((it, idx) => (
+                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ENTRADAS[idx % CORES_ENTRADAS.length]}` }}>
+                                  <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
+                                  <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                                      <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  </div>
+              </div>
+
+              <BotoesAcao />
+            </div>
+          )}
+
+          {/* ABA AUDITORIA (LOG) */}
+          {abaAtiva === 'auditoria' && (
+            <div style={{ backgroundColor: '#fff', padding: '40px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
+                 <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2>
+                 <button onClick={() => window.print()} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Printer size={18}/> Salvar PDF</button>
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#004080', color: '#fff', textAlign: 'left' }}>
+                    <th style={{ padding: '15px' }}>Linha</th>
+                    <th style={{ padding: '15px' }}>Registro</th>
+                    <th style={{ padding: '15px' }}>Ação Realizada</th>
+                    <th style={{ padding: '15px' }}>Detalhe do Ajuste</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {logAuditoria.map((log, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f0f4f8', backgroundColor: i % 2 === 0 ? '#fff' : '#f8fafc' }}>
+                      <td style={{ padding: '12px' }}>{log.linha}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold' }}>{log.registro}</td>
+                      <td style={{ padding: '12px' }}><span style={{ backgroundColor: log.acao.includes('Removida') ? '#fee2e2' : '#fef3c7', color: log.acao.includes('Removida') ? '#ef4444' : '#d97706', padding: '4px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 'bold' }}>{log.acao}</span></td>
+                      <td style={{ padding: '12px', color: '#666' }}>{log.detalhe}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
