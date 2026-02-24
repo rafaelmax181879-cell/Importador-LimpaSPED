@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LabelList } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon } from 'lucide-react';
 
 export default function ImportadorSped() {
@@ -195,11 +195,18 @@ export default function ImportadorSped() {
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
 
   return (
-    <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '20px', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif' }}>
+    <div className="main-container">
       
       <style>
         {`
-          /* Layout Responsivo (CSS Grid Automático) */
+          /* === VACINA CSS ANTI-VITE: FORÇA TELA CHEIA E CENTRALIZAÇÃO === */
+          body, html { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; background-color: #f0f4f8 !important; }
+          #root { width: 100% !important; min-height: 100vh !important; display: flex !important; flex-direction: column !important; max-width: none !important; padding: 0 !important; margin: 0 !important; }
+          
+          .main-container { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; background-color: #f0f4f8; padding: 30px; box-sizing: border-box; font-family: system-ui, sans-serif; width: 100%; flex-grow: 1; }
+          .content-wrapper { width: 100%; max-width: 1600px; display: flex; flex-direction: column; flex-grow: 1; }
+
+          /* Layout Responsivo Profissional */
           .dashboard-layout { display: grid; grid-template-columns: 1fr 320px; gap: 30px; align-items: start; width: 100%; max-width: 100%; }
           .grid-3 { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr; gap: 25px; width: 100%; }
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; width: 100%; }
@@ -208,27 +215,32 @@ export default function ImportadorSped() {
           .card-dash { background-color: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; min-width: 0; }
           .sidebar-auditoria { width: 100%; background-color: #fff; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); position: sticky; top: 30px; }
           
-          .chart-flex { display: flex; align-items: center; gap: 30px; }
-          .chart-left { width: 45%; height: 350px; }
-          .chart-right { width: 55%; display: flex; flex-direction: column; gap: 15px; max-height: 350px; overflow-y: auto; padding-right: 10px; }
+          /* Gráficos Alinhados e Centralizados */
+          .chart-flex { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; }
+          .chart-left { width: 45%; height: 320px; display: flex; align-items: center; justify-content: center; }
+          .chart-right { width: 55%; display: flex; flex-direction: column; gap: 15px; max-height: 320px; overflow-y: auto; padding-right: 10px; }
 
-          /* Quebras de linha automáticas para evitar cortes em telas de Notebooks (1366x768) */
           @media (max-width: 1400px) {
             .grid-3 { grid-template-columns: 1fr 1fr; }
             .grid-4 { grid-template-columns: 1fr 1fr; }
           }
-          @media (max-width: 1200px) {
+          /* Quebra de tela calibrada para Notebooks comuns (1366x768) */
+          @media (max-width: 1024px) {
             .dashboard-layout { display: flex; flex-direction: column; }
             .sidebar-auditoria { position: static; width: 100%; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
             .sidebar-auditoria > div { margin: 0 !important; }
-            .chart-flex { flex-direction: column; }
-            .chart-left, .chart-right { width: 100%; height: auto; min-height: 300px; max-height: none; overflow-y: visible; }
+            
+            .chart-flex { flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
+            .chart-left { width: 100%; display: flex; justify-content: center; align-items: center; height: 350px; }
+            .chart-right { width: 100%; align-items: center; overflow: visible; max-height: none; }
+            .grid-2-inner { grid-template-columns: 1fr 1fr; width: 100%; max-width: 600px; margin: 0 auto; }
           }
           @media (max-width: 768px) {
             .grid-3, .grid-2, .grid-4, .sidebar-auditoria { grid-template-columns: 1fr; }
+            .grid-2-inner { grid-template-columns: 1fr; }
           }
 
-          /* Modo de Impressão */
+          /* Modo de Impressão Blindado */
           @media print {
             @page { size: A4 portrait; margin: 15mm; }
             .no-print, button { display: none !important; }
@@ -238,30 +250,40 @@ export default function ImportadorSped() {
             ::-webkit-scrollbar { display: none; }
             .dashboard-layout { display: block !important; }
             .grid-3, .grid-2, .grid-4 { display: flex !important; flex-direction: column !important; gap: 25px !important; margin-bottom: 25px !important; width: 100% !important; }
-            .card-dash, .print-vaf, .print-banner { width: 100% !important; max-width: 650px !important; margin: 0 auto !important; page-break-inside: avoid !important; break-inside: avoid !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important; box-sizing: border-box !important; }
+            .card-dash, .print-vaf, .print-banner { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; page-break-inside: avoid !important; break-inside: avoid !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important; box-sizing: border-box !important; }
             .print-banner { border: 2px solid #004080 !important; background: #fff !important; color: #004080 !important; }
-            .print-chart { height: 250px !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+            
+            /* Correção do empilhamento e centralização perfeita para o PDF */
+            .chart-flex { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 20px !important; width: 100% !important; }
+            .chart-left { width: 100% !important; height: 350px !important; display: flex !important; justify-content: center !important; align-items: center !important; }
+            .chart-right { width: 100% !important; max-height: none !important; overflow: visible !important; display: flex !important; flex-direction: column !important; align-items: center !important; text-align: center !important; }
+            .chart-right h4 { text-align: center !important; width: 100% !important; }
+            .grid-2-inner { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 15px !important; width: 100% !important; text-align: left !important; }
+            
+            /* Força o SVG interno do gráfico a se alinhar ao meio */
+            .recharts-wrapper { margin: 0 auto !important; }
           }
         `}
       </style>
 
-      <div className="content-wrapper" style={{ width: '100%', maxWidth: '1600px' }}>
+      <div className="content-wrapper">
         <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
           <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
         </div>
 
         {status !== 'sucesso' && (
-          <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '60px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-            <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
-            <UploadCloud size={64} color="#004080" style={{ marginBottom: '20px', opacity: 0.8 }} />
-            <h2 style={{ margin: '0', color: '#004080', fontSize: '24px' }}>Arraste seu SPED Fiscal ou clique aqui</h2>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+            <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '60px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+              <UploadCloud size={64} color="#004080" style={{ marginBottom: '20px', opacity: 0.8 }} />
+              <h2 style={{ margin: '0', color: '#004080', fontSize: '24px' }}>Arraste seu SPED Fiscal ou clique aqui</h2>
+            </div>
           </div>
         )}
 
         {status === 'sucesso' && (
           <div>
-            {/* MENU DE NAVEGAÇÃO ATUALIZADO */}
             <div className="no-print" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '30px' }}>
               <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}><LayoutDashboard size={20} /> Visão Geral</button>
               <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}><Tags size={20} /> Módulo Tributário</button>
@@ -498,14 +520,14 @@ export default function ImportadorSped() {
                                   <PieChart>
                                       <Pie 
                                           data={dadosComparativoMensal} 
-                                          cx="45%" cy="50%" 
+                                          cx="50%" cy="50%" 
                                           innerRadius={70} 
                                           outerRadius={100} 
                                           paddingAngle={6} 
                                           cornerRadius={12} 
                                           dataKey="value" 
                                           animationDuration={1500}
-                                          label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                                          label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                           labelLine={true}
                                           style={{ fontSize: '12px', fontWeight: 'bold' }}
                                       >
@@ -516,8 +538,8 @@ export default function ImportadorSped() {
                               </ResponsiveContainer>
                           </div>
                           <div className="chart-right">
-                              <h4 style={{ fontSize: '16px', color: '#666', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 5px 0' }}>Detalhamento Financeiro</h4>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                              <h4 style={{ fontSize: '16px', color: '#666', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0' }}>Detalhamento Financeiro</h4>
+                              <div className="grid-2-inner">
                                   {dadosComparativoMensal.map((it, idx) => (
                                       <div key={idx} style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '15px', borderLeft: `6px solid ${it.fill}`, display: 'flex', flexDirection: 'column' }}>
                                           <span style={{ fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>{it.name}</span>
@@ -540,13 +562,13 @@ export default function ImportadorSped() {
                             <PieChart>
                               <Pie 
                                 data={dadosTributacaoSaida} 
-                                cx="45%" cy="50%" 
+                                cx="50%" cy="50%" 
                                 innerRadius={60} 
                                 outerRadius={90} 
                                 paddingAngle={4} 
                                 dataKey="value" 
                                 animationDuration={1200}
-                                label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                                label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                 labelLine={true}
                                 style={{ fontSize: '11px', fontWeight: 'bold' }}
                               >
@@ -577,13 +599,13 @@ export default function ImportadorSped() {
                             <PieChart>
                               <Pie 
                                  data={dadosEstados} 
-                                 cx="45%" cy="50%" 
+                                 cx="50%" cy="50%" 
                                  innerRadius={60} 
                                  outerRadius={90} 
                                  paddingAngle={4} 
                                  dataKey="value" 
                                  animationDuration={1200}
-                                 label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                                 label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                  labelLine={true}
                                  style={{ fontSize: '11px', fontWeight: 'bold' }}
                               >
@@ -615,13 +637,13 @@ export default function ImportadorSped() {
                                   <PieChart>
                                       <Pie 
                                           data={dadosRoscaEntradas} 
-                                          cx="45%" cy="50%" 
+                                          cx="50%" cy="50%" 
                                           innerRadius={70} 
                                           outerRadius={100} 
                                           paddingAngle={4} 
                                           dataKey="value" 
                                           animationDuration={1200}
-                                          label={({ percent }) => percent > 0.001 ? `${(percent * 100).toFixed(1)}%` : null}
+                                          label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                           labelLine={true}
                                           style={{ fontSize: '11px', fontWeight: 'bold' }}
                                       >
@@ -632,7 +654,7 @@ export default function ImportadorSped() {
                               </ResponsiveContainer>
                           </div>
                           <div className="chart-right">
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                              <div className="grid-2-inner">
                                 {dadosRoscaEntradas.map((it, idx) => (
                                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ENTRADAS[idx % CORES_ENTRADAS.length]}` }}>
                                         <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
