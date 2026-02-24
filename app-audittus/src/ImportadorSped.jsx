@@ -11,10 +11,10 @@ const TEMPO_TESTE_SEGUNDOS = 300; // 5 minutos
 
 export default function ImportadorSped() {
   // ESTADOS DO SISTEMA
-  const [faseAtual, setFaseAtual] = useState('login'); // 'login' | 'upload' | 'loading' | 'dashboard'
+  const [faseAtual, setFaseAtual] = useState('login'); 
   const [senhaInput, setSenhaInput] = useState('');
   const [erroLogin, setErroLogin] = useState('');
-  const [tipoAcesso, setTipoAcesso] = useState(null); // 'admin' | 'trial'
+  const [tipoAcesso, setTipoAcesso] = useState(null); 
   const [tempoRestante, setTempoRestante] = useState(TEMPO_TESTE_SEGUNDOS);
   const [loadingText, setLoadingText] = useState('');
 
@@ -144,8 +144,15 @@ export default function ImportadorSped() {
       linhasProcessadas.forEach(linha => {
         const colunas = linha.split('|');
         if (colunas[1] === '0000') {
-          const dtIni = colunas[4] || ''; const dtFin = colunas[5] || '';
-          const pFormatado = (dtIni.length === 8 && dtFin.length === 8) ? `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}` : `${dtIni} a ${dtFin}`;
+          // Tratamento seguro para arquivos SPED sem período
+          const dtIni = colunas[4] ? colunas[4].trim() : ''; 
+          const dtFin = colunas[5] ? colunas[5].trim() : '';
+          let pFormatado = 'Período Indefinido';
+          if (dtIni && dtFin) {
+             pFormatado = (dtIni.length === 8 && dtFin.length === 8) 
+                ? `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}` 
+                : `${dtIni} a ${dtFin}`;
+          }
           let c = colunas[7] || '';
           const cnpjFormatado = c.length === 14 ? `${c.substring(0,2)}.${c.substring(2,5)}.${c.substring(5,8)}/${c.substring(8,12)}-${c.substring(12,14)}` : c;
           setDadosEmpresa({ nome: colunas[6] || 'Razão Social Não Identificada', cnpj: cnpjFormatado, periodo: pFormatado });
@@ -231,7 +238,7 @@ export default function ImportadorSped() {
       setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: (contC191 > 0 || contC173 > 0) ? 3 : 0 });
       setArquivoProcessado(linhasProcessadas.join('\r\n')); 
       
-      // ILUSÃO DE TRABALHO: Aguarda 3 segundos para mostrar o dashboard
+      // ILUSÃO DE TRABALHO: Aguarda 3 segundos
       setTimeout(() => {
         clearInterval(inter);
         setFaseAtual('dashboard');
@@ -257,7 +264,9 @@ export default function ImportadorSped() {
   const tituloTopProdutos = temVendas ? "Top 10 Produtos (Vendas)" : "Top 10 Produtos (Compras)";
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
 
+  // -------------------------------------------------------------
   // RENDERIZAÇÃO DA TELA DE LOGIN
+  // -------------------------------------------------------------
   if (faseAtual === 'login') {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f0f4f8', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', margin: 0, padding: 0 }}>
@@ -288,7 +297,9 @@ export default function ImportadorSped() {
     );
   }
 
+  // -------------------------------------------------------------
   // RENDERIZAÇÃO DA TELA DE LOADING PREMIUM
+  // -------------------------------------------------------------
   if (faseAtual === 'loading') {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f0f4f8', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', margin: 0, padding: 0 }}>
@@ -302,85 +313,65 @@ export default function ImportadorSped() {
     );
   }
 
-  // RENDERIZAÇÃO PRINCIPAL DO DASHBOARD
+  // -------------------------------------------------------------
+  // RENDERIZAÇÃO PRINCIPAL DO DASHBOARD (O BOM E VELHO LAYOUT)
+  // -------------------------------------------------------------
   return (
-    <div className="main-container">
+    <div className="main-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#f0f4f8', padding: '30px', boxSizing: 'border-box', fontFamily: 'system-ui, sans-serif' }}>
       
       <style>
         {`
+          /* Vacina Anti-Vite para forçar ocupação total na tela */
           body, html { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; background-color: #f0f4f8 !important; }
           #root { width: 100% !important; min-height: 100vh !important; display: flex !important; flex-direction: column !important; max-width: none !important; padding: 0 !important; margin: 0 !important; }
-          
-          .main-container { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; background-color: #f0f4f8; padding: 30px; box-sizing: border-box; font-family: system-ui, sans-serif; width: 100%; flex-grow: 1; }
-          .content-wrapper { width: 100%; max-width: 1600px; display: flex; flex-direction: column; flex-grow: 1; }
 
-          .dashboard-layout { display: grid; grid-template-columns: 1fr 320px; gap: 30px; align-items: start; width: 100%; max-width: 100%; }
-          .grid-3 { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr; gap: 25px; width: 100%; }
-          .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; width: 100%; }
-          .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; width: 100%; }
-          
-          .card-dash { background-color: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; min-width: 0; }
-          .card-dash-small { background-color: #fff; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); textAlign: center; display: flex; flex-direction: column; justify-content: center; }
-          .sidebar-auditoria { width: 100%; background-color: #fff; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); position: sticky; top: 30px; }
-          
-          .chart-flex { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; }
-          .chart-left { width: 45%; height: 320px; display: flex; align-items: center; justify-content: center; }
-          .chart-right { width: 55%; display: flex; flex-direction: column; gap: 15px; max-height: 320px; overflow-y: auto; padding-right: 10px; }
-
-          @media (max-width: 1400px) {
-            .grid-3 { grid-template-columns: 1fr 1fr; }
-            .grid-4 { grid-template-columns: 1fr 1fr; }
-          }
-          @media (max-width: 1024px) {
-            .dashboard-layout { display: flex; flex-direction: column; }
-            .sidebar-auditoria { position: static; width: 100%; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-            .sidebar-auditoria > div { margin: 0 !important; }
-            
-            .chart-flex { flex-direction: column; align-items: center; justify-content: center; gap: 30px; }
-            .chart-left { width: 100%; display: flex; justify-content: center; align-items: center; height: 350px; }
-            .chart-right { width: 100%; align-items: center; overflow: visible; max-height: none; }
-            .grid-2-inner { grid-template-columns: 1fr 1fr; width: 100%; max-width: 600px; margin: 0 auto; }
-          }
-          @media (max-width: 768px) {
-            .grid-3, .grid-2, .grid-4, .sidebar-auditoria { grid-template-columns: 1fr; }
-            .grid-2-inner { grid-template-columns: 1fr; }
-          }
+          /* Customizações de Barras de Rolagem */
+          ::-webkit-scrollbar { width: 8px; height: 8px; }
+          ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+          ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
           /* ================================================================================== */
-          /* MODO DE IMPRESSÃO PREMIUM PDF (VERTICALIZADO, FONTE GIGANTE, SEM CORTES) */
+          /* MODO DE IMPRESSÃO PREMIUM (VERTICAL, FONTE GRANDE, SEM CORTES, 100% BLINDADO) */
           /* ================================================================================== */
           @media print {
             @page { size: A4 portrait; margin: 10mm; } 
             .no-print, button { display: none !important; }
             
             body, html { font-size: 14pt !important; background-color: #fff !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
-            .main-container, .content-wrapper { display: flex !important; flex-direction: column !important; align-items: center !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
-            ::-webkit-scrollbar { display: none; }
-
+            .main-container { padding: 0 !important; background: #fff !important; }
+            .content-wrapper { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; display: flex !important; flex-direction: column !important; align-items: center !important; }
+            
+            /* Fontes Gigantes para Impressão */
             h1 { font-size: 36pt !important; margin-bottom: 10px !important; }
             h2 { font-size: 28pt !important; margin-bottom: 15px !important; }
             h3 { font-size: 22pt !important; margin-bottom: 20px !important; border-bottom-width: 3px !important; }
             h4, p, span, strong, td, th { font-size: 14pt !important; }
-            .card-dash h2, .card-dash-small h2, .print-vaf h2 { font-size: 34pt !important; font-weight: 900 !important; }
 
-            .dashboard-layout, .grid-3, .grid-2, .grid-4, .sidebar-auditoria, .chart-flex, .grid-2-inner { 
-                display: flex !important; flex-direction: column !important; width: 100% !important; gap: 30px !important; align-items: center !important; margin: 0 !important;
+            /* Destrói qualquer flex row que cause encolhimento lateral */
+            div[style*="display: flex"][style*="gap: 30px"], 
+            div[style*="gridTemplateColumns"] { 
+                display: flex !important; flex-direction: column !important; width: 100% !important; align-items: center !important; gap: 30px !important; margin-bottom: 30px !important;
             }
 
-            .card-dash, .card-dash-small, .print-vaf, .print-banner, .sidebar-auditoria > div { 
+            /* Cartões com Largura Fixa Ideal para A4 e Altura Dinâmica */
+            div[style*="boxShadow: 0 10px 30px"], .print-card, .print-vaf, .print-banner { 
                 width: 100% !important; max-width: 750px !important; height: auto !important; min-height: 0 !important; margin: 0 0 30px 0 !important; 
                 page-break-inside: avoid !important; box-shadow: none !important; border: 2px solid #cbd5e1 !important; box-sizing: border-box !important; padding: 35px !important; 
             }
             .print-banner { border: 3px solid #004080 !important; background: #fff !important; color: #004080 !important; }
             
-            .chart-left { width: 100% !important; height: auto !important; min-height: 400px !important; display: flex !important; justify-content: center !important; align-items: center !important; margin-bottom: 20px !important; }
-            .chart-right { width: 100% !important; max-height: none !important; overflow: visible !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; padding: 0 !important; }
-            .chart-right h4 { text-align: left !important; width: 100% !important; border-bottom: 3px solid #f0f4f8 !important; padding-bottom: 15px !important; }
+            /* Gráficos forçados a não cortar */
+            .print-chart { height: 400px !important; width: 100% !important; margin: 0 auto !important; }
             
-            .grid-2-inner { display: flex !important; flex-direction: column !important; width: 100% !important; gap: 15px !important; }
-            .grid-2-inner > div { width: 100% !important; margin: 0 !important; padding: 25px !important; }
-
-            .card-dash > div[style*="overflowY: auto"], .card-dash > div > div[style*="overflowY: auto"] { max-height: none !important; overflow: visible !important; height: auto !important; }
+            /* Legendas de Gráficos (Módulo Tributário) */
+            div[style*="width: 45%"], div[style*="width: 50%"], div[style*="width: 55%"], div[style*="width: 60%"] { 
+                width: 100% !important; max-height: none !important; overflow: visible !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; padding: 0 !important; 
+            }
+            
+            /* Listas de CFOP e Produtos (Mostra tudo sem rolagem) */
+            div[style*="overflowY: auto"], div[style*="maxHeight: 250px"] { max-height: none !important; overflow: visible !important; height: auto !important; }
+            
             .recharts-wrapper, .recharts-surface { overflow: visible !important; margin: 0 auto !important; }
           }
         `}
@@ -403,7 +394,7 @@ export default function ImportadorSped() {
         </div>
       )}
 
-      <div className="content-wrapper" style={{ filter: tempoRestante <= 0 && tipoAcesso === 'trial' ? 'blur(5px)' : 'none', transition: 'filter 0.5s' }}>
+      <div className="content-wrapper" style={{ width: '100%', maxWidth: '1600px', filter: tempoRestante <= 0 && tipoAcesso === 'trial' ? 'blur(5px)' : 'none', transition: 'filter 0.5s' }}>
         
         <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
@@ -442,59 +433,41 @@ export default function ImportadorSped() {
               </div>
             </div>
 
-            {/* ABA PRINCIPAL (HOME) */}
+            {/* ========================================================================================= */}
+            {/* ABA PRINCIPAL (HOME) - COM O LAYOUT ORIGINAL RESTAURADO E GRÁFICOS MAIS GROSSOS           */}
+            {/* ========================================================================================= */}
             {abaAtiva === 'home' && (
-              <div className="dashboard-layout">
+              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 
-                <div className="print-dashboard-area" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <div className="grid-2" style={{ marginBottom: '25px' }}>
+                <div className="print-dashboard-area" style={{ flex: 1, minWidth: 'min(100%, 800px)', display: 'flex', flexDirection: 'column' }}>
+                  
+                  {/* LINHA 1 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', alignItems: 'stretch', marginBottom: '25px' }}>
                     
-                    {/* GRÁFICO DE OPERAÇÕES ENCORPADO E COM LEGENDA EXECUTIVA */}
-                    <div className="card-dash print-card">
+                    {/* GRÁFICO 1: GROSSO E COM LEGENDA LIMPA ABAIXO */}
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                       <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><ArrowRightLeft size={24}/> Volume de Operações</h3>
-                      <div className="chart-flex">
-                          <div className="chart-left">
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <PieChart>
-                                      <Pie 
-                                          data={dadosGraficoOperacoes} 
-                                          cx="50%" cy="50%" 
-                                          innerRadius={65} 
-                                          outerRadius={95} 
-                                          paddingAngle={5} 
-                                          dataKey="value" 
-                                          animationDuration={1500}
-                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
-                                          labelLine={true}
-                                          style={{ fontSize: '12px', fontWeight: 'bold' }}
-                                      >
-                                          {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
-                                      </Pie>
-                                      <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                                  </PieChart>
-                              </ResponsiveContainer>
-                          </div>
-                          <div className="chart-right">
-                              <div className="grid-2-inner">
-                                {dadosGraficoOperacoes.map((it, idx) => (
-                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_OPERACOES[idx % CORES_OPERACOES.length]}` }}>
-                                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
-                                        <div style={{ textAlign: 'right', minWidth: '90px' }}>
-                                            <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
-                                        </div>
-                                    </div>
-                                ))}
-                              </div>
-                          </div>
+                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            {/* RAIO INTERNO DIMINUÍDO (65) PARA ENGROSSAR A ROSCA */}
+                            <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={65} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                              {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
+                            </Pie>
+                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                            {/* LEGENDA LIMPA RESTAURADA */}
+                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
 
-                    <div className="card-dash print-card">
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                       <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Resumo por CFOP</h3>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', flexGrow: 1, overflow: 'hidden' }}>
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
-                          <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
                             {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
                               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#10b981', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
                             )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
@@ -502,7 +475,7 @@ export default function ImportadorSped() {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
                           <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
-                          <div style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '5px' }}>
+                          <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
                             {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
                               <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px', borderBottom: '1px solid #f0f4f8', fontSize: '14px' }}><span style={{ fontWeight: 'bold', color: '#555' }}>{item.cfop}</span><span style={{ color: '#4f46e5', fontWeight: '600' }}>{formatarMoeda(item.valor)}</span></div>
                             )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
@@ -511,7 +484,7 @@ export default function ImportadorSped() {
                       </div>
                     </div>
 
-                    <div className="card-dash print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', color: '#fff', position: 'relative' }}>
+                    <div className="print-vaf" style={{ background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', padding: '30px', borderRadius: '20px', boxShadow: '0 15px 35px rgba(2, 132, 199, 0.3)', display: 'flex', flexDirection: 'column', color: '#fff', position: 'relative' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px', marginBottom: '20px' }}>
                         <h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}><Calculator size={26}/> VAF Fiscal do Período</h3>
                       </div>
@@ -532,62 +505,43 @@ export default function ImportadorSped() {
                         </div>
                       )}
                     </div>
+                  </div>
 
-                    {/* GRÁFICO DE ICMS ENCORPADO COM LEGENDA EXECUTIVA */}
-                    <div className="card-dash print-card">
+                  {/* LINHA 2 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', alignItems: 'stretch', marginTop: dadosVaf.vafTotal < 0 ? '40px' : '0' }}>
+                    
+                    {/* GRÁFICO 2: GROSSO E COM LEGENDA LIMPA ABAIXO */}
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                       <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS</h3>
-                      <div className="chart-flex">
-                          <div className="chart-left">
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <PieChart>
-                                      <Pie 
-                                          data={dadosGraficoIcms} 
-                                          cx="50%" cy="50%" 
-                                          innerRadius={65} 
-                                          outerRadius={95} 
-                                          paddingAngle={5} 
-                                          dataKey="value" 
-                                          animationDuration={1500}
-                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
-                                          labelLine={true}
-                                          style={{ fontSize: '12px', fontWeight: 'bold' }}
-                                      >
-                                          {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
-                                      </Pie>
-                                      <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
-                                  </PieChart>
-                              </ResponsiveContainer>
-                          </div>
-                          <div className="chart-right">
-                              <div className="grid-2-inner">
-                                {dadosGraficoIcms.map((it, idx) => (
-                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ICMS[idx % CORES_ICMS.length]}` }}>
-                                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
-                                        <div style={{ textAlign: 'right', minWidth: '90px' }}>
-                                            <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
-                                        </div>
-                                    </div>
-                                ))}
-                              </div>
-                          </div>
+                      <div className="print-chart" style={{ height: '300px', width: '100%', flexGrow: 1 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                             {/* RAIO INTERNO DIMINUÍDO (65) PARA ENGROSSAR A ROSCA */}
+                            <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={65} outerRadius={110} paddingAngle={5} dataKey="value" animationDuration={1500}>
+                              {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
+                            </Pie>
+                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
+                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', minWidth: 0 }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', width: '100%' }}>
-                        <div className="card-dash print-card" style={{ padding: '20px', borderLeft: '6px solid #10b981' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                      <div style={{ display: 'flex', gap: '20px', width: '100%', flexWrap: 'wrap' }}>
+                        <div className="print-card" style={{ flex: 1, minWidth: '150px', backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #10b981', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                           <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>Saldo Credor Transportar</p>
                           <h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
                         </div>
-                        <div className="card-dash print-card" style={{ padding: '20px', borderLeft: '6px solid #ef4444' }}>
+                        <div className="print-card" style={{ flex: 1, minWidth: '150px', backgroundColor: '#fff', padding: '20px', borderRadius: '20px', borderLeft: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                           <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', fontWeight: '600', textTransform: 'uppercase' }}>ICMS a Recolher</p>
                           <h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '800' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
                         </div>
                       </div>
                       
-                      <div className="card-dash print-card" style={{ padding: '25px', width: '100%', flexGrow: 1 }}>
+                      <div className="print-card" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
                         <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}><DollarSign size={20} /> Obrigações e Guias</h3>
-                        <div style={{ maxHeight: '150px', overflowY: 'auto', paddingRight: '5px' }}>
+                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
                           {guiasE116.length > 0 ? guiasE116.map((guia, index) => (
                             <div key={index} style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '10px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div>
@@ -602,8 +556,9 @@ export default function ImportadorSped() {
                     </div>
                   </div>
 
-                  <div className="grid-2 print-grid">
-                    <div className="card-dash print-card">
+                  {/* LINHA 3 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '25px', alignItems: 'stretch', marginTop: '25px' }}>
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                       <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Package size={24}/> {tituloTopProdutos}</h3>
                       <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
                         {listaExibicaoProdutos.length > 0 ? listaExibicaoProdutos.map((item, idx) => (
@@ -617,7 +572,7 @@ export default function ImportadorSped() {
                         )) : <p style={{ fontSize: '13px', color: '#999', textAlign: 'center', marginTop: '20px' }}>Nenhum detalhamento de produto cadastrado no período.</p>}
                       </div>
                     </div>
-                    <div className="card-dash print-card">
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
                       <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><Truck size={24}/> Top 5 Maiores Fornecedores</h3>
                       <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '5px' }}>
                         {topFornecedores.length > 0 ? topFornecedores.map((item, idx) => (
@@ -636,7 +591,8 @@ export default function ImportadorSped() {
                   <BotoesAcao />
                 </div>
 
-                <div className="sidebar-auditoria no-print">
+                {/* BARRA LATERAL (SIDEBAR DE AUDITORIA) NO LUGAR CERTO */}
+                <div className="no-print" style={{ width: '320px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '20px', padding: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'sticky', top: '30px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
                     <div style={{ backgroundColor: '#10b981', padding: '12px', borderRadius: '12px', display: 'flex', color: '#fff' }}><Shield size={28} /></div>
                     <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: '800' }}>Auditoria Automática</h3><p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '13px' }}>Ajustes e Correções</p></div>
@@ -666,49 +622,51 @@ export default function ImportadorSped() {
               </div>
             )}
 
-            {/* ABA TRIBUTÁRIA E RESULTADOS (BI AVANÇADO) */}
+            {/* ========================================================================================= */}
+            {/* ABA TRIBUTÁRIA (BI AVANÇADO) - COM O LAYOUT ORIGINAL E GRÁFICOS MAIS GROSSOS                */}
+            {/* ========================================================================================= */}
             {abaAtiva === 'tributos' && (
-              <div className="dashboard-layout">
+              <div style={{ display: 'flex', gap: '30px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 
-                <div className="print-dashboard-area" style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: '25px' }}>
+                <div className="print-dashboard-area" style={{ flex: 1, minWidth: 'min(100%, 800px)', display: 'flex', flexDirection: 'column', gap: '25px' }}>
                   
-                  <div className="grid-4">
-                    <div className="card-dash-small" style={{ borderTop: '6px solid #004080' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #004080', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Faturamento Analisado</p>
                       <h2 style={{ margin: 0, color: '#004080', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Baseado nas Saídas</span>
                     </div>
-                    <div className="card-dash-small" style={{ borderTop: '6px solid #f59e0b' }}>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #f59e0b', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Substituição Tributária (ST)</p>
                       <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 54xx / 64xx / 74xx</span>
                     </div>
-                    <div className="card-dash-small" style={{ borderTop: '6px solid #8b5cf6' }}>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #8b5cf6', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Prestações de Serviços</p>
                       <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 53xx / 63xx / 73xx</span>
                     </div>
-                    <div className="card-dash-small" style={{ borderTop: '6px solid #ef4444' }}>
+                    <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Isentas / Não Tributadas</p>
                       <h2 style={{ margin: 0, color: '#ef4444', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Sem destaque de ICMS</span>
                     </div>
                   </div>
 
-                  <div className="card-dash print-card">
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '35px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                       <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '24px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <PieChartIcon size={28}/> Fluxo Mensal: Compras vs. Vendas
                       </h3>
 
-                      <div className="chart-flex">
-                          <div className="chart-left">
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '40px' }}>
+                          <div style={{ flex: '1 1 300px', height: '350px' }}>
                               <ResponsiveContainer width="100%" height="100%">
                                   <PieChart>
                                       <Pie 
                                           data={dadosComparativoMensal} 
                                           cx="50%" cy="50%" 
-                                          innerRadius={55} 
-                                          outerRadius={85} 
+                                          innerRadius={75} 
+                                          outerRadius={115} 
                                           paddingAngle={6} 
                                           cornerRadius={12} 
                                           dataKey="value" 
@@ -723,9 +681,9 @@ export default function ImportadorSped() {
                                   </PieChart>
                               </ResponsiveContainer>
                           </div>
-                          <div className="chart-right">
-                              <h4 style={{ fontSize: '16px', color: '#666', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 15px 0' }}>Detalhamento Financeiro</h4>
-                              <div className="grid-2-inner">
+                          <div style={{ flex: '1 1 350px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                              <h4 style={{ fontSize: '16px', color: '#666', borderBottom: '2px solid #f0f4f8', paddingBottom: '10px', margin: '0 0 5px 0' }}>Detalhamento Financeiro</h4>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                   {dadosComparativoMensal.map((it, idx) => (
                                       <div key={idx} style={{ backgroundColor: '#f8fafc', padding: '20px', borderRadius: '15px', borderLeft: `6px solid ${it.fill}`, display: 'flex', flexDirection: 'column' }}>
                                           <span style={{ fontSize: '14px', fontWeight: '700', color: '#475569', marginBottom: '8px' }}>{it.name}</span>
@@ -737,20 +695,20 @@ export default function ImportadorSped() {
                       </div>
                   </div>
 
-                  <div className="grid-2 print-grid">
-                    <div className="card-dash print-card">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '25px' }}>
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                       <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Activity size={24} /> Tributação das Saídas (C190)
                       </h3>
-                      <div className="chart-flex">
-                        <div className="chart-left">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ height: '300px', width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie 
                                 data={dadosTributacaoSaida} 
                                 cx="50%" cy="50%" 
-                                innerRadius={55} 
-                                outerRadius={85} 
+                                innerRadius={65} 
+                                outerRadius={110} 
                                 paddingAngle={4} 
                                 dataKey="value" 
                                 animationDuration={1200}
@@ -764,9 +722,9 @@ export default function ImportadorSped() {
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
-                        <div className="chart-right">
+                        <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
                           {dadosTributacaoSaida.map((it, idx) => (
-                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_TRIBUTACAO[idx % CORES_TRIBUTACAO.length]}` }}>
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_TRIBUTACAO[idx % CORES_TRIBUTACAO.length]}`, marginBottom: '8px' }}>
                               <span style={{ fontSize: '13px', color: '#555', fontWeight: '600', lineHeight: '1.2' }}>{it.name}</span>
                               <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
                             </div>
@@ -775,19 +733,19 @@ export default function ImportadorSped() {
                       </div>
                     </div>
 
-                    <div className="card-dash print-card">
+                    <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                       <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <MapPin size={24} /> Aquisições por Estado
                       </h3>
-                      <div className="chart-flex">
-                        <div className="chart-left">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={{ height: '300px', width: '100%' }}>
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                               <Pie 
                                  data={dadosEstados} 
                                  cx="50%" cy="50%" 
-                                 innerRadius={55} 
-                                 outerRadius={85} 
+                                 innerRadius={65} 
+                                 outerRadius={110} 
                                  paddingAngle={4} 
                                  dataKey="value" 
                                  animationDuration={1200}
@@ -801,9 +759,9 @@ export default function ImportadorSped() {
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
-                        <div className="chart-right">
+                        <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
                           {dadosEstados.map((it, idx) => (
-                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_MAPA[idx % CORES_MAPA.length]}` }}>
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_MAPA[idx % CORES_MAPA.length]}`, marginBottom: '8px' }}>
                               <span style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>{it.name}</span>
                               <strong style={{ fontSize: '14px', color: '#004080', marginLeft: '10px' }}>{formatarMoeda(it.value)}</strong>
                             </div>
@@ -813,19 +771,19 @@ export default function ImportadorSped() {
                     </div>
                   </div>
 
-                  <div className="card-dash print-card">
+                  <div className="print-card" style={{ backgroundColor: '#fff', padding: '30px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                       <h3 style={{ margin: '0 0 25px 0', color: '#004080', fontSize: '22px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <Package size={24}/> Divisão de Entradas (Rosca BI)
                       </h3>
-                      <div className="chart-flex">
-                          <div className="chart-left">
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '40px' }}>
+                          <div style={{ flex: '1 1 300px', height: '350px' }}>
                               <ResponsiveContainer width="100%" height="100%">
                                   <PieChart>
                                       <Pie 
                                           data={dadosRoscaEntradas} 
                                           cx="50%" cy="50%" 
-                                          innerRadius={55} 
-                                          outerRadius={85} 
+                                          innerRadius={75} 
+                                          outerRadius={115} 
                                           paddingAngle={4} 
                                           dataKey="value" 
                                           animationDuration={1200}
@@ -839,8 +797,8 @@ export default function ImportadorSped() {
                                   </PieChart>
                               </ResponsiveContainer>
                           </div>
-                          <div className="chart-right">
-                              <div className="grid-2-inner">
+                          <div style={{ flex: '1 1 350px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                                 {dadosRoscaEntradas.map((it, idx) => (
                                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ENTRADAS[idx % CORES_ENTRADAS.length]}` }}>
                                         <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
@@ -857,7 +815,7 @@ export default function ImportadorSped() {
                   <BotoesAcao />
                 </div>
 
-                <div className="sidebar-auditoria no-print">
+                <div className="sidebar-auditoria no-print" style={{ width: '320px', flexShrink: 0, backgroundColor: '#fff', borderRadius: '20px', padding: '30px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'sticky', top: '30px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
                     <div style={{ backgroundColor: '#10b981', padding: '12px', borderRadius: '12px', display: 'flex', color: '#fff' }}><Shield size={28} /></div>
                     <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: '800' }}>Auditoria Automática</h3><p style={{ margin: '2px 0 0 0', color: '#666', fontSize: '13px' }}>Ajustes e Correções</p></div>
@@ -889,7 +847,7 @@ export default function ImportadorSped() {
 
             {/* ABA AUDITORIA (LOG) */}
             {abaAtiva === 'auditoria' && (
-              <div className="card-dash print-card" style={{ width: '100%' }}>
+              <div className="print-card" style={{ backgroundColor: '#fff', padding: '40px', borderRadius: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2>
                    <button onClick={() => window.print()} style={{ padding: '10px 20px', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Printer size={18}/> Salvar PDF</button>
