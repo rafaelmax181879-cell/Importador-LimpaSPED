@@ -1,14 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon, Lock, Loader2 } from 'lucide-react';
+
+// ==========================================
+// CONFIGURAÇÕES DE ACESSO (CHAVES)
+// ==========================================
+const SENHA_ADMIN = "admin7474";
+const SENHA_TESTE = "teste3478";
+const TEMPO_TESTE_SEGUNDOS = 300; // 5 minutos
 
 export default function ImportadorSped() {
-  const [mensagem, setMensagem] = useState('Arraste seu arquivo SPED ou clique para selecionar');
-  const [status, setStatus] = useState('aguardando'); 
+  // ESTADOS DO SISTEMA
+  const [faseAtual, setFaseAtual] = useState('login'); // 'login' | 'upload' | 'loading' | 'dashboard'
+  const [senhaInput, setSenhaInput] = useState('');
+  const [erroLogin, setErroLogin] = useState('');
+  const [tipoAcesso, setTipoAcesso] = useState(null); // 'admin' | 'trial'
+  const [tempoRestante, setTempoRestante] = useState(TEMPO_TESTE_SEGUNDOS);
+  const [loadingText, setLoadingText] = useState('');
+
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
   
+  // ESTADOS DE DADOS (SPED)
   const [dadosGraficoIcms, setDadosGraficoIcms] = useState([]);
   const [ajustesICMS, setAjustesICMS] = useState([]);
   const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
@@ -20,8 +34,6 @@ export default function ImportadorSped() {
   const [relatorioCorrecoes, setRelatorioCorrecoes] = useState({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
   const [topProdutos, setTopProdutos] = useState({ vendas: [], compras: [] });
   const [topFornecedores, setTopFornecedores] = useState([]);
-
-  // ESTADOS DO MÓDULO TRIBUTÁRIO AVANÇADO
   const [dadosTributacaoSaida, setDadosTributacaoSaida] = useState([]); 
   const [resumoTributacao, setResumoTributacao] = useState({ st: 0, servicos: 0, isento: 0, total: 0 });
   const [dadosEstados, setDadosEstados] = useState([]);
@@ -29,6 +41,7 @@ export default function ImportadorSped() {
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [dadosComparativoMensal, setDadosComparativoMensal] = useState([]);
 
+  // CORES
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
   const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
@@ -37,24 +50,63 @@ export default function ImportadorSped() {
 
   const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
 
-  const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+  const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+
+  // EFEITO DO CRONÔMETRO DE TESTE
+  useEffect(() => {
+    let intervalo;
+    if (faseAtual === 'dashboard' && tipoAcesso === 'trial' && tempoRestante > 0) {
+      intervalo = setInterval(() => setTempoRestante(prev => prev - 1), 1000);
+    }
+    return () => clearInterval(intervalo);
+  }, [faseAtual, tipoAcesso, tempoRestante]);
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (senhaInput === SENHA_ADMIN) {
+      setTipoAcesso('admin');
+      setFaseAtual('upload');
+      setErroLogin('');
+    } else if (senhaInput === SENHA_TESTE) {
+      setTipoAcesso('trial');
+      setTempoRestante(TEMPO_TESTE_SEGUNDOS);
+      setFaseAtual('upload');
+      setErroLogin('');
+    } else {
+      setErroLogin('Chave de acesso inválida.');
+    }
+  };
 
   const limparDados = () => {
-    setStatus('aguardando'); setMensagem('Arraste seu arquivo SPED ou clique para selecionar');
-    setAbaAtiva('home'); setArquivoProcessado(null); setNomeOriginal('');
-    setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
+    setFaseAtual('upload'); setArquivoProcessado(null); setNomeOriginal('');
+    setAbaAtiva('home'); setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
     setGuiasE116([]); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' }); setDadosGraficoOperacoes([]);
     setListaCfops({ entradas: [], saidas: [] }); setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
     setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
     setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setDadosComparativoMensal([]);
+    if (tipoAcesso === 'trial') setTempoRestante(TEMPO_TESTE_SEGUNDOS);
   };
 
   const processarArquivo = (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    setStatus('processando'); setMensagem('Gerando Visão Executiva e Auditoria Digital...');
     setNomeOriginal(file.name);
+
+    // INICIA TELA DE LOADING PREMIUM
+    setFaseAtual('loading');
+    const mensagens = [
+      "Lendo estrutura do arquivo SPED...",
+      "Mapeando inteligência de CFOPs...",
+      "Auditando cruzamentos de ICMS...",
+      "Gerando painel de Business Intelligence..."
+    ];
+    let step = 0;
+    setLoadingText(mensagens[0]);
+    const inter = setInterval(() => {
+      step++;
+      if(step < mensagens.length) setLoadingText(mensagens[step]);
+    }, 700);
 
     const reader = new FileReader();
     reader.readAsText(file, 'windows-1252');
@@ -165,7 +217,6 @@ export default function ImportadorSped() {
       setDadosGraficoIcms([{ name: 'Créditos', value: totalCred }, { name: 'Débitos', value: totalDeb }]);
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
-      
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setAjustesICMS(listaAj);
       setGuiasE116(listaG);
@@ -178,7 +229,13 @@ export default function ImportadorSped() {
       ].filter(item => item.value > 0)); 
 
       setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: (contC191 > 0 || contC173 > 0) ? 3 : 0 });
-      setLogAuditoria(logTemp); setArquivoProcessado(linhasProcessadas.join('\r\n')); setStatus('sucesso');
+      setArquivoProcessado(linhasProcessadas.join('\r\n')); 
+      
+      // ILUSÃO DE TRABALHO: Aguarda 3 segundos para mostrar o dashboard
+      setTimeout(() => {
+        clearInterval(inter);
+        setFaseAtual('dashboard');
+      }, 3000);
     };
   };
 
@@ -190,35 +247,85 @@ export default function ImportadorSped() {
     </div>
   );
 
+  const formatarTempo = (segundos) => {
+    const min = Math.floor(segundos / 60);
+    const seg = segundos % 60;
+    return `${min}:${seg.toString().padStart(2, '0')}`;
+  };
+
   const temVendas = topProdutos.vendas && topProdutos.vendas.length > 0;
   const tituloTopProdutos = temVendas ? "Top 10 Produtos (Vendas)" : "Top 10 Produtos (Compras)";
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
 
+  // RENDERIZAÇÃO DA TELA DE LOGIN
+  if (faseAtual === 'login') {
+    return (
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f0f4f8', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', margin: 0, padding: 0 }}>
+        <div style={{ backgroundColor: '#fff', padding: '50px', borderRadius: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
+          <Shield size={64} color="#004080" style={{ marginBottom: '20px' }} />
+          <h1 style={{ margin: '0 0 5px 0', color: '#004080', fontSize: '32px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
+          <p style={{ margin: '0 0 30px 0', color: '#64748b', fontSize: '14px' }}>Inteligência Fiscal e Auditoria Digital</p>
+          
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <input 
+                type="password" 
+                placeholder="Insira sua Chave de Acesso" 
+                value={senhaInput} 
+                onChange={(e) => setSenhaInput(e.target.value)} 
+                style={{ width: '100%', boxSizing: 'border-box', padding: '15px', borderRadius: '12px', border: '2px solid #cbd5e1', fontSize: '16px', outline: 'none', textAlign: 'center', transition: 'border 0.3s' }}
+                onFocus={(e) => e.target.style.borderColor = '#004080'}
+                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+              />
+              {erroLogin && <span style={{ color: '#ef4444', fontSize: '12px', display: 'block', marginTop: '8px', fontWeight: 'bold' }}>{erroLogin}</span>}
+            </div>
+            <button type="submit" style={{ padding: '15px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'background 0.3s' }} onMouseOver={(e) => e.target.style.backgroundColor = '#003366'} onMouseOut={(e) => e.target.style.backgroundColor = '#004080'}>
+              <Lock size={18} /> Acessar Sistema
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDERIZAÇÃO DA TELA DE LOADING PREMIUM
+  if (faseAtual === 'loading') {
+    return (
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f0f4f8', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui, sans-serif', margin: 0, padding: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <Loader2 size={64} color="#004080" className="spin-animation" style={{ animation: 'spin 2s linear infinite' }} />
+          <h2 style={{ color: '#004080', margin: 0, fontSize: '24px' }}>Processando SPED...</h2>
+          <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600' }}>{loadingText}</p>
+          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+      </div>
+    );
+  }
+
+  // RENDERIZAÇÃO PRINCIPAL DO DASHBOARD
   return (
     <div className="main-container">
       
       <style>
         {`
-          /* === VACINA CSS ANTI-VITE: FORÇA TELA CHEIA E CENTRALIZAÇÃO === */
           body, html { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; background-color: #f0f4f8 !important; }
           #root { width: 100% !important; min-height: 100vh !important; display: flex !important; flex-direction: column !important; max-width: none !important; padding: 0 !important; margin: 0 !important; }
           
           .main-container { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; background-color: #f0f4f8; padding: 30px; box-sizing: border-box; font-family: system-ui, sans-serif; width: 100%; flex-grow: 1; }
           .content-wrapper { width: 100%; max-width: 1600px; display: flex; flex-direction: column; flex-grow: 1; }
 
-          /* Layout Responsivo Profissional */
           .dashboard-layout { display: grid; grid-template-columns: 1fr 320px; gap: 30px; align-items: start; width: 100%; max-width: 100%; }
           .grid-3 { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr; gap: 25px; width: 100%; }
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; width: 100%; }
           .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; width: 100%; }
           
           .card-dash { background-color: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; min-width: 0; }
+          .card-dash-small { background-color: #fff; padding: 25px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); textAlign: center; display: flex; flex-direction: column; justify-content: center; }
           .sidebar-auditoria { width: 100%; background-color: #fff; border-radius: 20px; padding: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); position: sticky; top: 30px; }
           
-          /* Gráficos Alinhados e Centralizados na Tela */
           .chart-flex { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; }
-          .chart-left { width: 50%; height: 320px; display: flex; align-items: center; justify-content: center; }
-          .chart-right { width: 50%; display: flex; flex-direction: column; gap: 15px; max-height: 320px; overflow-y: auto; padding-right: 10px; }
+          .chart-left { width: 45%; height: 320px; display: flex; align-items: center; justify-content: center; }
+          .chart-right { width: 55%; display: flex; flex-direction: column; gap: 15px; max-height: 320px; overflow-y: auto; padding-right: 10px; }
 
           @media (max-width: 1400px) {
             .grid-3 { grid-template-columns: 1fr 1fr; }
@@ -239,42 +346,71 @@ export default function ImportadorSped() {
             .grid-2-inner { grid-template-columns: 1fr; }
           }
 
-          /* MODO DE IMPRESSÃO BLINDADO (FIM DOS GRÁFICOS CORTADOS) */
+          /* ================================================================================== */
+          /* MODO DE IMPRESSÃO PREMIUM PDF (VERTICALIZADO, FONTE GIGANTE, SEM CORTES) */
+          /* ================================================================================== */
           @media print {
-            @page { size: A4 portrait; margin: 15mm; }
+            @page { size: A4 portrait; margin: 10mm; } 
             .no-print, button { display: none !important; }
-            body, html { background-color: #fff !important; margin: 0 !important; padding: 0 !important; }
-            .main-container { background-color: #fff !important; display: block !important; padding: 0 !important; min-height: 0 !important; }
-            .content-wrapper { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; display: block !important; }
+            
+            body, html { font-size: 14pt !important; background-color: #fff !important; margin: 0 !important; padding: 0 !important; width: 100% !important; }
+            .main-container, .content-wrapper { display: flex !important; flex-direction: column !important; align-items: center !important; width: 100% !important; margin: 0 !important; padding: 0 !important; }
             ::-webkit-scrollbar { display: none; }
-            .dashboard-layout { display: block !important; }
-            .grid-3, .grid-2, .grid-4 { display: flex !important; flex-direction: column !important; gap: 25px !important; margin-bottom: 25px !important; width: 100% !important; page-break-inside: avoid !important; }
-            .card-dash, .print-vaf, .print-banner { width: 100% !important; max-width: 100% !important; margin: 0 auto !important; page-break-inside: avoid !important; break-inside: avoid !important; box-shadow: none !important; border: 1px solid #cbd5e1 !important; box-sizing: border-box !important; }
-            .print-banner { border: 2px solid #004080 !important; background: #fff !important; color: #004080 !important; }
+
+            h1 { font-size: 36pt !important; margin-bottom: 10px !important; }
+            h2 { font-size: 28pt !important; margin-bottom: 15px !important; }
+            h3 { font-size: 22pt !important; margin-bottom: 20px !important; border-bottom-width: 3px !important; }
+            h4, p, span, strong, td, th { font-size: 14pt !important; }
+            .card-dash h2, .card-dash-small h2, .print-vaf h2 { font-size: 34pt !important; font-weight: 900 !important; }
+
+            .dashboard-layout, .grid-3, .grid-2, .grid-4, .sidebar-auditoria, .chart-flex, .grid-2-inner { 
+                display: flex !important; flex-direction: column !important; width: 100% !important; gap: 30px !important; align-items: center !important; margin: 0 !important;
+            }
+
+            .card-dash, .card-dash-small, .print-vaf, .print-banner, .sidebar-auditoria > div { 
+                width: 100% !important; max-width: 750px !important; height: auto !important; min-height: 0 !important; margin: 0 0 30px 0 !important; 
+                page-break-inside: avoid !important; box-shadow: none !important; border: 2px solid #cbd5e1 !important; box-sizing: border-box !important; padding: 35px !important; 
+            }
+            .print-banner { border: 3px solid #004080 !important; background: #fff !important; color: #004080 !important; }
             
-            /* Engenharia de Impressão: Alinhamento Central e Expansão Lateral */
-            .chart-flex { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; gap: 20px !important; width: 100% !important; }
-            .chart-left { width: 100% !important; height: 350px !important; display: flex !important; justify-content: center !important; align-items: center !important; }
+            .chart-left { width: 100% !important; height: auto !important; min-height: 400px !important; display: flex !important; justify-content: center !important; align-items: center !important; margin-bottom: 20px !important; }
+            .chart-right { width: 100% !important; max-height: none !important; overflow: visible !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; padding: 0 !important; }
+            .chart-right h4 { text-align: left !important; width: 100% !important; border-bottom: 3px solid #f0f4f8 !important; padding-bottom: 15px !important; }
             
-            /* Legendas forçadas para a esquerda e ocupando 100% do papel */
-            .chart-right { width: 100% !important; max-height: none !important; overflow: visible !important; display: flex !important; flex-direction: column !important; align-items: stretch !important; text-align: left !important; padding: 0 !important; }
-            .chart-right h4 { text-align: left !important; width: 100% !important; border-bottom: 2px solid #f0f4f8 !important; padding-bottom: 10px !important; margin-bottom: 15px !important; }
-            .chart-right > div { display: flex !important; width: 100% !important; box-sizing: border-box !important; margin-bottom: 8px !important; } 
-            
-            /* Bloqueio contra cortes da biblioteca Recharts */
+            .grid-2-inner { display: flex !important; flex-direction: column !important; width: 100% !important; gap: 15px !important; }
+            .grid-2-inner > div { width: 100% !important; margin: 0 !important; padding: 25px !important; }
+
+            .card-dash > div[style*="overflowY: auto"], .card-dash > div > div[style*="overflowY: auto"] { max-height: none !important; overflow: visible !important; height: auto !important; }
             .recharts-wrapper, .recharts-surface { overflow: visible !important; margin: 0 auto !important; }
-            .grid-2-inner { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 15px !important; width: 100% !important; }
           }
         `}
       </style>
 
-      <div className="content-wrapper">
+      {/* OVERLAY DE BLOQUEIO DE TESTE */}
+      {tipoAcesso === 'trial' && tempoRestante <= 0 && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
+          <AlertTriangle size={80} color="#ef4444" style={{ marginBottom: '20px' }} />
+          <h1 style={{ color: '#004080', fontSize: '36px', fontWeight: '900', marginBottom: '10px' }}>Tempo de Demonstração Expirado</h1>
+          <p style={{ color: '#64748b', fontSize: '20px', maxWidth: '600px', marginBottom: '30px' }}>Sua licença de teste de 5 minutos chegou ao fim. Adquira a licença completa para continuar utilizando a inteligência do AUDITTUS.</p>
+          <button onClick={() => window.location.reload()} style={{ padding: '15px 30px', backgroundColor: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer' }}>Voltar ao Início</button>
+        </div>
+      )}
+
+      {/* CRONÔMETRO FLUTUANTE (TRIAL) */}
+      {tipoAcesso === 'trial' && tempoRestante > 0 && (
+        <div className="no-print" style={{ position: 'fixed', top: '20px', right: '20px', backgroundColor: tempoRestante < 60 ? '#ef4444' : '#f59e0b', color: '#fff', padding: '10px 20px', borderRadius: '30px', fontWeight: 'bold', zIndex: 9000, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Calendar size={18} /> Modo Teste: {formatarTempo(tempoRestante)}
+        </div>
+      )}
+
+      <div className="content-wrapper" style={{ filter: tempoRestante <= 0 && tipoAcesso === 'trial' ? 'blur(5px)' : 'none', transition: 'filter 0.5s' }}>
+        
         <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
           <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
         </div>
 
-        {status !== 'sucesso' && (
+        {faseAtual === 'upload' && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
             <div style={{ width: '100%', maxWidth: '800px', margin: '0 auto', padding: '60px', backgroundColor: '#fff', borderRadius: '20px', border: '3px dashed #004080', textAlign: 'center', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
@@ -284,7 +420,7 @@ export default function ImportadorSped() {
           </div>
         )}
 
-        {status === 'sucesso' && (
+        {faseAtual === 'dashboard' && (
           <div>
             <div className="no-print" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '30px' }}>
               <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}><LayoutDashboard size={20} /> Visão Geral</button>
@@ -311,20 +447,45 @@ export default function ImportadorSped() {
               <div className="dashboard-layout">
                 
                 <div className="print-dashboard-area" style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                  <div className="grid-3" style={{ marginBottom: '25px' }}>
+                  <div className="grid-2" style={{ marginBottom: '25px' }}>
                     
+                    {/* GRÁFICO DE OPERAÇÕES ENCORPADO E COM LEGENDA EXECUTIVA */}
                     <div className="card-dash print-card">
                       <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}><ArrowRightLeft size={24}/> Volume de Operações</h3>
-                      <div className="print-chart" style={{ height: '280px', width: '100%', flexGrow: 1 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={dadosGraficoOperacoes} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={5} dataKey="value" animationDuration={1500}>
-                              {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                          </PieChart>
-                        </ResponsiveContainer>
+                      <div className="chart-flex">
+                          <div className="chart-left">
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <PieChart>
+                                      <Pie 
+                                          data={dadosGraficoOperacoes} 
+                                          cx="50%" cy="50%" 
+                                          innerRadius={65} 
+                                          outerRadius={95} 
+                                          paddingAngle={5} 
+                                          dataKey="value" 
+                                          animationDuration={1500}
+                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                          labelLine={true}
+                                          style={{ fontSize: '12px', fontWeight: 'bold' }}
+                                      >
+                                          {dadosGraficoOperacoes.map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
+                                      </Pie>
+                                      <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                                  </PieChart>
+                              </ResponsiveContainer>
+                          </div>
+                          <div className="chart-right">
+                              <div className="grid-2-inner">
+                                {dadosGraficoOperacoes.map((it, idx) => (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_OPERACOES[idx % CORES_OPERACOES.length]}` }}>
+                                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
+                                        <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                                            <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
+                                        </div>
+                                    </div>
+                                ))}
+                              </div>
+                          </div>
                       </div>
                     </div>
 
@@ -371,21 +532,44 @@ export default function ImportadorSped() {
                         </div>
                       )}
                     </div>
-                  </div>
 
-                  <div className="grid-2 print-grid" style={{ marginTop: dadosVaf.vafTotal < 0 ? '40px' : '0', marginBottom: '25px' }}>
+                    {/* GRÁFICO DE ICMS ENCORPADO COM LEGENDA EXECUTIVA */}
                     <div className="card-dash print-card">
                       <h3 style={{ color: '#004080', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px', margin: '0 0 20px 0', fontSize: '20px' }}>Apuração de ICMS</h3>
-                      <div className="print-chart" style={{ height: '280px', width: '100%', flexGrow: 1 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={dadosGraficoIcms} cx="50%" cy="50%" innerRadius={70} outerRadius={95} paddingAngle={5} dataKey="value" animationDuration={1500}>
-                              {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
-                            </Pie>
-                            <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }} />
-                            <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                          </PieChart>
-                        </ResponsiveContainer>
+                      <div className="chart-flex">
+                          <div className="chart-left">
+                              <ResponsiveContainer width="100%" height="100%">
+                                  <PieChart>
+                                      <Pie 
+                                          data={dadosGraficoIcms} 
+                                          cx="50%" cy="50%" 
+                                          innerRadius={65} 
+                                          outerRadius={95} 
+                                          paddingAngle={5} 
+                                          dataKey="value" 
+                                          animationDuration={1500}
+                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                          labelLine={true}
+                                          style={{ fontSize: '12px', fontWeight: 'bold' }}
+                                      >
+                                          {dadosGraficoIcms.map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
+                                      </Pie>
+                                      <Tooltip formatter={(v) => formatarMoeda(v)} contentStyle={{ borderRadius: '10px', border: 'none', boxShadow: '0 5px 15px rgba(0,0,0,0.1)', fontWeight: 'bold' }} />
+                                  </PieChart>
+                              </ResponsiveContainer>
+                          </div>
+                          <div className="chart-right">
+                              <div className="grid-2-inner">
+                                {dadosGraficoIcms.map((it, idx) => (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', backgroundColor: '#f8fafc', borderRadius: '12px', borderLeft: `5px solid ${CORES_ICMS[idx % CORES_ICMS.length]}` }}>
+                                        <span style={{ fontSize: '13px', fontWeight: '800', color: '#555', lineHeight: '1.3' }}>{it.name}</span>
+                                        <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                                            <strong style={{ fontSize: '14px', color: '#004080', display: 'block' }}>{formatarMoeda(it.value)}</strong>
+                                        </div>
+                                    </div>
+                                ))}
+                              </div>
+                          </div>
                       </div>
                     </div>
 
@@ -489,22 +673,22 @@ export default function ImportadorSped() {
                 <div className="print-dashboard-area" style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: '25px' }}>
                   
                   <div className="grid-4">
-                    <div className="card-dash-small" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #004080', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
+                    <div className="card-dash-small" style={{ borderTop: '6px solid #004080' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Faturamento Analisado</p>
                       <h2 style={{ margin: 0, color: '#004080', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Baseado nas Saídas</span>
                     </div>
-                    <div className="card-dash-small" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #f59e0b', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
+                    <div className="card-dash-small" style={{ borderTop: '6px solid #f59e0b' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Substituição Tributária (ST)</p>
                       <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 54xx / 64xx / 74xx</span>
                     </div>
-                    <div className="card-dash-small" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #8b5cf6', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
+                    <div className="card-dash-small" style={{ borderTop: '6px solid #8b5cf6' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Prestações de Serviços</p>
                       <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>CFOPs 53xx / 63xx / 73xx</span>
                     </div>
-                    <div className="card-dash-small" style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '20px', borderTop: '6px solid #ef4444', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
+                    <div className="card-dash-small" style={{ borderTop: '6px solid #ef4444' }}>
                       <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px', fontWeight: '600', textTransform: 'uppercase' }}>Isentas / Não Tributadas</p>
                       <h2 style={{ margin: 0, color: '#ef4444', fontSize: '26px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
                       <span style={{ display: 'block', fontSize: '12px', color: '#999', marginTop: '5px' }}>Sem destaque de ICMS</span>
@@ -529,7 +713,7 @@ export default function ImportadorSped() {
                                           cornerRadius={12} 
                                           dataKey="value" 
                                           animationDuration={1500}
-                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                          label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                           labelLine={true}
                                           style={{ fontSize: '12px', fontWeight: 'bold' }}
                                       >
@@ -570,7 +754,7 @@ export default function ImportadorSped() {
                                 paddingAngle={4} 
                                 dataKey="value" 
                                 animationDuration={1200}
-                                label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                 labelLine={true}
                                 style={{ fontSize: '11px', fontWeight: 'bold' }}
                               >
@@ -607,7 +791,7 @@ export default function ImportadorSped() {
                                  paddingAngle={4} 
                                  dataKey="value" 
                                  animationDuration={1200}
-                                 label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                 label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                  labelLine={true}
                                  style={{ fontSize: '11px', fontWeight: 'bold' }}
                               >
@@ -645,7 +829,7 @@ export default function ImportadorSped() {
                                           paddingAngle={4} 
                                           dataKey="value" 
                                           animationDuration={1200}
-                                          label={({ percent }) => `${(percent * 100).toFixed(1)}%`}
+                                          label={({ percent }) => percent > 0 ? `${(percent * 100).toFixed(1)}%` : null}
                                           labelLine={true}
                                           style={{ fontSize: '11px', fontWeight: 'bold' }}
                                       >
