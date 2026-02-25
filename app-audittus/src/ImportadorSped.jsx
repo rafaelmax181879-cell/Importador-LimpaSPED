@@ -3,11 +3,14 @@ import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recha
 import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon, Lock, Loader2, Zap } from 'lucide-react';
 
 // ==========================================
-// CONFIGURAÇÕES DE SEGURANÇA E ACESSO
+// CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
 const SENHA_ADMIN = "admin7474";
 const SENHA_TESTE = "teste3478";
-const TEMPO_TESTE_SEGUNDOS = 300; // 5 minutos
+const TEMPO_TESTE_SEGUNDOS = 300; 
+
+const VERSAO_ATUAL = "1.1.17";
+const DATA_EXPIRACAO_VERSAO = new Date("2026-03-06T00:00:00"); 
 
 export default function ImportadorSped() {
   const [faseAtual, setFaseAtual] = useState('login'); 
@@ -16,7 +19,6 @@ export default function ImportadorSped() {
   const [tipoAcesso, setTipoAcesso] = useState(null); 
   const [loadingText, setLoadingText] = useState('');
 
-  // MEMÓRIA DO COMPUTADOR (TRAVA DE TRIAL)
   const tempoSalvo = localStorage.getItem('audittus_trial_time');
   const tempoInicial = tempoSalvo !== null ? parseInt(tempoSalvo) : TEMPO_TESTE_SEGUNDOS;
   const [tempoRestante, setTempoRestante] = useState(tempoInicial);
@@ -42,9 +44,14 @@ export default function ImportadorSped() {
   const [logAuditoria, setLogAuditoria] = useState([]);
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [dadosComparativoMensal, setDadosComparativoMensal] = useState([]);
-  
-  // NOVO ESTADO: MOTOR DE RISCOS FISCAIS (VERIFICAÇÃO DO SPED)
   const [riscosFiscais, setRiscosFiscais] = useState([]);
+
+  // LÓGICA DE BLOQUEIO E AVISO DE ATUALIZAÇÃO (KILL SWITCH)
+  const hoje = new Date();
+  const diffTempo = DATA_EXPIRACAO_VERSAO.getTime() - hoje.getTime();
+  const diasRestantesAtualizacao = Math.ceil(diffTempo / (1000 * 3600 * 24));
+  const sistemaBloqueadoPorAtualizacao = diasRestantesAtualizacao <= 0;
+  const sistemaRequerAvisoAtualizacao = diasRestantesAtualizacao > 0 && diasRestantesAtualizacao <= 10;
 
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
@@ -111,8 +118,8 @@ export default function ImportadorSped() {
       let linhasProcessadas = [];
       let contC191 = 0, contC173 = 0, contTextos = 0, logTemp = [], riscosTemp = [], numLinha = 0;
       let numDocAtual = 'S/N'; 
-      let notasPorSerie = {}; // Rastreio de notas para achar os buracos
-      let mapNcm = {}; // Dicionário de NCM para o Cata-Multas
+      let notasPorSerie = {}; 
+      let mapNcm = {}; 
 
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
 
@@ -121,15 +128,12 @@ export default function ImportadorSped() {
         let linha = linhaOriginal;
         let cols = linha.split('|');
 
-        // Mapeamento de Rastreio de NF (Para a Auditoria e Motor de Riscos)
         if (cols[1] === 'C100' || cols[1] === 'D100') {
            numDocAtual = cols[8] || 'S/N';
-           
-           // DETECTOR DE NOTAS PULADAS (Buracos Fiscais)
            if (cols[1] === 'C100') {
-               const indOper = cols[2]; // 0-Entrada, 1-Saida
-               const indEmit = cols[3]; // 0-Propria
-               const mod = cols[5]; // 55, 65
+               const indOper = cols[2]; 
+               const indEmit = cols[3]; 
+               const mod = cols[5]; 
                const serie = cols[7];
                const numNF = parseInt(cols[8], 10);
                
@@ -141,53 +145,34 @@ export default function ImportadorSped() {
            }
         }
 
-        // Mapeia o NCM dos produtos
-        if (cols[1] === '0200') {
-            mapNcm[cols[2]] = cols[8]; // COD_ITEM = NCM
-        }
+        if (cols[1] === '0200') { mapNcm[cols[2]] = cols[8]; }
 
-        // CATA-MULTAS (NCM vs CST vs CFOP)
         if (cols[1] === 'C170') {
             const codItem = cols[3];
             const cst = cols[10];
             const cfop = cols[11];
-            
-            // Regra: CFOP 5405 (ST) vendido com CST Tributado (000)
             if (cfop === '5405' && cst && cst.includes('000')) {
-                riscosTemp.push({
-                    tipo: 'Tributação em Duplicidade',
-                    icone: <AlertTriangle size={24} color="#ef4444" />,
-                    cor: '#ef4444',
-                    descricao: `Item cód. ${codItem} na NF ${numDocAtual} usa CFOP de ST (5405) combinado com CST Tributado Integralmente (${cst}). A empresa está pagando ICMS duas vezes.`
-                });
+                riscosTemp.push({ tipo: 'Tributação em Duplicidade', registro: `C170 (NF: ${numDocAtual})`, cor: '#ef4444', detalhe: `Item cód. ${codItem} usa CFOP de ST (5405) combinado com CST Tributado Integralmente (${cst}). A empresa está pagando ICMS duas vezes.` });
             }
         }
 
-        // REMOÇÕES DE BLOCO PADRÃO
         if (linha.startsWith('|C191|')) { contC191++; logTemp.push({ linha: numLinha, registro: `C191 (NF: ${numDocAtual})`, acao: 'Linha Removida', detalhe: 'Registro C191 excluído do arquivo.' }); return; }
         if (linha.startsWith('|C173|')) { contC173++; logTemp.push({ linha: numLinha, registro: `C173 (NF: ${numDocAtual})`, acao: 'Linha Removida', detalhe: 'Registro C173 excluído do arquivo.' }); return; }
         
-        // MOTOR DE AUTO-CURA (USO E CONSUMO - CFOP 1556 / 2556)
         if (cols[1] === 'C190' || cols[1] === 'D190') {
             const cf = cols[3];
             if (cf === '1556' || cf === '2556') {
                 const vlIcms = parseFloat(cols[7]?.replace(',', '.')) || 0;
                 if (vlIcms > 0) {
                     const vlIcmsOriginal = cols[7];
-                    cols[6] = '0,00'; // Zera Base
-                    cols[7] = '0,00'; // Zera ICMS
+                    cols[6] = '0,00'; 
+                    cols[7] = '0,00'; 
                     linha = cols.join('|');
-                    logTemp.push({ 
-                        linha: numLinha, 
-                        registro: `${cols[1]} (NF: ${numDocAtual})`, 
-                        acao: 'CORRIGIDO PELO ROBÔ', // Etiqueta especial
-                        detalhe: `CFOP ${cf} (Uso/Consumo) detectado com imposto. O sistema zerou R$ ${vlIcmsOriginal} de crédito indevido para evitar autuação.` 
-                    });
+                    logTemp.push({ linha: numLinha, registro: `${cols[1]} (NF: ${numDocAtual})`, acao: 'CORRIGIDO PELO ROBÔ', detalhe: `CFOP ${cf} (Uso/Consumo) com imposto. Sistema zerou R$ ${vlIcmsOriginal} de crédito indevido para evitar autuação.` });
                 }
             }
         }
 
-        // LIMPEZA DE TEXTOS
         const matches = linha.match(textosParaRemover);
         if (matches) { 
             contTextos += matches.length; 
@@ -198,7 +183,6 @@ export default function ImportadorSped() {
         if (linha.trim() !== '') linhasProcessadas.push(linha);
       });
 
-      // PROCESSAMENTO DE BURACOS FISCAIS (NOTAS PULADAS)
       Object.keys(notasPorSerie).forEach(key => {
           let nums = notasPorSerie[key].sort((a,b) => a - b);
           let buracos = [];
@@ -210,12 +194,8 @@ export default function ImportadorSped() {
           }
           if (buracos.length > 0) {
               const mod = key.split('-')[0];
-              riscosTemp.push({
-                  tipo: 'Quebra de Sequência (Buraco Fiscal)',
-                  icone: <FileSearch size={24} color="#f59e0b" />,
-                  cor: '#f59e0b',
-                  descricao: `Faltam as Notas Fiscais Modelo ${mod}: ${buracos.join(', ')}. Se não constarem como Canceladas ou Inutilizadas, haverá multa por extravio de documento.`
-              });
+              const serie = key.split('-')[1];
+              riscosTemp.push({ tipo: 'Buraco Fiscal (Quebra de Sequência)', registro: `Mod ${mod} - Série ${serie}`, cor: '#f59e0b', detalhe: `Faltam as Notas Fiscais: ${buracos.join(', ')}. Se não constarem como Canceladas ou Inutilizadas, haverá multa por extravio de documento.` });
           }
       });
 
@@ -232,7 +212,6 @@ export default function ImportadorSped() {
       
       let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Desagregação de Carnes': 0, 'Simples Remessa': 0, 'Transporte': 0, 'Energia Elétrica': 0, 'Retorno Imob.': 0, 'Outras Entradas': 0 };
 
-      // Processamento Financeiro após as curas
       linhasProcessadas.forEach(linha => {
         const colunas = linha.split('|');
         if (colunas[1] === '0000') {
@@ -253,10 +232,7 @@ export default function ImportadorSped() {
         if (colunas[1] === 'C100') { 
             opAt = colunas[2]; 
             const vlD = parseFloat(colunas[12]?.replace(',', '.')) || 0; 
-            if (opAt === '0') { 
-                tEnt += vlD; 
-                if (colunas[4]) { cForn[colunas[4]] = (cForn[colunas[4]] || 0) + vlD; cEstObj[mPartEst[colunas[4]]] = (cEstObj[mPartEst[colunas[4]]] || 0) + vlD; } 
-            } else if (opAt === '1') tSai += vlD; 
+            if (opAt === '0') { tEnt += vlD; if (colunas[4]) { cForn[colunas[4]] = (cForn[colunas[4]] || 0) + vlD; cEstObj[mPartEst[colunas[4]]] = (cEstObj[mPartEst[colunas[4]]] || 0) + vlD; } } else if (opAt === '1') tSai += vlD; 
         }
         
         if (colunas[1] === 'C170') { const vlI = parseFloat(colunas[7]?.replace(',', '.')) || 0; if (opAt === '1') vProd[colunas[3]] = (vProd[colunas[3]] || 0) + vlI; else if (opAt === '0') cProd[colunas[3]] = (cProd[colunas[3]] || 0) + vlI; }
@@ -287,10 +263,7 @@ export default function ImportadorSped() {
               mTribSaida[cat] = (mTribSaida[cat] || 0) + vlO; tAnalise += vlO;
             }
           }
-          if (cfopsEntradasBrutas.has(cf)) vafEnt += vlO; 
-          if (cfopsSaidasBrutas.has(cf)) vafSai += vlO; 
-          if (cfopsDevVendas.has(cf)) vafDV += vlO; 
-          if (cfopsDevCompras.has(cf)) vafDC += vlO; 
+          if (cfopsEntradasBrutas.has(cf)) vafEnt += vlO; if (cfopsSaidasBrutas.has(cf)) vafSai += vlO; if (cfopsDevVendas.has(cf)) vafDV += vlO; if (cfopsDevCompras.has(cf)) vafDC += vlO; 
         }
         
         if (colunas[1] === 'E110') { totalDeb += parseFloat(colunas[2].replace(',', '.')) || 0; totalCred += parseFloat(colunas[6].replace(',', '.')) || 0; iRecFinal = parseFloat(colunas[13].replace(',', '.')) || 0; sCredFinal = parseFloat(colunas[14].replace(',', '.')) || 0; }
@@ -326,7 +299,7 @@ export default function ImportadorSped() {
 
   const BotoesAcao = () => (
     <div className="no-print act-btns">
-        <button className="btn-dl" onClick={() => { const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Curado_${nomeOriginal}`; l.click(); }}><Download size={20} /> Baixar SPED Validado e Curado</button>
+        <button className="btn-dl" onClick={() => { const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Curado_${nomeOriginal}`; l.click(); }}><Download size={20} /> Baixar SPED Validado</button>
         <button className="btn-pr" onClick={() => window.print()}><Printer size={20} /> Salvar Relatório (PDF)</button>
         <button className="btn-nw" onClick={limparDados}><RefreshCw size={20} /> Nova Validação</button>
     </div>
@@ -342,6 +315,28 @@ export default function ImportadorSped() {
   const tituloTopProdutos = temVendas ? "Top 10 Produtos (Vendas)" : "Top 10 Produtos (Compras)";
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
 
+  // ------------------------------------------------------------------------------------------------------------------
+  // TELA DE BLOQUEIO DE SISTEMA (KILL SWITCH)
+  // ------------------------------------------------------------------------------------------------------------------
+  if (faseAtual === 'dashboard' && sistemaBloqueadoPorAtualizacao) {
+    return (
+      <div className="fullscreen-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
+        <div className="login-box" style={{ maxWidth: '500px', backgroundColor: '#fff', borderTop: '8px solid #ef4444' }}>
+          <AlertTriangle size={80} color="#ef4444" style={{ margin: '0 auto 20px auto' }} />
+          <h1 className="login-title" style={{ color: '#ef4444' }}>Sistema Obsoleto</h1>
+          <p className="login-sub" style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginTop: '15px' }}>
+            A versão <strong>{VERSAO_ATUAL}</strong> do AUDITTUS expirou. O uso desta versão foi bloqueado por motivos de segurança e alterações na legislação fiscal.<br/><br/>
+            É obrigatório instalar a nova atualização para continuar protegendo seus dados.
+          </p>
+          <button onClick={() => window.location.reload()} className="login-btn" style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444' }}>Contatar o Suporte</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------
+  // TELA DE LOGIN
+  // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'login') {
     return (
       <div className="fullscreen-center">
@@ -373,23 +368,72 @@ export default function ImportadorSped() {
     );
   }
 
+  // ------------------------------------------------------------------------------------------------------------------
+  // TELA DE LOADING PREMIUM (ESTILO RECUPERA + FUNDO SPED JPEG + MISTURA DE CORES)
+  // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'loading') {
     return (
-      <div className="fullscreen-center">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <Loader2 size={64} color="#004080" style={{ animation: 'spin 2s linear infinite' }} />
-          <h2 style={{ color: '#004080', margin: 0, fontSize: '24px' }}>Processando SPED...</h2>
-          <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600' }}>{loadingText}</p>
-          <style>{`
-            body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f0f4f8; font-family: system-ui, sans-serif; }
-            .fullscreen-center { display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; }
-            @keyframes spin { 100% { transform: rotate(360deg); } }
-          `}</style>
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden',
+        fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#fff',
+        /* A MÁGICA ACONTECE AQUI: O Gradiente da Opção 3 se mistura com a sua imagem .jpeg */
+        backgroundImage: `linear-gradient(to right, #1e3a8a, #0f172a), url("/sped.jpeg")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundBlendMode: 'multiply', // Isso faz o fundo branco da imagem "sumir" no azul escuro
+        backgroundColor: '#0f172a' // Cor de fundo de segurança
+      }}>
+        
+        {/* TÍTULOS ESTILO "RECUPERA" */}
+        <h1 style={{ 
+          fontSize: '52px', fontWeight: '900', margin: '0 0 5px 0', 
+          textTransform: 'uppercase', letterSpacing: '-1px', textShadow: '0 4px 10px rgba(0,0,0,0.3)' 
+        }}>
+          CORRETOR INTELIGENTE
+        </h1>
+        <h2 style={{ 
+          fontSize: '18px', fontWeight: '700', margin: '0 0 60px 0', 
+          textTransform: 'uppercase', letterSpacing: '6px', color: '#2dd4bf' // Verde-Ciano da Opção 3
+        }}>
+          SPED FISCAL
+        </h2>
+        
+        {/* BARRA DE PROGRESSO FINA COM GRADIENTE (OPÇÃO 3) */}
+        <div style={{ width: '550px', height: '4px', background: 'rgba(255,255,255,0.15)', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ 
+            width: '0%', height: '100%', borderRadius: '2px', 
+            background: 'linear-gradient(90deg, #10b981, #0ea5e9)', // Gradiente Verde -> Azul
+            animation: 'loadBar 3s ease-in-out infinite' 
+          }}></div>
         </div>
+        
+        {/* RODAPÉ */}
+        <div style={{ 
+          position: 'absolute', bottom: '30px', width: '100%', padding: '0 40px', 
+          display: 'flex', justifyContent: 'space-between', boxSizing: 'border-box', 
+          fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 'bold', 
+          textTransform: 'uppercase', letterSpacing: '1px' 
+        }}>
+          <span>DESENVOLVIDO POR AUDITTUS</span>
+          <span>VERSÃO {VERSAO_ATUAL}</span>
+        </div>
+        
+        <style>{`
+          body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; }
+          @keyframes loadBar { 
+            0% { width: 0%; } 
+            50% { width: 40%; } 
+            100% { width: 100%; } 
+          }
+        `}</style>
       </div>
     );
   }
 
+  // ------------------------------------------------------------------------------------------------------------------
+  // DASHBOARD PRINCIPAL
+  // ------------------------------------------------------------------------------------------------------------------
   return (
     <div className="main-container">
       <style>
@@ -398,8 +442,8 @@ export default function ImportadorSped() {
           body, html { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; background-color: #f0f4f8 !important; }
           #root { width: 100% !important; min-height: 100vh !important; display: flex !important; flex-direction: column !important; max-width: none !important; padding: 0 !important; margin: 0 !important; }
           
-          .main-container { flex: 1; width: 100%; padding: 30px; box-sizing: border-box; font-family: system-ui, sans-serif; }
-          .content-wrapper { width: 100%; max-width: 1800px; margin: 0 auto; display: flex; flex-direction: column; }
+          .main-container { flex: 1; width: 100%; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; }
+          .content-wrapper { width: 100%; max-width: 1800px; padding: 30px; margin: 0 auto; display: flex; flex-direction: column; }
 
           /* O LAYOUT DE OURO: Grid 3 na Esquerda + Barra na Direita */
           .dashboard-layout { display: flex; gap: 30px; align-items: flex-start; width: 100%; }
@@ -482,6 +526,7 @@ export default function ImportadorSped() {
         `}
       </style>
 
+      {/* OVERLAY BLOQUEIO TRIAL (SE EXPIRAR O TEMPO) */}
       {tipoAcesso === 'trial' && tempoRestante <= 0 && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
           <AlertTriangle size={80} color="#ef4444" style={{ marginBottom: '20px' }} />
@@ -491,8 +536,17 @@ export default function ImportadorSped() {
         </div>
       )}
 
+      {/* BANNER AVISO DE ATUALIZAÇÃO (APARECE 10 DIAS ANTES DE VENCER) */}
+      {sistemaRequerAvisoAtualizacao && (
+        <div className="no-print" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#fff', padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', zIndex: 50 }}>
+          <AlertTriangle size={20} />
+          ATENÇÃO: Uma nova atualização obrigatória foi lançada. Esta versão será BLOQUEADA em {diasRestantesAtualizacao} dia(s). Atualize o sistema para evitar interrupções no serviço.
+        </div>
+      )}
+
+      {/* CRONÔMETRO FLUTUANTE DE TESTE */}
       {tipoAcesso === 'trial' && tempoRestante > 0 && (
-        <div className="no-print" style={{ position: 'fixed', top: '20px', right: '20px', backgroundColor: tempoRestante < 60 ? '#ef4444' : '#f59e0b', color: '#fff', padding: '10px 20px', borderRadius: '30px', fontWeight: 'bold', zIndex: 9000, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', backgroundColor: tempoRestante < 60 ? '#ef4444' : '#f59e0b', color: '#fff', padding: '10px 20px', borderRadius: '30px', fontWeight: 'bold', zIndex: 9000, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Calendar size={18} /> Modo Teste: {formatarTempo(tempoRestante)}
         </div>
       )}
@@ -747,7 +801,7 @@ export default function ImportadorSped() {
                 </div>
               )}
 
-              {/* NOVA ABA: VERIFICAÇÃO DO SPED (CATA-MULTAS E RISCOS) */}
+              {/* NOVA ABA: VERIFICAÇÃO DO SPED (TABELA EXECUTIVA DE RISCOS E MALHA FINA) */}
               {abaAtiva === 'verificacao' && (
                 <div className="card-dash" style={{ width: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
@@ -755,25 +809,39 @@ export default function ImportadorSped() {
                     <button className="no-print btn-pr" onClick={() => window.print()}><Printer size={18}/> Salvar PDF</button>
                   </div>
                   
-                  {riscosFiscais.length > 0 ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '20px' }}>
-                          {riscosFiscais.map((risco, i) => (
-                              <div key={i} style={{ padding: '25px', background: '#fff', borderRadius: '15px', border: '1px solid #e2e8f0', borderLeft: `6px solid ${risco.cor}`, boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
-                                      {risco.icone}
-                                      <h3 style={{ margin: 0, color: '#1e293b', fontSize: '18px' }}>{risco.titulo}</h3>
-                                  </div>
-                                  <p style={{ margin: 0, color: '#64748b', fontSize: '14px', lineHeight: '1.6' }}>{risco.descricao}</p>
-                              </div>
-                          ))}
-                      </div>
-                  ) : (
-                      <div style={{ padding: '50px', textAlign: 'center', background: '#f8fafc', borderRadius: '15px' }}>
-                          <CheckCircle size={64} color="#10b981" style={{ margin: '0 auto 20px auto' }} />
-                          <h3 style={{ margin: 0, color: '#10b981', fontSize: '24px' }}>Nenhum Risco de Malha Fina Detectado</h3>
-                          <p style={{ color: '#64748b', marginTop: '10px' }}>A inteligência do sistema não encontrou notas puladas ou conflitos de CFOP/CST neste arquivo.</p>
-                      </div>
-                  )}
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#f59e0b', color: '#fff', textAlign: 'left' }}>
+                        <th style={{ padding: '15px' }}>Tipo de Risco</th><th style={{ padding: '15px' }}>Registro / Documento</th><th style={{ padding: '15px' }}>Nível de Alerta</th><th style={{ padding: '15px' }}>Detalhe da Infração</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {riscosFiscais.length > 0 ? riscosFiscais.map((risco, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #f0f4f8', background: i%2===0?'#fff':'#f8fafc' }}>
+                          <td style={{ padding: '15px', fontWeight: 'bold', color: '#333' }}>{risco.tipo}</td>
+                          <td style={{ padding: '15px', fontWeight: 'bold', color: '#666' }}>{risco.registro}</td>
+                          <td style={{ padding: '15px' }}>
+                            <span style={{ 
+                              background: risco.cor === '#ef4444' ? '#fee2e2' : '#fef3c7', 
+                              color: risco.cor, 
+                              padding: '6px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' 
+                            }}>
+                              {risco.cor === '#ef4444' ? 'ALTO RISCO' : 'ATENÇÃO'}
+                            </span>
+                          </td>
+                          <td style={{ padding: '15px', color: '#555', lineHeight: '1.4' }}>{risco.detalhe}</td>
+                        </tr>
+                      )) : (
+                        <tr>
+                          <td colSpan="4" style={{ padding: '50px', textAlign: 'center', background: '#f8fafc' }}>
+                            <CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 15px auto' }} />
+                            <h3 style={{ margin: 0, color: '#10b981', fontSize: '20px' }}>Nenhum Risco de Malha Fina Detectado</h3>
+                            <p style={{ color: '#64748b', marginTop: '10px' }}>A inteligência do sistema não encontrou notas puladas ou conflitos de CFOP/CST neste arquivo.</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                   <BotoesAcao />
                 </div>
               )}
@@ -782,7 +850,7 @@ export default function ImportadorSped() {
               {abaAtiva === 'auditoria' && (
                 <div className="card-dash" style={{ width: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
-                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado</h2>
+                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2>
                     <button className="no-print btn-pr" onClick={() => window.print()}><Printer size={18}/> Salvar PDF</button>
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
