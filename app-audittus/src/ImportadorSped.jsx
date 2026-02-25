@@ -8,10 +8,11 @@ import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, 
 const SENHA_ADMIN = "admin7474";
 const SENHA_TESTE = "teste3478";
 const TEMPO_TESTE_SEGUNDOS = 300; 
-const VERSAO_ATUAL = "1.1.21";
+const VERSAO_ATUAL = "1.1.22";
 
 export default function ImportadorSped() {
-  const [faseAtual, setFaseAtual] = useState('splash'); 
+  // O sistema agora inicia direto no LOGIN (sem tela dupla de splash)
+  const [faseAtual, setFaseAtual] = useState('login'); 
   const [senhaInput, setSenhaInput] = useState('');
   const [erroLogin, setErroLogin] = useState('');
   const [tipoAcesso, setTipoAcesso] = useState(null); 
@@ -52,7 +53,6 @@ export default function ImportadorSped() {
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
 
   useEffect(() => {
-    // Permite que o processo principal do Electron dispare a tela de atualização real
     window.triggerUpdateModal = () => setUpdateModalOpen(true);
 
     const ignoredDateStr = localStorage.getItem('audittus_update_ignored_date');
@@ -78,11 +78,9 @@ export default function ImportadorSped() {
     setDiasRestantesAtualizacao(null);
     setUpdateModalOpen(false);
     
-    // Mostra pro usuário que está baixando
     setFaseAtual('loading');
     setLoadingText('Baixando nova versão do servidor... O sistema reiniciará em breve.');
     
-    // Manda o sinal pro Electron fazer o download e reiniciar!
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
       ipcRenderer.send('iniciar_atualizacao');
@@ -109,16 +107,6 @@ export default function ImportadorSped() {
   const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
 
   const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
-
-  // Efeito Splash Screen - DURAÇÃO 7.5 SEGUNDOS
-  useEffect(() => {
-    if (faseAtual === 'splash') {
-      const timer = setTimeout(() => {
-        setFaseAtual('login');
-      }, 7500);
-      return () => clearTimeout(timer);
-    }
-  }, [faseAtual]);
 
   useEffect(() => {
     let intervalo;
@@ -378,46 +366,6 @@ export default function ImportadorSped() {
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
 
   // ------------------------------------------------------------------------------------------------------------------
-  // FASE 1: A TELA SPLASH DE ABERTURA (ESTILO RECUPERA COM FUNDO SPED)
-  // ------------------------------------------------------------------------------------------------------------------
-  if (faseAtual === 'splash') {
-    return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden',
-        fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#fff',
-        // CORREÇÃO APLICADA AQUI: .jpg em vez de .jpeg
-        backgroundImage: `linear-gradient(to right, #1e3a8a, #0f172a), url("/sped.jpg")`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundBlendMode: 'multiply', 
-        backgroundColor: '#0f172a' 
-      }}>
-        <h1 style={{ fontSize: '52px', fontWeight: '900', margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '-1px', textShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-          CORRETOR INTELIGENTE
-        </h1>
-        <h2 style={{ fontSize: '18px', fontWeight: '700', margin: '0 0 60px 0', textTransform: 'uppercase', letterSpacing: '6px', color: '#2dd4bf' }}>
-          SPED FISCAL
-        </h2>
-        
-        <div style={{ width: '550px', height: '4px', background: 'rgba(255,255,255,0.15)', borderRadius: '2px', overflow: 'hidden' }}>
-          <div style={{ width: '100%', height: '100%', borderRadius: '2px', background: 'linear-gradient(90deg, #10b981, #0ea5e9)', animation: 'loadBarSplash 7.5s ease-out forwards' }}></div>
-        </div>
-        
-        <div style={{ position: 'absolute', bottom: '30px', width: '100%', padding: '0 40px', display: 'flex', justifyContent: 'space-between', boxSizing: 'border-box', fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
-          <span>DESENVOLVIDO POR AUDITTUS</span>
-          <span>VERSÃO {VERSAO_ATUAL}</span>
-        </div>
-        
-        <style>{`
-          body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; }
-          @keyframes loadBarSplash { 0% { width: 0%; } 100% { width: 100%; } }
-        `}</style>
-      </div>
-    );
-  }
-
-  // ------------------------------------------------------------------------------------------------------------------
   // TELA DE BLOQUEIO DE SISTEMA (PÓS MAIS TARDE > 10 DIAS)
   // ------------------------------------------------------------------------------------------------------------------
   if (sistemaBloqueadoPorAtualizacao) {
@@ -439,7 +387,7 @@ export default function ImportadorSped() {
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // FASE 2: TELA DE LOGIN
+  // FASE 1 (NOVA): TELA DE LOGIN IMEDIATA (Sem segunda tela de carregamento)
   // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'login') {
     return (
@@ -473,7 +421,7 @@ export default function ImportadorSped() {
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // FASE 3: TELA DE LOADING (A TELA BRANCA E LIMPA QUANDO IMPORTA O ARQUIVO)
+  // FASE 2: TELA DE LOADING (A TELA BRANCA E LIMPA QUANDO IMPORTA O ARQUIVO)
   // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'loading') {
     return (
