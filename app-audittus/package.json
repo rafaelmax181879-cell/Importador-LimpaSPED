@@ -1,9 +1,13 @@
 {
   "name": "importador-limpasped",
-  "version": "1.1.17",
+  "version": "1.1.18",
   "main": "electron.cjs",
   "author": "Rafael Max",
   "description": "Sistema de Validação Inteligente Fiscal - AUDITTUS",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rafaelmax181879-cell/Importador-LimpaSPED.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -28,7 +32,7 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.3.9",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.575.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

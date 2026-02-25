@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon, Lock, Loader2, Zap } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon, Lock, Loader2, Zap, DownloadCloud } from 'lucide-react';
 
 // ==========================================
 // CONFIGURAÇÕES DO SISTEMA E VERSÃO
@@ -8,12 +8,10 @@ import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, 
 const SENHA_ADMIN = "admin7474";
 const SENHA_TESTE = "teste3478";
 const TEMPO_TESTE_SEGUNDOS = 300; 
-
-const VERSAO_ATUAL = "1.1.17";
-const DATA_EXPIRACAO_VERSAO = new Date("2026-03-06T00:00:00"); 
+const VERSAO_ATUAL = "1.1.21";
 
 export default function ImportadorSped() {
-  const [faseAtual, setFaseAtual] = useState('login'); 
+  const [faseAtual, setFaseAtual] = useState('splash'); 
   const [senhaInput, setSenhaInput] = useState('');
   const [erroLogin, setErroLogin] = useState('');
   const [tipoAcesso, setTipoAcesso] = useState(null); 
@@ -46,13 +44,62 @@ export default function ImportadorSped() {
   const [dadosComparativoMensal, setDadosComparativoMensal] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
 
-  // LÓGICA DE BLOQUEIO E AVISO DE ATUALIZAÇÃO (KILL SWITCH)
-  const hoje = new Date();
-  const diffTempo = DATA_EXPIRACAO_VERSAO.getTime() - hoje.getTime();
-  const diasRestantesAtualizacao = Math.ceil(diffTempo / (1000 * 3600 * 24));
-  const sistemaBloqueadoPorAtualizacao = diasRestantesAtualizacao <= 0;
-  const sistemaRequerAvisoAtualizacao = diasRestantesAtualizacao > 0 && diasRestantesAtualizacao <= 10;
+  // ==========================================
+  // INTELIGÊNCIA DE ATUALIZAÇÃO (UX REAL COM ELECTRON)
+  // ==========================================
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
+  const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
 
+  useEffect(() => {
+    // Permite que o processo principal do Electron dispare a tela de atualização real
+    window.triggerUpdateModal = () => setUpdateModalOpen(true);
+
+    const ignoredDateStr = localStorage.getItem('audittus_update_ignored_date');
+    if (ignoredDateStr) {
+      const ignoredDate = new Date(ignoredDateStr);
+      const hoje = new Date();
+      const diffTime = Math.abs(hoje - ignoredDate);
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const restantes = 10 - diffDays;
+
+      if (restantes <= 0) {
+        setSistemaBloqueadoPorAtualizacao(true);
+      } else {
+        setDiasRestantesAtualizacao(restantes);
+      }
+    }
+    
+    return () => { delete window.triggerUpdateModal; };
+  }, []);
+
+  const handleAtualizarAgora = () => {
+    localStorage.removeItem('audittus_update_ignored_date'); 
+    setDiasRestantesAtualizacao(null);
+    setUpdateModalOpen(false);
+    
+    // Mostra pro usuário que está baixando
+    setFaseAtual('loading');
+    setLoadingText('Baixando nova versão do servidor... O sistema reiniciará em breve.');
+    
+    // Manda o sinal pro Electron fazer o download e reiniciar!
+    if (window.require) {
+      const { ipcRenderer } = window.require('electron');
+      ipcRenderer.send('iniciar_atualizacao');
+    }
+  };
+
+  const handleMaisTarde = () => {
+    if (!localStorage.getItem('audittus_update_ignored_date')) {
+      localStorage.setItem('audittus_update_ignored_date', new Date().toISOString());
+      setDiasRestantesAtualizacao(10);
+    }
+    setUpdateModalOpen(false);
+  };
+
+  // ==========================================
+  // CORES E MAPAS
+  // ==========================================
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
   const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
@@ -62,6 +109,16 @@ export default function ImportadorSped() {
   const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
 
   const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+
+  // Efeito Splash Screen - DURAÇÃO 7.5 SEGUNDOS
+  useEffect(() => {
+    if (faseAtual === 'splash') {
+      const timer = setTimeout(() => {
+        setFaseAtual('login');
+      }, 7500);
+      return () => clearTimeout(timer);
+    }
+  }, [faseAtual]);
 
   useEffect(() => {
     let intervalo;
@@ -104,7 +161,7 @@ export default function ImportadorSped() {
     const file = event.target.files[0];
     if (!file) return;
     setNomeOriginal(file.name);
-    setFaseAtual('loading');
+    setFaseAtual('loading'); 
     
     const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas e Erros de CST...", "Aplicando Auto-Cura Tributária...", "Gerando painel de Business Intelligence..."];
     let step = 0; setLoadingText(mensagens[0]);
@@ -195,7 +252,12 @@ export default function ImportadorSped() {
           if (buracos.length > 0) {
               const mod = key.split('-')[0];
               const serie = key.split('-')[1];
-              riscosTemp.push({ tipo: 'Buraco Fiscal (Quebra de Sequência)', registro: `Mod ${mod} - Série ${serie}`, cor: '#f59e0b', detalhe: `Faltam as Notas Fiscais: ${buracos.join(', ')}. Se não constarem como Canceladas ou Inutilizadas, haverá multa por extravio de documento.` });
+              riscosTemp.push({ 
+                  tipo: 'NUMERAÇÃO FALTANTE', 
+                  registro: `Mod ${mod} - Série ${serie}`, 
+                  cor: '#f59e0b', 
+                  detalhe: `Faltam as Notas Fiscais: ${buracos.join(', ')}. Verificar Escrituração de Notas Canceladas ou Inutilizadas, para não Haver Notificações Futuras.` 
+              });
           }
       });
 
@@ -316,26 +378,68 @@ export default function ImportadorSped() {
   const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
 
   // ------------------------------------------------------------------------------------------------------------------
-  // TELA DE BLOQUEIO DE SISTEMA (KILL SWITCH)
+  // FASE 1: A TELA SPLASH DE ABERTURA (ESTILO RECUPERA COM FUNDO SPED)
   // ------------------------------------------------------------------------------------------------------------------
-  if (faseAtual === 'dashboard' && sistemaBloqueadoPorAtualizacao) {
+  if (faseAtual === 'splash') {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden',
+        fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#fff',
+        // CORREÇÃO APLICADA AQUI: .jpg em vez de .jpeg
+        backgroundImage: `linear-gradient(to right, #1e3a8a, #0f172a), url("/sped.jpg")`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundBlendMode: 'multiply', 
+        backgroundColor: '#0f172a' 
+      }}>
+        <h1 style={{ fontSize: '52px', fontWeight: '900', margin: '0 0 5px 0', textTransform: 'uppercase', letterSpacing: '-1px', textShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
+          CORRETOR INTELIGENTE
+        </h1>
+        <h2 style={{ fontSize: '18px', fontWeight: '700', margin: '0 0 60px 0', textTransform: 'uppercase', letterSpacing: '6px', color: '#2dd4bf' }}>
+          SPED FISCAL
+        </h2>
+        
+        <div style={{ width: '550px', height: '4px', background: 'rgba(255,255,255,0.15)', borderRadius: '2px', overflow: 'hidden' }}>
+          <div style={{ width: '100%', height: '100%', borderRadius: '2px', background: 'linear-gradient(90deg, #10b981, #0ea5e9)', animation: 'loadBarSplash 7.5s ease-out forwards' }}></div>
+        </div>
+        
+        <div style={{ position: 'absolute', bottom: '30px', width: '100%', padding: '0 40px', display: 'flex', justifyContent: 'space-between', boxSizing: 'border-box', fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>
+          <span>DESENVOLVIDO POR AUDITTUS</span>
+          <span>VERSÃO {VERSAO_ATUAL}</span>
+        </div>
+        
+        <style>{`
+          body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; }
+          @keyframes loadBarSplash { 0% { width: 0%; } 100% { width: 100%; } }
+        `}</style>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------------------------------------------------------------------------
+  // TELA DE BLOQUEIO DE SISTEMA (PÓS MAIS TARDE > 10 DIAS)
+  // ------------------------------------------------------------------------------------------------------------------
+  if (sistemaBloqueadoPorAtualizacao) {
     return (
       <div className="fullscreen-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
         <div className="login-box" style={{ maxWidth: '500px', backgroundColor: '#fff', borderTop: '8px solid #ef4444' }}>
           <AlertTriangle size={80} color="#ef4444" style={{ margin: '0 auto 20px auto' }} />
           <h1 className="login-title" style={{ color: '#ef4444' }}>Sistema Obsoleto</h1>
           <p className="login-sub" style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginTop: '15px' }}>
-            A versão <strong>{VERSAO_ATUAL}</strong> do AUDITTUS expirou. O uso desta versão foi bloqueado por motivos de segurança e alterações na legislação fiscal.<br/><br/>
-            É obrigatório instalar a nova atualização para continuar protegendo seus dados.
+            O prazo de carência para a atualização expirou. O uso desta versão foi bloqueado por motivos de segurança e alterações na legislação fiscal.<br/><br/>
+            É obrigatório instalar a nova atualização para continuar utilizando o sistema.
           </p>
-          <button onClick={() => window.location.reload()} className="login-btn" style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444' }}>Contatar o Suporte</button>
+          <button onClick={handleAtualizarAgora} className="login-btn" style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444' }}>
+            <DownloadCloud size={18} /> Forçar Atualização Agora
+          </button>
         </div>
       </div>
     );
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // TELA DE LOGIN
+  // FASE 2: TELA DE LOGIN
   // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'login') {
     return (
@@ -369,70 +473,27 @@ export default function ImportadorSped() {
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // TELA DE LOADING PREMIUM (ESTILO RECUPERA + FUNDO SPED JPEG + MISTURA DE CORES)
+  // FASE 3: TELA DE LOADING (A TELA BRANCA E LIMPA QUANDO IMPORTA O ARQUIVO)
   // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'loading') {
     return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden',
-        fontFamily: '"Segoe UI", Roboto, Helvetica, Arial, sans-serif', color: '#fff',
-        /* A MÁGICA ACONTECE AQUI: O Gradiente da Opção 3 se mistura com a sua imagem .jpeg */
-        backgroundImage: `linear-gradient(to right, #1e3a8a, #0f172a), url("/sped.jpeg")`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundBlendMode: 'multiply', // Isso faz o fundo branco da imagem "sumir" no azul escuro
-        backgroundColor: '#0f172a' // Cor de fundo de segurança
-      }}>
-        
-        {/* TÍTULOS ESTILO "RECUPERA" */}
-        <h1 style={{ 
-          fontSize: '52px', fontWeight: '900', margin: '0 0 5px 0', 
-          textTransform: 'uppercase', letterSpacing: '-1px', textShadow: '0 4px 10px rgba(0,0,0,0.3)' 
-        }}>
-          CORRETOR INTELIGENTE
-        </h1>
-        <h2 style={{ 
-          fontSize: '18px', fontWeight: '700', margin: '0 0 60px 0', 
-          textTransform: 'uppercase', letterSpacing: '6px', color: '#2dd4bf' // Verde-Ciano da Opção 3
-        }}>
-          SPED FISCAL
-        </h2>
-        
-        {/* BARRA DE PROGRESSO FINA COM GRADIENTE (OPÇÃO 3) */}
-        <div style={{ width: '550px', height: '4px', background: 'rgba(255,255,255,0.15)', borderRadius: '2px', overflow: 'hidden' }}>
-          <div style={{ 
-            width: '0%', height: '100%', borderRadius: '2px', 
-            background: 'linear-gradient(90deg, #10b981, #0ea5e9)', // Gradiente Verde -> Azul
-            animation: 'loadBar 3s ease-in-out infinite' 
-          }}></div>
+      <div className="fullscreen-center">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+          <Loader2 size={64} color="#004080" style={{ animation: 'spin 2s linear infinite' }} />
+          <h2 style={{ color: '#004080', margin: 0, fontSize: '24px' }}>Processando SPED...</h2>
+          <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600' }}>{loadingText}</p>
+          <style>{`
+            body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f0f4f8; font-family: system-ui, sans-serif; }
+            .fullscreen-center { display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; }
+            @keyframes spin { 100% { transform: rotate(360deg); } }
+          `}</style>
         </div>
-        
-        {/* RODAPÉ */}
-        <div style={{ 
-          position: 'absolute', bottom: '30px', width: '100%', padding: '0 40px', 
-          display: 'flex', justifyContent: 'space-between', boxSizing: 'border-box', 
-          fontSize: '12px', color: 'rgba(255,255,255,0.7)', fontWeight: 'bold', 
-          textTransform: 'uppercase', letterSpacing: '1px' 
-        }}>
-          <span>DESENVOLVIDO POR AUDITTUS</span>
-          <span>VERSÃO {VERSAO_ATUAL}</span>
-        </div>
-        
-        <style>{`
-          body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; }
-          @keyframes loadBar { 
-            0% { width: 0%; } 
-            50% { width: 40%; } 
-            100% { width: 100%; } 
-          }
-        `}</style>
       </div>
     );
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // DASHBOARD PRINCIPAL
+  // DASHBOARD PRINCIPAL E MODAIS
   // ------------------------------------------------------------------------------------------------------------------
   return (
     <div className="main-container">
@@ -526,21 +587,27 @@ export default function ImportadorSped() {
         `}
       </style>
 
-      {/* OVERLAY BLOQUEIO TRIAL (SE EXPIRAR O TEMPO) */}
-      {tipoAcesso === 'trial' && tempoRestante <= 0 && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
-          <AlertTriangle size={80} color="#ef4444" style={{ marginBottom: '20px' }} />
-          <h1 style={{ color: '#004080', fontSize: '36px', fontWeight: '900', margin: '0 0 10px 0' }}>Tempo de Demonstração Expirado</h1>
-          <p style={{ color: '#64748b', fontSize: '20px', maxWidth: '600px', marginBottom: '30px' }}>Sua licença de teste chegou ao fim neste computador. Adquira a licença completa para continuar utilizando a inteligência do AUDITTUS.</p>
-          <button onClick={() => window.location.reload()} className="btn-dl">Sair do Sistema</button>
+      {/* MODAL DE ATUALIZAÇÃO (ACIONADO PELO ELECTRON/SISTEMA) */}
+      {updateModalOpen && (
+        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(5px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
+            <DownloadCloud size={64} color="#0ea5e9" style={{ margin: '0 auto 20px auto' }} />
+            <h2 style={{ margin: '0 0 10px 0', color: '#1e293b', fontSize: '26px', fontWeight: '800' }}>Nova Atualização Disponível!</h2>
+            <p style={{ color: '#64748b', fontSize: '16px', lineHeight: '1.6', marginBottom: '30px' }}>Otimizações fiscais e novas regras da Receita foram adicionadas. Deseja atualizar o sistema agora?</p>
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <button onClick={handleMaisTarde} style={{ padding: '12px 20px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', flex: 1, transition: '0.3s' }}>Mais Tarde</button>
+              <button onClick={handleAtualizarAgora} style={{ padding: '12px 20px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', flex: 1, transition: '0.3s', boxShadow: '0 4px 15px rgba(14,165,233,0.3)' }}>Atualizar Agora</button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* BANNER AVISO DE ATUALIZAÇÃO (APARECE 10 DIAS ANTES DE VENCER) */}
-      {sistemaRequerAvisoAtualizacao && (
+      {/* BANNER AVISO DE ATUALIZAÇÃO (APARECE SE CLICAR EM MAIS TARDE) */}
+      {diasRestantesAtualizacao !== null && (
         <div className="no-print" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#fff', padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', zIndex: 50 }}>
           <AlertTriangle size={20} />
-          ATENÇÃO: Uma nova atualização obrigatória foi lançada. Esta versão será BLOQUEADA em {diasRestantesAtualizacao} dia(s). Atualize o sistema para evitar interrupções no serviço.
+          ATENÇÃO: Uma nova atualização está pendente. O sistema será BLOQUEADO em {diasRestantesAtualizacao} dia(s). 
+          <button onClick={() => setUpdateModalOpen(true)} style={{ marginLeft: '15px', padding: '5px 15px', background: '#fff', color: '#f59e0b', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' }}>Atualizar Agora</button>
         </div>
       )}
 
@@ -553,7 +620,7 @@ export default function ImportadorSped() {
 
       <div className="content-wrapper" style={{ filter: tempoRestante <= 0 && tipoAcesso === 'trial' ? 'blur(5px)' : 'none', transition: 'filter 0.5s' }}>
         
-        <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px' }}>
+        <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px', position: 'relative' }}>
           <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
           <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
         </div>

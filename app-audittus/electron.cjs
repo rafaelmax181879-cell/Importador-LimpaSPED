@@ -1,6 +1,9 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron'); // <-- ipcMain adicionado
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+
+// 1. Desativa o download automático para o sistema só baixar se o usuário clicar em "Atualizar Agora"
+autoUpdater.autoDownload = false;
 
 function createWindow() {
   const splash = new BrowserWindow({
@@ -10,7 +13,7 @@ function createWindow() {
     frame: false, 
     alwaysOnTop: true,
     resizable: false,
-    icon: path.join(__dirname, 'unnamed.ico') // <--- ÍCONE ATUALIZADO AQUI
+    icon: path.join(__dirname, 'unnamed.ico')
   });
 
   splash.loadFile(path.join(__dirname, 'dist', 'splash.html'));
@@ -21,9 +24,10 @@ function createWindow() {
     show: false, 
     autoHideMenuBar: true, 
     title: "Corretor Inteligente - SPED Fiscal",
-    icon: path.join(__dirname, 'unnamed.ico'), // <--- ÍCONE ATUALIZADO AQUI
+    icon: path.join(__dirname, 'unnamed.ico'),
     webPreferences: {
       nodeIntegration: true,
+      contextIsolation: false // <-- IMPORTANTE: Permite que o React consiga usar o comando require('electron')
     },
   });
 
@@ -34,9 +38,28 @@ function createWindow() {
     mainWindow.show(); 
     mainWindow.maximize(); 
     
-    // Procura atualizações silenciosamente assim que o sistema abre
-    autoUpdater.checkForUpdatesAndNotify();
+    // Procura atualizações silenciosamente lá no GitHub assim que a tela principal abre
+    autoUpdater.checkForUpdates();
   }, 7500);
+
+  // =========================================================
+  // PONTE DE INTELIGÊNCIA: ELECTRON <-> REACT
+  // =========================================================
+
+  // 2. Achou versão nova no GitHub? Manda um "sinal" para o React abrir o Modal na tela!
+  autoUpdater.on('update-available', () => {
+    mainWindow.webContents.executeJavaScript(`if(window.triggerUpdateModal) window.triggerUpdateModal();`);
+  });
+
+  // 3. Ouve o clique do botão "Atualizar Agora" vindo do React e inicia o download real
+  ipcMain.on('iniciar_atualizacao', () => {
+    autoUpdater.downloadUpdate(); 
+  });
+
+  // 4. Download concluiu em 100%? Fecha o sistema e abre a versão nova curada!
+  autoUpdater.on('update-downloaded', () => {
+    autoUpdater.quitAndInstall();
+  });
 }
 
 app.whenReady().then(createWindow);
@@ -45,21 +68,4 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
-});
-
-// Avisa o usuário quando a atualização for baixada
-autoUpdater.on('update-downloaded', () => {
-  const dialogOpts = {
-    type: 'info',
-    buttons: ['Reiniciar e Atualizar', 'Mais tarde'],
-    title: 'Atualização do Sistema',
-    message: 'Uma nova versão do Corretor Inteligente foi baixada.',
-    detail: 'O sistema precisa ser reiniciado para instalar a atualização. Deseja fazer isso agora?'
-  };
-
-  dialog.showMessageBox(dialogOpts).then((returnValue) => {
-    if (returnValue.response === 0) {
-      autoUpdater.quitAndInstall();
-    }
-  });
 });
