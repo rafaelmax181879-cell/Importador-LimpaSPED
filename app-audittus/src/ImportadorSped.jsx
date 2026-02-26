@@ -16,8 +16,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
-const SENHA_ADMIN = "master7474"; // Senha de Bypass (Ignora a nuvem para você testar)
-const VERSAO_ATUAL = "1.1.19";
+const SENHA_ADMIN = "master336"; // Senha de Bypass (Ignora a nuvem para você testar)
+const VERSAO_ATUAL = "1.1.20";
 
 // Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
@@ -36,9 +36,10 @@ export default function ImportadorSped() {
   const [loadingText, setLoadingText] = useState('');
   const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
   
-  // Controle de Licença
+  // Controle de Licença e Razão Social
   const [licencaAtual, setLicencaAtual] = useState(null);
   const [modalPremiumAberto, setModalPremiumAberto] = useState(false);
+  const [razaoSocialLogada, setRazaoSocialLogada] = useState(''); // NOVO: Guarda o nome da empresa logada
 
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
@@ -101,14 +102,13 @@ export default function ImportadorSped() {
       return;
     }
 
-    // Bypass de Admin para você testar sem precisar da nuvem
     if (ident === SENHA_ADMIN) {
-      setLicencaAtual({ plano: 'admin' });
+      setLicencaAtual({ plano: 'admin', identificador_cliente: 'Administrador' });
+      setRazaoSocialLogada('Acesso Mestre Liberado');
       setFaseAtual('upload');
       return;
     }
 
-    // 1. Anti-Máquina Virtual
     const mem = navigator.deviceMemory || 4;
     const cores = navigator.hardwareConcurrency || 4;
     if (mem < 2 || cores < 2) {
@@ -120,6 +120,21 @@ export default function ImportadorSped() {
     const hwId = obterOuGerarHardwareId();
 
     try {
+      // NOVO: Busca a Razão Social na Receita Federal (BrasilAPI)
+      let razaoEncontrada = '';
+      const apenasNumeros = ident.replace(/\D/g, '');
+      if (apenasNumeros.length === 14) {
+        try {
+          const resApi = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${apenasNumeros}`);
+          if (resApi.ok) {
+            const dadosCnpj = await resApi.json();
+            razaoEncontrada = dadosCnpj.razao_social;
+          }
+        } catch (errApi) {
+          console.log("Aviso: Falha ao buscar razão social na API pública.", errApi);
+        }
+      }
+
       let { data: licenca, error } = await supabase
         .from('licencas_clientes')
         .select('*')
@@ -159,6 +174,7 @@ export default function ImportadorSped() {
         return;
       }
 
+      setRazaoSocialLogada(razaoEncontrada);
       setLicencaAtual(licenca);
       setFaseAtual('upload');
       
@@ -561,7 +577,15 @@ export default function ImportadorSped() {
         <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
           <div>
             <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
-            <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+            <p style={{ margin: '5px 0 15px 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+            
+            {/* NOVO: CAIXA DE MENSAGEM VERMELHA COM RAZÃO SOCIAL */}
+            {licencaAtual && licencaAtual.plano !== 'admin' && (
+              <h3 style={{ color: '#ef4444', margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                Olá, {licencaAtual.identificador_cliente} {razaoSocialLogada ? `- (${razaoSocialLogada})` : ''}
+              </h3>
+            )}
+            
           </div>
           {licencaAtual && licencaAtual.plano !== 'admin' && (
             <div style={{ background: '#fff', padding: '10px 20px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '10px' }}>
