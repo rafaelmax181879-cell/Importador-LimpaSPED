@@ -16,8 +16,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
-const SENHA_ADMIN = "Master2026"; 
-const VERSAO_ATUAL = "1.1.26";
+const SENHA_ADMIN = "Master9713"; 
+const VERSAO_ATUAL = "1.1.27";
 
 // Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
@@ -54,28 +54,30 @@ const getNomeGuia = (cod) => {
 
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
 
+// Formatador para os rótulos do PieChart não vazarem e mostrarem apenas a %
+const renderCustomLabel = ({ percent }) => {
+  if (percent < 0.02) return null; // Esconde labels de fatias muito pequenas
+  return `${(percent * 100).toFixed(1)}%`;
+};
+
 export default function ImportadorSped() {
-  // Controle de Telas e Progressão
   const [faseAtual, setFaseAtual] = useState('splash'); 
   const [splashProgress, setSplashProgress] = useState(0); 
 
-  // Autenticação
   const [senhaInput, setSenhaInput] = useState(''); 
   const [erroLogin, setErroLogin] = useState('');
   const [loadingText, setLoadingText] = useState('');
   const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
   
-  // Licença e Dados do Usuário
   const [licencaAtual, setLicencaAtual] = useState(null);
   const [modalPremiumAberto, setModalPremiumAberto] = useState(false);
   const [razaoSocialLogada, setRazaoSocialLogada] = useState(''); 
 
-  // Dashboard Navegação
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
   
-  // Estados de Dados do SPED Fiscal
+  // Estados de Dados do SPED
   const [dadosGraficoIcms, setDadosGraficoIcms] = useState([]);
   const [ajustesICMS, setAjustesICMS] = useState([]);
   const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
@@ -94,16 +96,11 @@ export default function ImportadorSped() {
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
 
-  // Atualização Inteligente (Electron)
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
 
-  // ==========================================
-  // EFEITOS E TEMPORIZADORES
-  // ==========================================
-
-  // Efeito da Splash Screen (Barra de Progresso)
+  // Efeito da Splash Screen (Idêntica à versão antiga)
   useEffect(() => {
     if (faseAtual === 'splash') {
       const interval = setInterval(() => {
@@ -114,78 +111,49 @@ export default function ImportadorSped() {
           }
           return old + 2;
         });
-      }, 60); // Ajuste da velocidade do preenchimento da barra
+      }, 60);
 
-      const timer = setTimeout(() => { 
-        setFaseAtual('login'); 
-      }, 3000); // Exatos 3 segundos de tela de abertura
-      
-      return () => { 
-        clearInterval(interval); 
-        clearTimeout(timer); 
-      };
+      const timer = setTimeout(() => { setFaseAtual('login'); }, 3000); 
+      return () => { clearInterval(interval); clearTimeout(timer); };
     }
   }, [faseAtual]);
 
-  // Efeito do Radar de Atualização
   useEffect(() => {
     window.triggerUpdateModal = () => setUpdateNotification(true);
-    
     const ignoredDateStr = localStorage.getItem('audittus_update_ignored_date');
     if (ignoredDateStr) {
       const diffDays = Math.floor(Math.abs(new Date() - new Date(ignoredDateStr)) / (1000 * 60 * 60 * 24));
       const restantes = 10 - diffDays;
-      if (restantes <= 0) {
-        setSistemaBloqueadoPorAtualizacao(true);
-      } else {
-        setDiasRestantesAtualizacao(restantes);
-      }
+      if (restantes <= 0) setSistemaBloqueadoPorAtualizacao(true);
+      else setDiasRestantesAtualizacao(restantes);
     }
-    
-    return () => { 
-      delete window.triggerUpdateModal; 
-    };
+    return () => { delete window.triggerUpdateModal; };
   }, []);
 
   const handleAtualizarAgora = () => {
     setUpdateNotification(false);
     setFaseAtual('loading');
     setLoadingText('Aplicando novas tecnologias... O sistema reiniciará em instantes.');
-    
-    if (window.require) {
-      window.require('electron').ipcRenderer.send('iniciar_atualizacao');
-    }
+    if (window.require) window.require('electron').ipcRenderer.send('iniciar_atualizacao');
   };
 
-  // ==========================================
-  // SISTEMA DE LOGIN E LICENÇAS
-  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
-    
     const ident = senhaInput.trim();
-    if (!ident) { 
-      setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); 
-      return; 
-    }
+    if (!ident) { setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); return; }
     
-    // Liberação Master (Admin)
     if (ident === SENHA_ADMIN) {
-      setLicencaAtual({ 
-        plano: 'admin', 
-        identificador_cliente: 'Acesso Mestre' 
-      });
+      setLicencaAtual({ plano: 'admin', identificador_cliente: 'Acesso Mestre' });
       setRazaoSocialLogada('Administrador');
       setFaseAtual('upload');
       return;
     }
 
-    // Anti-VM Básica
     const mem = navigator.deviceMemory || 4;
     const cores = navigator.hardwareConcurrency || 4;
     if (mem < 2 || cores < 2) {
-      setErroLogin('Erro FATAL: Ambiente de execução gráfico não suportado (ERR_VM_DETECT).');
+      setErroLogin('Erro FATAL: Ambiente de execução gráfico não suportado.');
       return;
     }
 
@@ -193,112 +161,54 @@ export default function ImportadorSped() {
     const hwId = obterOuGerarHardwareId();
 
     try {
-      // 1. Busca Inteligente da Razão Social na BrasilAPI
       let razaoEncontrada = '';
       const apenasNumeros = ident.replace(/\D/g, '');
-      
       if (apenasNumeros.length === 14) {
         try {
           const resApi = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${apenasNumeros}`);
           if (resApi.ok) {
             const dadosCnpj = await resApi.json();
-            // Puxando Razão Social e removendo eventuais parênteses para ficar limpo
             razaoEncontrada = dadosCnpj.razao_social.replace(/[()]/g, '').trim();
           }
-        } catch (errApi) { 
-          console.log("Aviso: Falha ao buscar razão social na API pública."); 
-        }
+        } catch (errApi) { console.log("Erro API CNPJ"); }
       }
 
-      // 2. Consulta ao Supabase
-      let { data: licenca, error } = await supabase
-        .from('licencas_clientes')
-        .select('*')
-        .eq('identificador_cliente', ident)
-        .single();
+      let { data: licenca, error } = await supabase.from('licencas_clientes').select('*').eq('identificador_cliente', ident).single();
 
-      if (error && error.code !== 'PGRST116') { 
-        throw new Error("Erro de conexão com o banco de dados."); 
-      }
+      if (error && error.code !== 'PGRST116') { throw new Error("Erro de conexão."); }
 
-      // 3. Criação de Novo Cliente (TRIAL Automático)
       if (!licenca) {
-        const novaLicenca = { 
-          identificador_cliente: ident, 
-          hardware_id: hwId, 
-          plano: 'trial', 
-          analises_gratuitas_restantes: 1, 
-          limite_cnpjs: 1, 
-          cnpjs_vinculados: [] 
-        };
-        
-        const { data: criada, error: errInsert } = await supabase
-          .from('licencas_clientes')
-          .insert([novaLicenca])
-          .select()
-          .single();
-          
+        const novaLicenca = { identificador_cliente: ident, hardware_id: hwId, plano: 'trial', analises_gratuitas_restantes: 1, limite_cnpjs: 1, cnpjs_vinculados: [] };
+        const { data: criada, error: errInsert } = await supabase.from('licencas_clientes').insert([novaLicenca]).select().single();
         if (errInsert) throw errInsert;
         licenca = criada;
-      } 
-      // 4. Verificação de Vínculo de Máquina
-      else {
-        if (!licenca.hardware_id) {
-          await supabase.from('licencas_clientes').update({ hardware_id: hwId }).eq('id', licenca.id);
-          licenca.hardware_id = hwId;
-        } else if (licenca.hardware_id !== hwId) { 
-          setErroLogin('Esta licença já está vinculada a outro computador. Contate o suporte.'); 
-          setIsProcessandoLoading(false); 
-          return; 
-        }
+      } else {
+        if (!licenca.hardware_id) await supabase.from('licencas_clientes').update({ hardware_id: hwId }).eq('id', licenca.id);
+        else if (licenca.hardware_id !== hwId) { setErroLogin('Licença vinculada a outro computador.'); setIsProcessandoLoading(false); return; }
       }
 
-      // 5. Verificação de Bloqueio por Inadimplência
-      if (licenca.status_bloqueio) { 
-        setErroLogin('O acesso desta licença está bloqueado pelo administrador. Regularize sua situação.'); 
-        setIsProcessandoLoading(false); 
-        return; 
-      }
-
-      // 6. Sucesso no Login
+      if (licenca.status_bloqueio) { setErroLogin('Acesso bloqueado pelo administrador.'); setIsProcessandoLoading(false); return; }
+      
       setRazaoSocialLogada(razaoEncontrada);
       setLicencaAtual(licenca);
       setFaseAtual('upload');
-      
     } catch (err) { 
-      setErroLogin('Erro de rede: Verifique sua conexão com a internet.'); 
+      setErroLogin('Erro de conexão com a nuvem.'); 
     } finally { 
       setIsProcessandoLoading(false); 
     }
   };
 
   const limparDados = () => {
-    setFaseAtual('upload'); 
-    setArquivoProcessado(null); 
-    setNomeOriginal(''); 
-    setAbaAtiva('home');
-    setDadosGraficoIcms([]); 
-    setAjustesICMS([]); 
-    setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
-    setGuiasE116([]); 
-    setDadosEmpresa({ nome: '', cnpj: '', periodo: '' }); 
-    setDadosGraficoOperacoes([]);
-    setListaCfops({ entradas: [], saidas: [] }); 
-    setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
+    setFaseAtual('upload'); setArquivoProcessado(null); setNomeOriginal(''); setAbaAtiva('home');
+    setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
+    setGuiasE116([]); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' }); setDadosGraficoOperacoes([]);
+    setListaCfops({ entradas: [], saidas: [] }); setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
-    setTopProdutos({ vendas: [], compras: [] }); 
-    setTopFornecedores([]); 
-    setDadosTributacaoSaida([]);
-    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); 
-    setDadosEstados([]); 
-    setLogAuditoria([]); 
-    setDadosRoscaEntradas([]); 
-    setRiscosFiscais([]);
+    setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
+    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setRiscosFiscais([]);
   };
 
-  // ==========================================
-  // PROCESSAMENTO DO SPED FISCAL (CÉREBRO DO ROBÔ)
-  // ==========================================
   const processarArquivo = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -313,23 +223,14 @@ export default function ImportadorSped() {
       const conteudoArquivo = e.target.result;
       const linhasOriginais = conteudoArquivo.split(/\r?\n/);
       
-      // Validação de CNPJ do Arquivo vs Plano do Cliente
       let cnpjArquivo = "";
       for (let i = 0; i < linhasOriginais.length; i++) {
-        if (linhasOriginais[i].startsWith('|0000|')) { 
-          cnpjArquivo = linhasOriginais[i].split('|')[7]; 
-          break; 
-        }
+        if (linhasOriginais[i].startsWith('|0000|')) { cnpjArquivo = linhasOriginais[i].split('|')[7]; break; }
       }
 
       if (licencaAtual && licencaAtual.plano !== 'admin') {
         if (licencaAtual.plano === 'trial') {
-          if (licencaAtual.analises_gratuitas_restantes <= 0) { 
-            setFaseAtual('upload'); 
-            setModalPremiumAberto(true); 
-            return; 
-          }
-          // Consome a análise gratuita
+          if (licencaAtual.analises_gratuitas_restantes <= 0) { setFaseAtual('upload'); setModalPremiumAberto(true); return; }
           await supabase.from('licencas_clientes').update({ analises_gratuitas_restantes: 0 }).eq('id', licencaAtual.id);
           setLicencaAtual({...licencaAtual, analises_gratuitas_restantes: 0});
         } 
@@ -337,9 +238,7 @@ export default function ImportadorSped() {
           let listaCnpjs = licencaAtual.cnpjs_vinculados || [];
           if (!listaCnpjs.includes(cnpjArquivo)) {
             if (listaCnpjs.length >= licencaAtual.limite_cnpjs) {
-              setFaseAtual('upload'); 
-              alert(`⛔ Limite Atingido!\nO CNPJ deste arquivo não faz parte da sua cota atual de empresas.`); 
-              return;
+              setFaseAtual('upload'); alert(`⛔ Limite Atingido!\nCNPJ do arquivo não faz parte da cota.`); return;
             } else {
               listaCnpjs.push(cnpjArquivo);
               await supabase.from('licencas_clientes').update({ cnpjs_vinculados: listaCnpjs }).eq('id', licencaAtual.id);
@@ -350,41 +249,16 @@ export default function ImportadorSped() {
       }
 
       setNomeOriginal(file.name);
-      
-      // Textos de animação do loading
-      const mensagens = [
-        "Lendo estrutura do arquivo SPED...", 
-        "Mapeando inteligência de CFOPs...", 
-        "Procurando Notas Puladas na série...", 
-        "Aplicando rotinas de Auto-Cura Tributária...", 
-        "Gerando painéis de Business Intelligence..."
-      ];
-      let step = 0; 
-      setLoadingText(mensagens[0]);
-      
-      const inter = setInterval(() => { 
-        step++; 
-        if(step < mensagens.length) {
-          setLoadingText(mensagens[step]); 
-        }
-      }, 600);
+      const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas...", "Aplicando Auto-Cura...", "Gerando painéis modernos..."];
+      let step = 0; setLoadingText(mensagens[0]);
+      const inter = setInterval(() => { step++; if(step < mensagens.length) setLoadingText(mensagens[step]); }, 600);
 
-      // Variáveis Extensas de Acumulação de Dados
       let linhasProcessadas = [];
       let contC191 = 0, contC173 = 0, contTextos = 0, logTemp = [], riscosTemp = [], numLinha = 0;
-      let numDocAtual = 'S/N'; 
-      let notasPorSerie = {}; 
-      let mapNcm = {}; 
-      
+      let numDocAtual = 'S/N'; let notasPorSerie = {}; let mapNcm = {}; 
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
 
-      const mapUfIbgeLocal = { 
-        '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', 
-        '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', 
-        '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', 
-        '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', 
-        '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' 
-      };
+      const mapUfIbgeLocal = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
 
       const cfopsEntradasBrutas = new Set(['1102','2102','3102','1117','2117','1403','2403','1101','2101','3101','1122','2122','1401','2401','1351','1352','1353','1354','1355','1356','2351','2352','2353','2354','2355','2356','3351','3352','3353','3354','3355','3356']);
       const cfopsSaidasBrutas = new Set(['5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401','5117','6117','5351','6351','7351','5352','6352','7352','5353','6353','7353','5354','6354','7354','5355','6355','7355','5356','6356','7356','5357','6357','7357','5301','6301','7301','5302','6302','7302','5303','6303','7303','5304','6304','7304','5305','6305','7305','5306','6306','7306','5307','6307','7307','5251','6251','7251']);
@@ -398,281 +272,89 @@ export default function ImportadorSped() {
       let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
       let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Outras Entradas': 0 };
 
-      // O LOOP PRINCIPAL (Totalmente expandido para manutenção fácil)
       linhasOriginais.forEach((linhaOriginal) => {
-        numLinha++; 
-        let linha = linhaOriginal; 
-        let cols = linha.split('|');
-
-        // Registro 0000: Abertura do Arquivo
+        numLinha++; let linha = linhaOriginal; let cols = linha.split('|');
         if (cols[1] === '0000') {
-          const dtIni = cols[4] || ''; 
-          const dtFin = cols[5] || '';
-          
-          let pFormatado = 'Período Indefinido';
-          if (dtIni && dtFin) {
-            pFormatado = `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}`;
-          }
-
-          setDadosEmpresa({ 
-            nome: cols[6] || 'Não Identificada', 
-            cnpj: cols[7] || '', 
-            periodo: pFormatado 
-          });
+          const dtIni = cols[4]||''; const dtFin = cols[5]||'';
+          setDadosEmpresa({ nome: cols[6]||'Empresa', cnpj: cols[7]||'', periodo: `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}` });
         }
-        
-        // Registro 0150: Participantes (Fornecedores/Clientes)
-        if (cols[1] === '0150') { 
-          mPart[cols[2]] = cols[3]; 
-          mPartEst[cols[2]] = cols[8] ? (mapUfIbgeLocal[cols[8].substring(0,2)] || 'Outros') : 'N/A'; 
-        }
-        
-        // Registro 0200: Tabela de Produtos
-        if (cols[1] === '0200') {
-          mProd[cols[2]] = cols[3];
-        }
-
-        // Registro C100 e D100: Notas Fiscais Mestre
+        if (cols[1] === '0150') { mPart[cols[2]] = cols[3]; mPartEst[cols[2]] = cols[8] ? (mapUfIbgeLocal[cols[8].substring(0,2)] || 'Outros') : 'N/A'; }
+        if (cols[1] === '0200') mProd[cols[2]] = cols[3];
         if (cols[1] === 'C100' || cols[1] === 'D100') {
-           numDocAtual = cols[8] || 'S/N'; 
-           opAt = cols[2]; 
-           const vlD = parseFloat(cols[12]?.replace(',', '.')) || 0; 
-           
-           if (opAt === '0') { 
-             tEnt += vlD; 
-             if (cols[4]) { 
-               cForn[cols[4]] = (cForn[cols[4]] || 0) + vlD; 
-               cEstObj[mPartEst[cols[4]]] = (cEstObj[mPartEst[cols[4]]] || 0) + vlD; 
-             } 
-           } else if (opAt === '1') {
-             tSai += vlD; 
-           }
-           
-           // Armazenar para verificação de buracos na numeração
+           numDocAtual = cols[8] || 'S/N'; opAt = cols[2]; const vlD = parseFloat(cols[12]?.replace(',', '.')) || 0; 
+           if (opAt === '0') { tEnt += vlD; if (cols[4]) { cForn[cols[4]] = (cForn[cols[4]] || 0) + vlD; cEstObj[mPartEst[cols[4]]] = (cEstObj[mPartEst[cols[4]]] || 0) + vlD; } } else if (opAt === '1') tSai += vlD; 
            if (cols[1] === 'C100') {
                const numNF = parseInt(cols[8], 10);
                if (cols[2] === '1' && cols[3] === '0' && !isNaN(numNF)) {
-                   const key = `${cols[5]}-${cols[7]}`; 
-                   if (!notasPorSerie[key]) {
-                     notasPorSerie[key] = []; 
-                   }
-                   notasPorSerie[key].push(numNF);
+                   const key = `${cols[5]}-${cols[7]}`; if (!notasPorSerie[key]) notasPorSerie[key] = []; notasPorSerie[key].push(numNF);
                }
            }
         }
-        
-        // Registro C170: Itens da Nota
-        if (cols[1] === 'C170') { 
-          const vlI = parseFloat(cols[7]?.replace(',', '.')) || 0; 
-          if (opAt === '1') {
-            vProd[cols[3]] = (vProd[cols[3]] || 0) + vlI; 
-          } else if (opAt === '0') {
-            cProd[cols[3]] = (cProd[cols[3]] || 0) + vlI; 
-          }
-        }
-        
-        // AUTO-CURA: Limpeza de C191 e C173
-        if (linha.startsWith('|C191|')) { 
-          contC191++; 
-          logTemp.push({ linha: numLinha, registro: `C191`, acao: 'Removida', detalhe: 'Registro C191 excluído.' }); 
-          return; // Pula a inserção desta linha
-        }
-        if (linha.startsWith('|C173|')) { 
-          contC173++; 
-          logTemp.push({ linha: numLinha, registro: `C173`, acao: 'Removida', detalhe: 'Registro C173 excluído.' }); 
-          return; // Pula a inserção desta linha
-        }
-        
-        // Registro C190 / D190: Totalizadores Contábeis
+        if (cols[1] === 'C170') { const vlI = parseFloat(cols[7]?.replace(',', '.')) || 0; if (opAt === '1') vProd[cols[3]] = (vProd[cols[3]] || 0) + vlI; else if (opAt === '0') cProd[cols[3]] = (cProd[cols[3]] || 0) + vlI; }
+        if (linha.startsWith('|C191|')) { contC191++; logTemp.push({ linha: numLinha, registro: `C191`, acao: 'Removida', detalhe: 'Registro C191 excluído.' }); return; }
+        if (linha.startsWith('|C173|')) { contC173++; logTemp.push({ linha: numLinha, registro: `C173`, acao: 'Removida', detalhe: 'Registro C173 excluído.' }); return; }
         if (cols[1] === 'C190' || cols[1] === 'D190') {
-          const cf = cols[3] || '';
-          const vlO = parseFloat(cols[5]?.replace(',', '.')) || 0;
-          const vlIc = parseFloat(cols[7]?.replace(',', '.')) || 0;
-          
+          const cf = cols[3] || '', vlO = parseFloat(cols[5]?.replace(',', '.')) || 0, vlIc = parseFloat(cols[7]?.replace(',', '.')) || 0;
           if (cf.startsWith('1') || cf.startsWith('2') || cf.startsWith('3')) {
             mCfopEnt[cf] = (mCfopEnt[cf] || 0) + vlO;
-            
-            // Lógica de Segregação das Entradas
-            if (['1101','1102','2101','2102','3101','3102'].includes(cf)) {
-              if (vlIc > 0) dEnt['Revenda/Ind. - Tributadas'] += vlO;
-              else dEnt['Revenda/Ind. - Isentas'] += vlO;
-            }
-            else if (cf.startsWith('14') || cf.startsWith('24')) {
-              dEnt['Substituição Tributária (ST)'] += vlO;
-            }
-            else if (['1556','2556'].includes(cf)) {
-              dEnt['Uso e Consumo'] += vlO;
-            }
-            else {
-              dEnt['Outras Entradas'] += vlO;
-            }
+            if (['1101','1102','2101','2102'].includes(cf)) vlIc > 0 ? dEnt['Revenda/Ind. - Tributadas'] += vlO : dEnt['Revenda/Ind. - Isentas'] += vlO;
+            else if (cf.startsWith('14') || cf.startsWith('24')) dEnt['Substituição Tributária (ST)'] += vlO;
+            else if (['1556','2556'].includes(cf)) dEnt['Uso e Consumo'] += vlO;
+            else dEnt['Outras Entradas'] += vlO;
           } else {
             mCfopSai[cf] = (mCfopSai[cf] || 0) + vlO;
-            
-            // Lógica de Tributação das Saídas
             if (!cfopsNaoFaturamento.has(cf)) {
-              let cat = 'Saídas Tributadas';
-              if (cf.startsWith('54') || cf.startsWith('64')) cat = 'Saídas ST';
-              else if (vlIc === 0) cat = 'Saídas Isentas';
-              
-              if (cat === 'Saídas ST') vST += vlO; 
-              if (cat === 'Saídas Isentas') vIse += vlO;
-              
-              mTribSaida[cat] = (mTribSaida[cat] || 0) + vlO; 
-              tAnalise += vlO;
+              let cat = cf.startsWith('54') || cf.startsWith('64') ? 'Saídas ST' : vlIc === 0 ? 'Saídas Isentas' : 'Saídas Tributadas';
+              if (cat === 'Saídas ST') vST += vlO; if (cat === 'Saídas Isentas') vIse += vlO;
+              mTribSaida[cat] = (mTribSaida[cat] || 0) + vlO; tAnalise += vlO;
             }
           }
-
-          // Alimentação do VAF
-          if (cfopsEntradasBrutas.has(cf)) vafEnt += vlO; 
-          if (cfopsSaidasBrutas.has(cf)) vafSai += vlO; 
-          if (cfopsDevVendas.has(cf)) vafDV += vlO; 
-          if (cfopsDevCompras.has(cf)) vafDC += vlO; 
+          if (cfopsEntradasBrutas.has(cf)) vafEnt += vlO; if (cfopsSaidasBrutas.has(cf)) vafSai += vlO; if (cfopsDevVendas.has(cf)) vafDV += vlO; if (cfopsDevCompras.has(cf)) vafDC += vlO; 
         }
-        
-        // Registro E110: Apuração do ICMS
-        if (cols[1] === 'E110') { 
-          totalDeb = parseFloat(cols[2].replace(',', '.')) || 0; 
-          totalCred = parseFloat(cols[6].replace(',', '.')) || 0; 
-          iRecFinal = parseFloat(cols[13].replace(',', '.')) || 0; 
-          sCredFinal = parseFloat(cols[14].replace(',', '.')) || 0; 
-        }
-
-        // Registro E116: Guias de Recolhimento
-        if (cols[1] === 'E116') { 
-          listaG.push({ 
-            codigo: cols[2], 
-            valor: parseFloat(cols[3].replace(',', '.')) || 0, 
-            vencimento: cols[4] 
-          }); 
-        }
-
-        // AUTO-CURA: Limpeza de Textos Proibidos
+        if (cols[1] === 'E110') { totalDeb = parseFloat(cols[2].replace(',', '.')) || 0; totalCred = parseFloat(cols[6].replace(',', '.')) || 0; iRecFinal = parseFloat(cols[13].replace(',', '.')) || 0; sCredFinal = parseFloat(cols[14].replace(',', '.')) || 0; }
+        if (cols[1] === 'E116') listaG.push({ codigo: cols[2], valor: parseFloat(cols[3].replace(',', '.')) || 0, vencimento: cols[4] });
         const matches = linha.match(textosParaRemover);
-        if (matches) { 
-          contTextos += matches.length; 
-          logTemp.push({ linha: numLinha, registro: cols[1], acao: 'Limpeza', detalhe: `Removido: ${matches.join(', ')}` }); 
-          linha = linha.replace(textosParaRemover, ''); 
-        }
-        
-        // Finaliza a linha limpa e adiciona ao novo arquivo
-        if (linha.trim() !== '') {
-          linhasProcessadas.push(linha);
-        }
+        if (matches) { contTextos += matches.length; logTemp.push({ linha: numLinha, registro: cols[1], acao: 'Limpeza', detalhe: `Removido: ${matches.join(', ')}` }); linha = linha.replace(textosParaRemover, ''); }
+        if (linha.trim() !== '') linhasProcessadas.push(linha);
       });
 
-      // Auditoria de Riscos: Calculando os buracos de Notas Faltantes
       Object.keys(notasPorSerie).forEach(key => {
         let nums = notasPorSerie[key].sort((a,b) => a - b);
         for (let i = 1; i < nums.length; i++) {
-          if (nums[i] - nums[i-1] > 1) { 
-            riscosTemp.push({ 
-              tipo: 'NOTA FALTANTE', 
-              registro: `Mod/Série: ${key}`, 
-              cor: '#f59e0b', 
-              detalhe: `Possível quebra de sequência detectada entre as notas ${nums[i-1]} e ${nums[i]}. Verifique a inutilização.` 
-            }); 
-            break; // Registra apenas 1 aviso genérico por série para não poluir
-          }
+          if (nums[i] - nums[i-1] > 1) { riscosTemp.push({ tipo: 'NOTA FALTANTE', registro: `Mod/Série: ${key}`, cor: '#f59e0b', detalhe: `Buraco na numeração entre ${nums[i-1]} e ${nums[i]}.` }); break; }
         }
       });
 
-      // Fechamento dos Arrays e Envio para o State
-      setListaCfops({ 
-        entradas: Object.keys(mCfopEnt).map(k=>({cfop:k, valor:mCfopEnt[k]})).sort((a,b)=>b.valor-a.valor), 
-        saidas: Object.keys(mCfopSai).map(k=>({cfop:k, valor:mCfopSai[k]})).sort((a,b)=>b.valor-a.valor) 
-      });
-      setTopProdutos({ 
-        vendas: Object.keys(vProd).map(k=>({nome:mProd[k]||k, valor:vProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10), 
-        compras: Object.keys(cProd).map(k=>({nome:mProd[k]||k, valor:cProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10) 
-      });
-      setTopFornecedores(
-        Object.keys(cForn).map(k=>({nome:mPart[k]||k, valor:cForn[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 5)
-      );
-      setDadosEstados(
-        Object.keys(cEstObj).map(k=>({name:k, value:cEstObj[k]})).sort((a,b)=>b.value-a.value)
-      );
+      setListaCfops({ entradas: Object.keys(mCfopEnt).map(k=>({cfop:k, valor:mCfopEnt[k]})).sort((a,b)=>b.valor-a.valor), saidas: Object.keys(mCfopSai).map(k=>({cfop:k, valor:mCfopSai[k]})).sort((a,b)=>b.valor-a.valor) });
+      setTopProdutos({ vendas: Object.keys(vProd).map(k=>({nome:mProd[k]||k, valor:vProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10), compras: Object.keys(cProd).map(k=>({nome:mProd[k]||k, valor:cProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10) });
+      setTopFornecedores(Object.keys(cForn).map(k=>({nome:mPart[k]||k, valor:cForn[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 5));
+      setDadosEstados(Object.keys(cEstObj).map(k=>({name:k, value:cEstObj[k]})).sort((a,b)=>b.value-a.value));
       setDadosTributacaoSaida(Object.keys(mTribSaida).map(k=>({name:k, value:mTribSaida[k]})));
       setDadosRoscaEntradas(Object.keys(dEnt).map(k=>({name:k, value:dEnt[k]})));
-      
-      setDadosVaf({ 
-        entradasBrutas: vafEnt, 
-        saidasBrutas: vafSai, 
-        devVendas: vafDV, 
-        devCompras: vafDC, 
-        vafTotal: (vafSai - vafDV) - (vafEnt - vafDC) 
-      });
-      
-      setDadosGraficoIcms([
-        { name: 'Créditos', value: totalCred }, 
-        { name: 'Débitos', value: totalDeb }
-      ]);
-      setDadosGraficoOperacoes([
-        { name: 'Total Entradas', value: tEnt }, 
-        { name: 'Total Saídas', value: tSai }
-      ]);
-      
+      setDadosVaf({ entradasBrutas: vafEnt, saidasBrutas: vafSai, devVendas: vafDV, devCompras: vafDC, vafTotal: (vafSai - vafDV) - (vafEnt - vafDC) });
+      setDadosGraficoIcms([{ name: 'Créditos', value: totalCred }, { name: 'Débitos', value: totalDeb }]);
+      setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
-      setGuiasE116(listaG); 
-      setRiscosFiscais(riscosTemp); 
-      setLogAuditoria(logTemp);
-      
-      setRelatorioCorrecoes({ 
-        c191Removidos: contC191, 
-        c173Removidos: contC173, 
-        textosRemovidos: contTextos, 
-        blocosRecalculados: 3 
-      });
-      
+      setGuiasE116(listaG); setRiscosFiscais(riscosTemp); setLogAuditoria(logTemp);
+      setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: 3 });
       setArquivoProcessado(linhasProcessadas.join('\r\n')); 
-      
-      setTimeout(() => { 
-        clearInterval(inter); 
-        setFaseAtual('dashboard'); 
-      }, 3000);
+      setTimeout(() => { clearInterval(inter); setFaseAtual('dashboard'); }, 3000);
     };
   };
 
-  // ==========================================
-  // CÁLCULOS FINAIS E CORES DO DASHBOARD
-  // ==========================================
-
-  // CÁLCULO EXATO DA ALÍQUOTA EFETIVA: (ICMS A RECOLHER / FATURAMENTO TOTAL) * 100
-  const aliquotaEfetiva = resumoTributacao.total > 0 
-    ? ((resumoIcms.icmsRecolher / resumoTributacao.total) * 100).toFixed(2) 
-    : '0.00';
+  const aliquotaEfetiva = resumoTributacao.total > 0 ? ((resumoIcms.icmsRecolher / resumoTributacao.total) * 100).toFixed(2) : '0.00';
 
   const CORES_TRIBUTACAO = ['#004080', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
   const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272'];
 
-  const BotoesAcao = () => (
-    <div className="act-btns no-print">
-        <button className="btn-dl" onClick={() => { 
-          const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); 
-          const l = document.createElement('a'); 
-          l.href = URL.createObjectURL(b); 
-          l.download = `AUDITTUS_Curado_${nomeOriginal}`; 
-          l.click(); 
-        }}>
-          <Download size={20} /> Baixar SPED Validado
-        </button>
-        <button className="btn-pr" onClick={() => window.print()}>
-          <Printer size={20} /> Salvar Relatório Geral (PDF)
-        </button>
-        <button className="btn-nw" onClick={limparDados}>
-          <RefreshCw size={20} /> Nova Validação
-        </button>
-    </div>
-  );
-
   // =========================================================================
-  // RENDERIZAÇÃO: TELA 0 - SPLASH SCREEN (EXATAMENTE A CLÁSSICA)
+  // TELA 0: SPLASH SCREEN (EXATAMENTE COMO A IMAGEM ORIGINAL 1.1.0)
   // =========================================================================
   if (faseAtual === 'splash') {
     return (
       <div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1e293b' }}>
-        <div style={{ width: '450px', padding: '50px 40px', textAlign: 'center', backgroundColor: '#1e293b' }}>
+        <div style={{ width: '450px', padding: '50px 40px', textAlign: 'center' }}>
           <h1 style={{ color: '#ffffff', fontSize: '28px', margin: '0 0 10px 0', fontWeight: '900', letterSpacing: '1px', fontFamily: 'system-ui, sans-serif' }}>
             CORRETOR INTELIGENTE
           </h1>
@@ -680,7 +362,6 @@ export default function ImportadorSped() {
             SPED FISCAL
           </h3>
           
-          {/* BARRA DE PROGRESSO CYAN E DARK SLATE */}
           <div style={{ width: '100%', height: '4px', backgroundColor: '#334155', borderRadius: '2px', overflow: 'hidden', marginBottom: '15px' }}>
             <div style={{ width: `${splashProgress}%`, height: '100%', backgroundColor: '#06b6d4', transition: 'width 0.1s linear' }}></div>
           </div>
@@ -692,16 +373,17 @@ export default function ImportadorSped() {
             Versão {VERSAO_ATUAL}
           </p>
         </div>
+        <style>{`body, html, #root { margin: 0; padding: 0; background: #1e293b; overflow: hidden; }`}</style>
       </div>
     );
   }
 
   // =========================================================================
-  // RENDERIZAÇÃO: BLOQUEIO DE SISTEMA OBSOLETO
+  // BLOQUEIO DE SISTEMA OBSOLETO
   // =========================================================================
   if (sistemaBloqueadoPorAtualizacao) {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100%', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', fontFamily: 'system-ui, sans-serif' }}>
         <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', maxWidth: '500px', textAlign: 'center', borderTop: '8px solid #ef4444' }}>
           <AlertTriangle size={80} color="#ef4444" style={{ margin: '0 auto 20px' }} />
           <h1 style={{ color: '#ef4444', margin: '0 0 15px' }}>Sistema Obsoleto</h1>
@@ -715,86 +397,38 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // RENDERIZAÇÃO: TELA 1 - LOGIN CENTRALIZADO
-  // =========================================================================
-  if (faseAtual === 'login') {
-    return (
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', fontFamily: 'system-ui, sans-serif' }}>
-        <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
-          <Shield size={64} color="#004080" style={{ marginBottom: '20px' }} />
-          <h1 style={{ color: '#004080', margin: '0 0 5px', fontSize: '32px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
-          <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '30px' }}>Inteligência Fiscal e Auditoria Digital</p>
-          
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div>
-              <input 
-                type="text" 
-                placeholder="E-mail ou CNPJ da Licença" 
-                value={senhaInput} 
-                onChange={(e) => setSenhaInput(e.target.value)} 
-                style={{ width: '100%', boxSizing: 'border-box', padding: '15px', borderRadius: '12px', border: '2px solid #cbd5e1', fontSize: '16px', textAlign: 'center', outline: 'none', transition: '0.3s' }} 
-              />
-              {erroLogin && <span style={{ color: '#ef4444', fontSize: '13px', display: 'block', marginTop: '8px', fontWeight: 'bold' }}>{erroLogin}</span>}
-            </div>
-            <button 
-              type="submit" 
-              disabled={isProcessandoLoading} 
-              style={{ padding: '15px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}
-            >
-              {isProcessandoLoading ? <Loader2 size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Lock size={18} />} 
-              {isProcessandoLoading ? 'Conectando ao Servidor...' : 'Acessar Sistema'}
-            </button>
-          </form>
-          <p style={{ marginTop: '20px', fontSize: '12px', color: '#94a3b8' }}>Se for o seu primeiro acesso, 1 análise será liberada gratuitamente.</p>
-        </div>
-        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // RENDERIZAÇÃO: TELA DE CARREGAMENTO ENTRE TELAS
-  // =========================================================================
-  if (faseAtual === 'loading') {
-    return (
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', fontFamily: 'system-ui, sans-serif' }}>
-        <div style={{ background: '#fff', padding: '60px 80px', borderRadius: '24px', boxShadow: '0 25px 50px rgba(0,64,128,0.1)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid #e2e8f0' }}>
-          <div style={{ position: 'relative' }}>
-            <Loader2 size={80} color="#004080" style={{ animation: 'spin 2s linear infinite' }} />
-            <Zap size={30} color="#f59e0b" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
-          </div>
-          <h2 style={{ color: '#004080', margin: '10px 0 0 0', fontSize: '28px', fontWeight: '900' }}>Processando Inteligência...</h2>
-          <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600', margin: 0, maxWidth: '280px', lineHeight: '1.4' }}>{loadingText}</p>
-        </div>
-        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
-  // =========================================================================
-  // RENDERIZAÇÃO: ESTRUTURA PRINCIPAL (UPLOAD E DASHBOARD)
+  // ESTRUTURA PRINCIPAL (CSS GLOBAL E DASHBOARD WIDESCREEN)
   // =========================================================================
   return (
     <div className="main-container">
       <style>{`
-        .main-container { flex: 1; width: 100%; min-height: 100vh; background: #f0f4f8; overflow-y: auto; overflow-x: hidden; font-family: system-ui, sans-serif; position: relative; }
+        /* FORÇANDO O LAYOUT A OCUPAR A TELA INTEIRA E CENTRALIZAR QUANDO NECESSÁRIO */
+        body, html, #root { margin: 0; padding: 0; min-height: 100vh; width: 100vw; background: #f0f4f8; overflow-x: hidden; font-family: system-ui, sans-serif; }
+        .main-container { flex: 1; width: 100%; min-height: 100vh; position: relative; }
         
         .update-bar { position: sticky; top: 0; z-index: 9999; background: #004080; color: #fff; padding: 12px; display: flex; align-items: center; justify-content: center; gap: 20px; animation: slideDown 0.5s ease; border-bottom: 3px solid #38bdf8; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
-        .btn-update { background: #38bdf8; color: #000; border: none; padding: 8px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
+        .btn-update { background: #38bdf8; color: #0f172a; border: none; padding: 8px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
         .btn-update:hover { background: #fff; transform: translateY(-1px); }
         
-        .content-wrapper { width: 100%; max-width: 1700px; padding: 30px; margin: 0 auto; box-sizing: border-box; }
-        .card-dash { background: #fff; padding: 25px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        /* CONTAINER DE CONTEÚDO LARGO (WIDESCREEN COMO O ORIGINAL) */
+        .content-wrapper { width: 100%; max-width: 1600px; padding: 30px; margin: 0 auto; box-sizing: border-box; }
+        
+        .card-dash { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; }
         .card-title { color: #004080; border-bottom: 2px solid #f0f4f8; padding-bottom: 15px; margin: 0 0 20px 0; font-size: 18px; display: flex; align-items: center; gap: 10px; font-weight: bold; }
+        
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 25px; }
+        .grid-3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 25px; }
         .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
         
-        .upload-box { width: 100%; max-width: 700px; padding: 80px 40px; border: 3px dashed #cbd5e1; border-radius: 24px; text-align: center; background: #fff; position: relative; transition: 0.3s; cursor: pointer; }
-        .upload-box:hover { border-color: #004080; transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,64,128,0.1); }
+        /* ANIMAÇÃO DA NUVEM */
+        @keyframes flutuar { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+        .nuvem-animada { animation: flutuar 3s ease-in-out infinite; display: block; margin: 0 auto 25px; }
         
-        .act-btns { display: flex; justify-content: center; gap: 20px; padding: 20px; background: #fff; border-radius: 20px; margin-top: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .upload-box { width: 100%; max-width: 700px; padding: 60px 40px; border: 3px dashed #cbd5e1; border-radius: 24px; text-align: center; background: #fff; position: relative; transition: 0.3s; cursor: pointer; }
+        .upload-box:hover { border-color: #004080; background: #f8fafc; transform: translateY(-2px); }
+        
+        .act-btns { display: flex; justify-content: center; gap: 20px; padding: 20px; background: #fff; border-radius: 16px; margin-top: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
         .btn-dl { background: #004080; color: #fff; border: none; padding: 15px 25px; border-radius: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
         .btn-pr { background: #10b981; color: #fff; border: none; padding: 15px 25px; border-radius: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
         .btn-nw { background: #ef4444; color: #fff; border: none; padding: 15px 25px; border-radius: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
@@ -810,7 +444,7 @@ export default function ImportadorSped() {
         @media print { .no-print { display: none !important; } }
       `}</style>
 
-      {/* AVISO DE ATUALIZAÇÃO MODERNO (STICKY TOP) */}
+      {/* BARRA DE ATUALIZAÇÃO */}
       {updateNotification && (
         <div className="update-bar no-print">
           <Sparkles size={24} color="#38bdf8" />
@@ -824,36 +458,58 @@ export default function ImportadorSped() {
         </div>
       )}
 
-      {/* MODAL DE UPGRADE */}
-      {modalPremiumAberto && (
-        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15,23,42,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', width: '100%', maxWidth: '550px', textAlign: 'center' }}>
-            <Crown size={70} color="#f59e0b" style={{ margin: '0 auto 20px auto' }} />
-            <h2 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '28px', fontWeight: '900' }}>Cota Gratuita Esgotada!</h2>
-            <p style={{ color: '#475569', fontSize: '18px', lineHeight: '1.6', marginBottom: '15px' }}>Você utilizou sua Análise Gratuita e pôde ver o poder da Auto-Cura do AUDITTUS. Para continuar processando novos SPEDs, faça um upgrade para o Plano Premium.</p>
-            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '30px' }}>
-              <p style={{ margin: 0, fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>Sua Licença Vinculada:</p>
-              <strong style={{ fontSize: '18px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '5px' }}>
-                <User size={18}/> {formatarCNPJ(licencaAtual?.identificador_cliente)}
-              </strong>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <button style={{ padding: '18px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                <Crown size={20} /> Assinar AUDITTUS Premium
+      {/* TELA DE LOGIN 100% CENTRALIZADA */}
+      {faseAtual === 'login' && (
+        <div style={{ display: 'flex', minHeight: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '50px', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center', border: '1px solid #e2e8f0' }}>
+            <Shield size={64} color="#004080" style={{ marginBottom: '20px' }} />
+            <h1 style={{ color: '#004080', margin: '0 0 5px', fontSize: '32px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
+            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '30px' }}>Inteligência Fiscal e Auditoria Digital</p>
+            
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div>
+                <input 
+                  type="text" 
+                  placeholder="E-mail ou CNPJ da Licença" 
+                  value={senhaInput} 
+                  onChange={(e) => setSenhaInput(e.target.value)} 
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '15px', borderRadius: '12px', border: '2px solid #cbd5e1', fontSize: '16px', textAlign: 'center', outline: 'none', transition: '0.3s' }} 
+                />
+                {erroLogin && <span style={{ color: '#ef4444', fontSize: '13px', display: 'block', marginTop: '8px', fontWeight: 'bold' }}>{erroLogin}</span>}
+              </div>
+              <button 
+                type="submit" 
+                disabled={isProcessandoLoading} 
+                style={{ padding: '15px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}
+              >
+                {isProcessandoLoading ? <Loader2 size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Lock size={18} />} 
+                {isProcessandoLoading ? 'Validando Licença...' : 'Acessar Sistema'}
               </button>
-              <button onClick={() => setModalPremiumAberto(false)} style={{ padding: '15px', background: 'transparent', color: '#64748b', border: 'none', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}>
-                Voltar
-              </button>
-            </div>
+            </form>
+            <p style={{ marginTop: '20px', fontSize: '12px', color: '#94a3b8' }}>Se for o seu primeiro acesso, 1 análise será liberada gratuitamente.</p>
           </div>
+          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* TELA DE IMPORTAÇÃO (TOTALMENTE CENTRALIZADA COM SELO NO TOPO ESQUERDO) */}
-      {/* ========================================================================= */}
+      {/* TELA DE LOADING (ENTRE PROCESSAMENTOS) CENTRALIZADA */}
+      {faseAtual === 'loading' && (
+        <div style={{ display: 'flex', minHeight: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '60px 80px', borderRadius: '24px', boxShadow: '0 25px 50px rgba(0,64,128,0.1)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid #e2e8f0' }}>
+            <div style={{ position: 'relative' }}>
+              <Loader2 size={80} color="#004080" style={{ animation: 'spin 2s linear infinite' }} />
+              <Zap size={30} color="#f59e0b" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+            </div>
+            <h2 style={{ color: '#004080', margin: '10px 0 0 0', fontSize: '28px', fontWeight: '900' }}>Processando Inteligência...</h2>
+            <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600', margin: 0, maxWidth: '280px', lineHeight: '1.4' }}>{loadingText}</p>
+          </div>
+          <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+      {/* TELA DE UPLOAD 100% CENTRALIZADA */}
       {faseAtual === 'upload' && (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%', position: 'relative' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100vw', position: 'relative' }}>
           
           {/* SELO FIXADO NO TOPO ESQUERDO */}
           {licencaAtual && (
@@ -864,21 +520,21 @@ export default function ImportadorSped() {
             </div>
           )}
 
-          {/* ÁREA DE IMPORTAÇÃO ALINHADA NO CENTRO EXATO DA TELA */}
+          {/* CONTEÚDO ALINHADO NO CENTRO DO MONITOR */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
               <h1 style={{ color: '#004080', margin: '0 0 5px 0', fontSize: '42px', fontWeight: '900', letterSpacing: '-1.5px' }}>AUDITTUS</h1>
-              <p style={{ margin: '0 0 15px 0', color: '#64748b', fontSize: '18px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+              <p style={{ margin: '0 0 10px 0', color: '#64748b', fontSize: '18px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
               
-              {/* BOAS VINDAS RAZÃO SOCIAL (Sem Parênteses) */}
+              {/* SAUDAÇÃO MENOR E CENTRALIZADA ABAIXO DO TÍTULO */}
               {licencaAtual && licencaAtual.plano !== 'admin' && razaoSocialLogada && (
-                <h3 style={{ color: '#ef4444', margin: '0', fontSize: '20px', fontWeight: 'bold' }}>Olá, {razaoSocialLogada}</h3>
+                <h3 style={{ color: '#ef4444', margin: '0', fontSize: '18px', fontWeight: 'bold' }}>Olá, {razaoSocialLogada}</h3>
               )}
             </div>
             
             <div className="upload-box">
               <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
-              <UploadCloud size={80} color="#004080" style={{ margin: '0 auto 25px', display: 'block' }} />
+              <UploadCloud size={80} color="#004080" className="nuvem-animada" />
               <h2 style={{ color: '#004080', margin: '0 0 10px 0', fontSize: '28px', fontWeight: '800' }}>Importe seu Arquivo SPED</h2>
               <p style={{ margin: 0, color: '#64748b', fontSize: '18px' }}>Arraste o arquivo .txt para cá ou clique para buscar</p>
             </div>
@@ -886,16 +542,14 @@ export default function ImportadorSped() {
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* DASHBOARD E MÓDULOS DE ANÁLISE */}
-      {/* ========================================================================= */}
+      {/* DASHBOARD PRINCIPAL (WIDESCREEN RESTAURADO) */}
       {faseAtual === 'dashboard' && (
         <div className="content-wrapper">
           
-          {/* TOPO DO DASHBOARD */}
-          <div className="no-print" style={{ marginBottom: '30px' }}>
+          <div className="no-print" style={{ marginBottom: '30px', position: 'relative' }}>
+            {/* SELO NO TOPO ESQUERDO DO DASHBOARD TAMBÉM */}
             {licencaAtual && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '15px', border: '1px solid #e2e8f0' }}>
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
                 <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>{formatarCNPJ(licencaAtual.identificador_cliente)}</span>
                 <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
@@ -903,11 +557,10 @@ export default function ImportadorSped() {
             )}
             <div>
               <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
-              <p style={{ margin: '5px 0 15px 0', color: '#64748b', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+              <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
             </div>
           </div>
 
-          {/* MENU DE ABAS */}
           <div className="no-print" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '30px' }}>
             <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
               <LayoutDashboard size={20} /> Visão Geral
@@ -923,22 +576,23 @@ export default function ImportadorSped() {
             </button>
           </div>
 
-          {/* HEADER DA EMPRESA */}
-          <div className="print-banner" style={{ display: 'flex', justifyContent: 'space-between', background: '#fff', border: '3px solid #004080', padding: '20px', borderRadius: '15px', marginBottom: '30px', alignItems: 'center' }}>
+          <div className="print-banner card-dash" style={{ display: 'flex', justifyContent: 'space-between', borderLeft: '10px solid #004080', padding: '25px', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: '#004080' }}>
               <Building2 size={40} />
               <div>
-                <h2 style={{ margin: 0, fontSize: '22px' }}>{dadosEmpresa.nome}</h2>
-                <span style={{ fontSize: '14px', opacity: 0.8, fontWeight: 'bold' }}>CNPJ: {formatarCNPJ(dadosEmpresa.cnpj)}</span>
+                <h2 style={{ margin: 0, fontSize: '24px', color: '#0f172a' }}>{dadosEmpresa.nome}</h2>
+                <span style={{ fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>CNPJ: {formatarCNPJ(dadosEmpresa.cnpj)}</span>
               </div>
             </div>
-            <div style={{ textAlign: 'right', color: '#004080' }}>
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', fontWeight: 'bold' }}><Calendar size={14}/> PERÍODO</span>
+            <div style={{ textAlign: 'right', color: '#0f172a' }}>
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}><Calendar size={14}/> PERÍODO</span>
               <strong style={{ display: 'block', fontSize: '18px' }}>{dadosEmpresa.periodo}</strong>
             </div>
           </div>
 
-          {/* CONTEÚDO DA ABA: HOME */}
+          {/* ========================================================================= */}
+          {/* ABA: HOME */}
+          {/* ========================================================================= */}
           {abaAtiva === 'home' && (
             <>
               <div className="grid-3">
@@ -947,7 +601,7 @@ export default function ImportadorSped() {
                   <div style={{ height: 250 }}>
                     <ResponsiveContainer>
                       <PieChart>
-                        <Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={5} label>
+                        <Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={5} label={renderCustomLabel}>
                           {dadosGraficoOperacoes.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i+1]}/>)}
                         </Pie>
                         <Tooltip formatter={v=>formatarMoeda(v)}/>
@@ -958,7 +612,7 @@ export default function ImportadorSped() {
                 </div>
 
                 <div className="card-dash">
-                  <h3 className="card-title">CFOPs Destaque</h3>
+                  <h3 className="card-title">Resumo por CFOP (Top 6)</h3>
                   <div style={{ maxHeight: 250, overflowY: 'auto', paddingRight: '10px' }}>
                     {listaCfops.saidas.slice(0,6).map((it,idx)=>(
                       <div key={idx} className="cfop-row">
@@ -971,18 +625,18 @@ export default function ImportadorSped() {
 
                 <div className="card-dash" style={{ background: '#004080', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center' }}>
                   <h3 style={{ margin: '0 0 20px 0', fontSize: '20px', borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '15px' }}>VAF Fiscal do Período</h3>
-                  <div style={{ fontSize: '36px', fontWeight: '900', marginBottom: '10px' }}>{formatarMoeda(dadosVaf.vafTotal)}</div>
+                  <div style={{ fontSize: '38px', fontWeight: '900', marginBottom: '10px' }}>{formatarMoeda(dadosVaf.vafTotal)}</div>
                   <p style={{ margin: 0, opacity: 0.8, fontSize: '14px', fontWeight: '500' }}>Valor Adicionado Fiscal Estimado</p>
                 </div>
               </div>
 
               <div className="grid-2">
                 <div className="card-dash">
-                  <h3 className="card-title">Apuração ICMS</h3>
+                  <h3 className="card-title">Apuração de ICMS</h3>
                   <div style={{ height: 300 }}>
                     <ResponsiveContainer>
                       <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
-                        <Pie data={dadosGraficoIcms} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label>
+                        <Pie data={dadosGraficoIcms} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
                           {dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}
                         </Pie>
                         <Tooltip formatter={v=>formatarMoeda(v)}/>
@@ -1003,14 +657,16 @@ export default function ImportadorSped() {
                         </div>
                         <span style={{ color: '#ef4444', fontWeight: '900', fontSize: '16px' }}>{formatarMoeda(g.valor)}</span>
                       </div>
-                    )) : <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: '80px', fontSize: '16px' }}>Nenhuma guia (E116) encontrada neste período.</p>}
+                    )) : <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: '80px', fontSize: '16px', fontWeight: 'bold' }}>Nenhuma guia (E116) encontrada neste período.</p>}
                   </div>
                 </div>
               </div>
             </>
           )}
 
-          {/* CONTEÚDO DA ABA: MÓDULO TRIBUTÁRIO */}
+          {/* ========================================================================= */}
+          {/* ABA: MÓDULO TRIBUTÁRIO */}
+          {/* ========================================================================= */}
           {abaAtiva === 'tributos' && (
             <>
               <div className="grid-4">
@@ -1032,17 +688,17 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* CARD DE ALÍQUOTA EFETIVA */}
-              <div className="card-dash" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '10px solid #004080', padding: '30px' }}>
+              {/* CARD DE ALÍQUOTA EFETIVA IDÊNTICO AO SEU PRINT */}
+              <div className="card-dash" style={{ background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '8px solid #004080', padding: '30px' }}>
                 <div>
-                  <h3 style={{ margin: '0 0 5px 0', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', color: '#0f172a' }}>
-                    <Calculator size={28} color="#004080"/> Alíquota Efetiva de Impostos
+                  <h3 style={{ margin: '0 0 5px 0', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', color: '#004080', fontWeight: '900' }}>
+                    <Calculator size={28}/> Alíquota Efetiva de Impostos
                   </h3>
-                  <p style={{ margin: 0, color: '#475569', fontSize: '15px' }}>
+                  <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
                     Percentual representativo da carga tributária a recolher com base no faturamento total analisado.
                   </p>
                 </div>
-                <div style={{ background: '#004080', color: '#fff', padding: '15px 40px', borderRadius: '15px', fontSize: '36px', fontWeight: '900', boxShadow: '0 10px 25px rgba(0,64,128,0.2)' }}>
+                <div style={{ background: '#004080', color: '#fff', padding: '15px 35px', borderRadius: '12px', fontSize: '32px', fontWeight: '900', boxShadow: '0 10px 25px rgba(0,64,128,0.2)' }}>
                   {aliquotaEfetiva}%
                 </div>
               </div>
@@ -1050,22 +706,22 @@ export default function ImportadorSped() {
               <div className="grid-2">
                 <div className="card-dash">
                   <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
-                    <div style={{ height: 280 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
+                    <div style={{ height: 300 }}>
                       <ResponsiveContainer>
-                        <PieChart>
-                          <Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={60} outerRadius={95} paddingAngle={4} label>
+                        <PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+                          <Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
                             {dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
                           </Pie>
                           <Tooltip formatter={v=>formatarMoeda(v)}/>
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div style={{maxHeight:'250px', overflowY:'auto', paddingRight: '10px'}}>
+                    <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
                       {dadosRoscaEntradas.map((it, idx)=>(
                         <div key={idx} className="leg-item" style={{ borderLeft: `5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}` }}>
-                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
-                          <strong style={{ fontSize: '13px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
+                          <strong style={{ fontSize: '14px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
                         </div>
                       ))}
                     </div>
@@ -1074,22 +730,22 @@ export default function ImportadorSped() {
 
                 <div className="card-dash">
                   <h3 className="card-title"><Activity size={24} /> Tributação das Saídas</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
-                    <div style={{ height: 280 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
+                    <div style={{ height: 300 }}>
                       <ResponsiveContainer>
-                        <PieChart>
-                          <Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={60} outerRadius={95} paddingAngle={4} label>
+                        <PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+                          <Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
                             {dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
                           </Pie>
                           <Tooltip formatter={v=>formatarMoeda(v)}/>
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    <div style={{maxHeight:'250px', overflowY:'auto', paddingRight: '10px'}}>
+                    <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
                       {dadosTributacaoSaida.map((it, idx)=>(
                         <div key={idx} className="leg-item" style={{ borderLeft: `5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}` }}>
-                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
-                          <strong style={{ fontSize: '13px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
+                          <strong style={{ fontSize: '14px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
                         </div>
                       ))}
                     </div>
@@ -1100,23 +756,22 @@ export default function ImportadorSped() {
               {/* GRÁFICO DE ESTADOS (AQUISIÇÕES) */}
               <div className="card-dash">
                 <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', alignItems: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', alignItems: 'center' }}>
                   <div style={{ height: 350 }}>
                     <ResponsiveContainer>
-                      <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                        <Pie data={dadosEstados} dataKey="value" innerRadius={80} outerRadius={120} paddingAngle={4} label>
+                      <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
+                        <Pie data={dadosEstados} dataKey="value" innerRadius={80} outerRadius={120} paddingAngle={4} label={renderCustomLabel}>
                           {dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}
                         </Pie>
                         <Tooltip formatter={v=>formatarMoeda(v)}/>
-                        <Legend/>
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div style={{maxHeight:'300px', overflowY:'auto', paddingRight: '10px'}}>
+                  <div style={{maxHeight:'320px', overflowY:'auto', paddingRight: '10px'}}>
                     {dadosEstados.map((it, idx)=>(
-                      <div key={idx} className="leg-item" style={{ borderLeft: `5px solid ${CORES_MAPA[idx%CORES_MAPA.length]}`, padding: '15px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#334155' }}>{it.name}</span>
-                        <strong style={{ fontSize: '16px', color: '#004080' }}>{formatarMoeda(it.value)}</strong>
+                      <div key={idx} className="leg-item" style={{ borderLeft: `6px solid ${CORES_MAPA[idx%CORES_MAPA.length]}`, padding: '15px' }}>
+                        <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#334155' }}>{it.name}</span>
+                        <strong style={{ fontSize: '18px', color: '#004080' }}>{formatarMoeda(it.value)}</strong>
                       </div>
                     ))}
                   </div>
@@ -1125,13 +780,15 @@ export default function ImportadorSped() {
             </>
           )}
 
-          {/* CONTEÚDO DA ABA: RISCOS FISCAIS */}
+          {/* ========================================================================= */}
+          {/* ABA: RISCOS FISCAIS */}
+          {/* ========================================================================= */}
           {abaAtiva === 'verificacao' && (
             <div className="card-dash">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
                 <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><AlertTriangle size={28} color="#f59e0b" /> Radar de Riscos Fiscais (Malha Fina)</h3>
                 <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}>
-                  <Printer size={18}/> Exportar Relatório em PDF
+                  <Printer size={18}/> Exportar em PDF
                 </button>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1167,13 +824,15 @@ export default function ImportadorSped() {
             </div>
           )}
 
-          {/* CONTEÚDO DA ABA: RELATÓRIO DE AUDITORIA */}
+          {/* ========================================================================= */}
+          {/* ABA: RELATÓRIO DE AUDITORIA */}
+          {/* ========================================================================= */}
           {abaAtiva === 'auditoria' && (
             <div className="card-dash">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
                 <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><Shield size={28} color="#10b981" /> Histórico de Intervenções (Auto-Cura)</h3>
                 <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}>
-                  <Printer size={18}/> Exportar Relatório em PDF
+                  <Printer size={18}/> Exportar em PDF
                 </button>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -1209,7 +868,23 @@ export default function ImportadorSped() {
           )}
 
           {/* BOTÕES DE AÇÃO GLOBAIS (RODAPÉ) */}
-          <BotoesAcao />
+          <div className="act-btns no-print" style={{ marginBottom: '50px' }}>
+            <button className="btn-dl" onClick={() => { 
+              const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); 
+              const l = document.createElement('a'); 
+              l.href = URL.createObjectURL(b); 
+              l.download = `AUDITTUS_Curado_${nomeOriginal}`; 
+              l.click(); 
+            }}>
+              <Download size={20} /> Baixar SPED Validado
+            </button>
+            <button className="btn-pr" onClick={() => window.print()}>
+              <Printer size={20} /> Salvar Relatório (PDF)
+            </button>
+            <button className="btn-nw" onClick={limparDados}>
+              <RefreshCw size={20} /> Nova Validação
+            </button>
+          </div>
 
         </div>
       )}
