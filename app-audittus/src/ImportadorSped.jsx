@@ -1,31 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, PieChart as PieChartIcon, Lock, Loader2, Zap, DownloadCloud } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, Lock, Loader2, Zap, DownloadCloud, Crown, User } from 'lucide-react';
 
 // ==========================================
-// CONFIGURAÇÕES DO SISTEMA E VERSÃO
+// 1. COMUNICAÇÃO COM A NUVEM (SUPABASE)
 // ==========================================
-const SENHA_ADMIN = "admin7474";
-const SENHA_TESTE = "teste3478";
-const TEMPO_TESTE_SEGUNDOS = 300; 
+import { createClient } from '@supabase/supabase-js';
+
+// COLE SUAS CHAVES DO SUPABASE EXATAMENTE AQUI DENTRO DAS ASPAS
+const SUPABASE_URL = "https://quzffabofgnzcfjwuwqm.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// ==========================================
+// 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
+// ==========================================
+const SENHA_ADMIN = "master7474"; // Senha de Bypass (Ignora a nuvem para você testar)
 const VERSAO_ATUAL = "1.1.22";
 
-export default function ImportadorSped() {
-  // O sistema agora inicia direto no LOGIN (sem tela dupla de splash)
-  const [faseAtual, setFaseAtual] = useState('login'); 
-  const [senhaInput, setSenhaInput] = useState('');
-  const [erroLogin, setErroLogin] = useState('');
-  const [tipoAcesso, setTipoAcesso] = useState(null); 
-  const [loadingText, setLoadingText] = useState('');
+// Gerador de Hardware ID seguro
+const obterOuGerarHardwareId = () => {
+  let hwId = localStorage.getItem('audittus_hw_id');
+  if (!hwId) {
+    hwId = 'hw_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
+    localStorage.setItem('audittus_hw_id', hwId);
+  }
+  return hwId;
+};
 
-  const tempoSalvo = localStorage.getItem('audittus_trial_time');
-  const tempoInicial = tempoSalvo !== null ? parseInt(tempoSalvo) : TEMPO_TESTE_SEGUNDOS;
-  const [tempoRestante, setTempoRestante] = useState(tempoInicial);
+export default function ImportadorSped() {
+  const [faseAtual, setFaseAtual] = useState('login'); 
+  const [senhaInput, setSenhaInput] = useState(''); // Agora guarda o CNPJ ou Email
+  const [erroLogin, setErroLogin] = useState('');
+  const [loadingText, setLoadingText] = useState('');
+  const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
+  
+  // Controle de Licença
+  const [licencaAtual, setLicencaAtual] = useState(null);
+  const [modalPremiumAberto, setModalPremiumAberto] = useState(false);
 
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
   
+  // Estados de Dados do SPED
   const [dadosGraficoIcms, setDadosGraficoIcms] = useState([]);
   const [ajustesICMS, setAjustesICMS] = useState([]);
   const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
@@ -42,95 +61,118 @@ export default function ImportadorSped() {
   const [dadosEstados, setDadosEstados] = useState([]);
   const [logAuditoria, setLogAuditoria] = useState([]);
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
-  const [dadosComparativoMensal, setDadosComparativoMensal] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
 
-  // ==========================================
-  // INTELIGÊNCIA DE ATUALIZAÇÃO (UX REAL COM ELECTRON)
-  // ==========================================
+  // Inteligência de Atualização (Electron)
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
 
   useEffect(() => {
     window.triggerUpdateModal = () => setUpdateModalOpen(true);
-
     const ignoredDateStr = localStorage.getItem('audittus_update_ignored_date');
     if (ignoredDateStr) {
-      const ignoredDate = new Date(ignoredDateStr);
-      const hoje = new Date();
-      const diffTime = Math.abs(hoje - ignoredDate);
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor(Math.abs(new Date() - new Date(ignoredDateStr)) / (1000 * 60 * 60 * 24));
       const restantes = 10 - diffDays;
-
-      if (restantes <= 0) {
-        setSistemaBloqueadoPorAtualizacao(true);
-      } else {
-        setDiasRestantesAtualizacao(restantes);
-      }
+      if (restantes <= 0) setSistemaBloqueadoPorAtualizacao(true);
+      else setDiasRestantesAtualizacao(restantes);
     }
-    
     return () => { delete window.triggerUpdateModal; };
   }, []);
 
   const handleAtualizarAgora = () => {
     localStorage.removeItem('audittus_update_ignored_date'); 
-    setDiasRestantesAtualizacao(null);
     setUpdateModalOpen(false);
-    
     setFaseAtual('loading');
     setLoadingText('Baixando nova versão do servidor... O sistema reiniciará em breve.');
-    
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      ipcRenderer.send('iniciar_atualizacao');
-    }
-  };
-
-  const handleMaisTarde = () => {
-    if (!localStorage.getItem('audittus_update_ignored_date')) {
-      localStorage.setItem('audittus_update_ignored_date', new Date().toISOString());
-      setDiasRestantesAtualizacao(10);
-    }
-    setUpdateModalOpen(false);
+    if (window.require) window.require('electron').ipcRenderer.send('iniciar_atualizacao');
   };
 
   // ==========================================
-  // CORES E MAPAS
+  // INTELIGÊNCIA DE LOGIN (B2B - CNPJ/EMAIL)
   // ==========================================
-  const CORES_ICMS = ['#004080', '#F59E0B']; 
-  const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
-  const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
-  const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'];
-  const CORES_ENTRADAS = ['#34d399', '#f87171', '#fbbf24', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#2dd4bf', '#94a3b8', '#818cf8', '#facc15'];
-
-  const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
-
-  const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
-
-  useEffect(() => {
-    let intervalo;
-    if (faseAtual === 'dashboard' && tipoAcesso === 'trial' && tempoRestante > 0) {
-      intervalo = setInterval(() => {
-        setTempoRestante(prev => {
-          const novoTempo = prev - 1;
-          localStorage.setItem('audittus_trial_time', novoTempo);
-          return novoTempo;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(intervalo);
-  }, [faseAtual, tipoAcesso, tempoRestante]);
-
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (senhaInput === SENHA_ADMIN) {
-      setTipoAcesso('admin'); setFaseAtual('upload'); setErroLogin('');
-    } else if (senhaInput === SENHA_TESTE) {
-      if (tempoRestante <= 0) { setErroLogin('O período de teste já foi esgotado neste computador.'); return; }
-      setTipoAcesso('trial'); setFaseAtual('upload'); setErroLogin('');
-    } else {
-      setErroLogin('Chave de acesso inválida.');
+    setErroLogin('');
+
+    const ident = senhaInput.trim();
+    if (!ident) {
+      setErroLogin('Por favor, informe seu E-mail ou CNPJ.');
+      return;
+    }
+
+    // Bypass de Admin para você testar sem precisar da nuvem
+    if (ident === SENHA_ADMIN) {
+      setLicencaAtual({ plano: 'admin' });
+      setFaseAtual('upload');
+      return;
+    }
+
+    // 1. Anti-Máquina Virtual
+    const mem = navigator.deviceMemory || 4;
+    const cores = navigator.hardwareConcurrency || 4;
+    if (mem < 2 || cores < 2) {
+      setErroLogin('Erro FATAL: Ambiente de execução gráfico não suportado (ERR_VM_DETECT).');
+      return;
+    }
+
+    setIsProcessandoLoading(true);
+    const hwId = obterOuGerarHardwareId();
+
+    try {
+      // 2. Busca a licença pelo CNPJ ou Email digitado
+      let { data: licenca, error } = await supabase
+        .from('licencas_clientes')
+        .select('*')
+        .eq('identificador_cliente', ident)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+         throw new Error("Erro de conexão com o Servidor de Licenças.");
+      }
+
+      // 3. Se o CNPJ não existe, cadastra ele automaticamente e dá 1 Trial
+      if (!licenca) {
+        const novaLicenca = {
+          identificador_cliente: ident,
+          hardware_id: hwId,
+          plano: 'trial',
+          analises_gratuitas_restantes: 1,
+          limite_cnpjs: 1,
+          cnpjs_vinculados: []
+        };
+        const { data: criada, error: errInsert } = await supabase.from('licencas_clientes').insert([novaLicenca]).select().single();
+        if (errInsert) throw errInsert;
+        licenca = criada;
+      } else {
+        // 4. Se a licença existe, vamos checar se a máquina bate com a licença
+        if (!licenca.hardware_id) {
+          // É o primeiro login deste cliente que você cadastrou na mão? Amarra a máquina nele.
+          await supabase.from('licencas_clientes').update({ hardware_id: hwId }).eq('id', licenca.id);
+          licenca.hardware_id = hwId;
+        } else if (licenca.hardware_id !== hwId) {
+          // Cliente tentando piratear: A máquina atual é diferente da máquina cadastrada!
+          setErroLogin('Este CNPJ/E-mail já está vinculado a outro computador. Contate o suporte técnico.');
+          setIsProcessandoLoading(false);
+          return;
+        }
+      }
+
+      // 5. Checagem de Guilhotina (Bloqueio Remoto por Falta de Pagamento)
+      if (licenca.status_bloqueio) {
+        setIsProcessandoLoading(false);
+        setErroLogin('O acesso desta licença está bloqueado no Servidor. Regularize sua situação.');
+        return;
+      }
+
+      setLicencaAtual(licenca);
+      setFaseAtual('upload');
+      
+    } catch (err) {
+      console.error(err);
+      setErroLogin('Erro de rede: Verifique sua conexão com a internet para validar a licença.');
+    } finally {
+      setIsProcessandoLoading(false);
     }
   };
 
@@ -141,25 +183,72 @@ export default function ImportadorSped() {
     setListaCfops({ entradas: [], saidas: [] }); setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
     setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
-    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setDadosComparativoMensal([]);
-    setRiscosFiscais([]);
+    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setRiscosFiscais([]);
   };
 
-  const processarArquivo = (event) => {
+  const processarArquivo = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-    setNomeOriginal(file.name);
-    setFaseAtual('loading'); 
     
-    const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas e Erros de CST...", "Aplicando Auto-Cura Tributária...", "Gerando painel de Business Intelligence..."];
-    let step = 0; setLoadingText(mensagens[0]);
-    const inter = setInterval(() => { step++; if(step < mensagens.length) setLoadingText(mensagens[step]); }, 600);
-
+    setFaseAtual('loading'); 
+    setLoadingText("Verificando integridade e licenciamento...");
+    
     const reader = new FileReader();
     reader.readAsText(file, 'windows-1252');
-    reader.onload = (e) => {
+    
+    reader.onload = async (e) => {
       const conteudoArquivo = e.target.result;
       const linhasOriginais = conteudoArquivo.split(/\r?\n/);
+      
+      // ==========================================
+      // INTELIGÊNCIA DE CNPJ E LICENÇA
+      // ==========================================
+      let cnpjArquivo = "";
+      for (let i = 0; i < linhasOriginais.length; i++) {
+        if (linhasOriginais[i].startsWith('|0000|')) {
+          cnpjArquivo = linhasOriginais[i].split('|')[7];
+          break;
+        }
+      }
+
+      if (licencaAtual && licencaAtual.plano !== 'admin') {
+        // Validação Trial (Cota)
+        if (licencaAtual.plano === 'trial') {
+          if (licencaAtual.analises_gratuitas_restantes <= 0) {
+            setFaseAtual('upload');
+            setModalPremiumAberto(true); // Cota estourou, levanta a Guilhotina!
+            return;
+          }
+          // Consume a 1ª e única cota
+          await supabase.from('licencas_clientes').update({ analises_gratuitas_restantes: 0 }).eq('id', licencaAtual.id);
+          setLicencaAtual({...licencaAtual, analises_gratuitas_restantes: 0});
+        } 
+        // Validação Premium (Limite de CNPJs)
+        else if (licencaAtual.plano === 'premium') {
+          let listaCnpjs = licencaAtual.cnpjs_vinculados || [];
+          if (!listaCnpjs.includes(cnpjArquivo)) {
+            if (listaCnpjs.length >= licencaAtual.limite_cnpjs) {
+              setFaseAtual('upload');
+              alert(`⛔ Limite de Empresas Atingido!\n\nSeu plano atual permite auditar ${licencaAtual.limite_cnpjs} CNPJ(s).\nO CNPJ do arquivo (${cnpjArquivo}) não faz parte da sua cota. Faça um upgrade no painel.`);
+              return;
+            } else {
+              // Salva o novo CNPJ na vaga livre do cliente
+              listaCnpjs.push(cnpjArquivo);
+              await supabase.from('licencas_clientes').update({ cnpjs_vinculados: listaCnpjs }).eq('id', licencaAtual.id);
+              setLicencaAtual({...licencaAtual, cnpjs_vinculados: listaCnpjs});
+            }
+          }
+        }
+      }
+
+      // ==========================================
+      // PROCESSAMENTO FISCAL (MOTOR SPED)
+      // ==========================================
+      setNomeOriginal(file.name);
+      const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas...", "Aplicando Auto-Cura Tributária...", "Gerando painel Business Intelligence..."];
+      let step = 0; setLoadingText(mensagens[0]);
+      const inter = setInterval(() => { step++; if(step < mensagens.length) setLoadingText(mensagens[step]); }, 600);
+
       let linhasProcessadas = [];
       let contC191 = 0, contC173 = 0, contTextos = 0, logTemp = [], riscosTemp = [], numLinha = 0;
       let numDocAtual = 'S/N'; 
@@ -176,12 +265,7 @@ export default function ImportadorSped() {
         if (cols[1] === 'C100' || cols[1] === 'D100') {
            numDocAtual = cols[8] || 'S/N';
            if (cols[1] === 'C100') {
-               const indOper = cols[2]; 
-               const indEmit = cols[3]; 
-               const mod = cols[5]; 
-               const serie = cols[7];
-               const numNF = parseInt(cols[8], 10);
-               
+               const indOper = cols[2]; const indEmit = cols[3]; const mod = cols[5]; const serie = cols[7]; const numNF = parseInt(cols[8], 10);
                if (indOper === '1' && indEmit === '0' && (mod === '55' || mod === '65') && !isNaN(numNF)) {
                    const key = `${mod}-${serie}`;
                    if (!notasPorSerie[key]) notasPorSerie[key] = [];
@@ -193,9 +277,7 @@ export default function ImportadorSped() {
         if (cols[1] === '0200') { mapNcm[cols[2]] = cols[8]; }
 
         if (cols[1] === 'C170') {
-            const codItem = cols[3];
-            const cst = cols[10];
-            const cfop = cols[11];
+            const codItem = cols[3]; const cst = cols[10]; const cfop = cols[11];
             if (cfop === '5405' && cst && cst.includes('000')) {
                 riscosTemp.push({ tipo: 'Tributação em Duplicidade', registro: `C170 (NF: ${numDocAtual})`, cor: '#ef4444', detalhe: `Item cód. ${codItem} usa CFOP de ST (5405) combinado com CST Tributado Integralmente (${cst}). A empresa está pagando ICMS duas vezes.` });
             }
@@ -210,8 +292,7 @@ export default function ImportadorSped() {
                 const vlIcms = parseFloat(cols[7]?.replace(',', '.')) || 0;
                 if (vlIcms > 0) {
                     const vlIcmsOriginal = cols[7];
-                    cols[6] = '0,00'; 
-                    cols[7] = '0,00'; 
+                    cols[6] = '0,00'; cols[7] = '0,00'; 
                     linha = cols.join('|');
                     logTemp.push({ linha: numLinha, registro: `${cols[1]} (NF: ${numDocAtual})`, acao: 'CORRIGIDO PELO ROBÔ', detalhe: `CFOP ${cf} (Uso/Consumo) com imposto. Sistema zerou R$ ${vlIcmsOriginal} de crédito indevido para evitar autuação.` });
                 }
@@ -224,7 +305,6 @@ export default function ImportadorSped() {
             logTemp.push({ linha: numLinha, registro: `${cols[1]} (NF: ${numDocAtual})`, acao: 'Termos Limpos', detalhe: `Removido: ${matches.join(', ')}` }); 
             linha = linha.replace(textosParaRemover, ''); 
         }
-
         if (linha.trim() !== '') linhasProcessadas.push(linha);
       });
 
@@ -238,14 +318,8 @@ export default function ImportadorSped() {
               }
           }
           if (buracos.length > 0) {
-              const mod = key.split('-')[0];
-              const serie = key.split('-')[1];
-              riscosTemp.push({ 
-                  tipo: 'NUMERAÇÃO FALTANTE', 
-                  registro: `Mod ${mod} - Série ${serie}`, 
-                  cor: '#f59e0b', 
-                  detalhe: `Faltam as Notas Fiscais: ${buracos.join(', ')}. Verificar Escrituração de Notas Canceladas ou Inutilizadas, para não Haver Notificações Futuras.` 
-              });
+              const mod = key.split('-')[0]; const serie = key.split('-')[1];
+              riscosTemp.push({ tipo: 'NUMERAÇÃO FALTANTE', registro: `Mod ${mod} - Série ${serie}`, cor: '#f59e0b', detalhe: `Faltam as Notas Fiscais: ${buracos.join(', ')}.` });
           }
       });
 
@@ -259,29 +333,23 @@ export default function ImportadorSped() {
       let mCfopEnt = {}, mCfopSai = {}, listaAj = [], listaG = [], sCredFinal = 0, iRecFinal = 0;
       let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = ''; 
       let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
-      
-      let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Desagregação de Carnes': 0, 'Simples Remessa': 0, 'Transporte': 0, 'Energia Elétrica': 0, 'Retorno Imob.': 0, 'Outras Entradas': 0 };
+      let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Ativo Imobilizado': 0, 'Bonificações': 0, 'Combustíveis': 0, 'Outras Entradas': 0 };
 
       linhasProcessadas.forEach(linha => {
         const colunas = linha.split('|');
         if (colunas[1] === '0000') {
-          const dtIni = colunas[4] ? colunas[4].trim() : ''; 
-          const dtFin = colunas[5] ? colunas[5].trim() : '';
+          const dtIni = colunas[4] ? colunas[4].trim() : ''; const dtFin = colunas[5] ? colunas[5].trim() : '';
           let pFormatado = 'Período Indefinido';
-          if (dtIni && dtFin) {
-             pFormatado = (dtIni.length === 8 && dtFin.length === 8) ? `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}` : `${dtIni} a ${dtFin}`;
-          } else if (dtIni) { pFormatado = dtIni; } else if (dtFin) { pFormatado = dtFin; }
+          if (dtIni && dtFin) pFormatado = `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}`;
           let c = colunas[7] || '';
-          const cnpjFormatado = c.length === 14 ? `${c.substring(0,2)}.${c.substring(2,5)}.${c.substring(5,8)}/${c.substring(8,12)}-${c.substring(12,14)}` : c;
-          setDadosEmpresa({ nome: colunas[6] || 'Razão Social Não Identificada', cnpj: cnpjFormatado, periodo: pFormatado });
+          setDadosEmpresa({ nome: colunas[6] || 'Não Identificada', cnpj: c.length === 14 ? `${c.substring(0,2)}.${c.substring(2,5)}.${c.substring(5,8)}/${c.substring(8,12)}-${c.substring(12,14)}` : c, periodo: pFormatado });
         }
         
         if (colunas[1] === '0150') { mPart[colunas[2]] = colunas[3]; mPartEst[colunas[2]] = (colunas[4] && colunas[4] !== '01058') ? 'Exterior' : (colunas[8] ? (mapUfIbge[colunas[8].substring(0, 2)] || 'Outros') : 'N/A'); }
         if (colunas[1] === '0200') mProd[colunas[2]] = colunas[3]; 
         
         if (colunas[1] === 'C100') { 
-            opAt = colunas[2]; 
-            const vlD = parseFloat(colunas[12]?.replace(',', '.')) || 0; 
+            opAt = colunas[2]; const vlD = parseFloat(colunas[12]?.replace(',', '.')) || 0; 
             if (opAt === '0') { tEnt += vlD; if (colunas[4]) { cForn[colunas[4]] = (cForn[colunas[4]] || 0) + vlD; cEstObj[mPartEst[colunas[4]]] = (cEstObj[mPartEst[colunas[4]]] || 0) + vlD; } } else if (opAt === '1') tSai += vlD; 
         }
         
@@ -296,14 +364,6 @@ export default function ImportadorSped() {
             if (['1101','1102','2101','2102','3101','3102'].includes(cf)) vlIc > 0 ? dEnt['Revenda/Ind. - Tributadas'] += vlO : dEnt['Revenda/Ind. - Isentas'] += vlO;
             else if (['1401','1403','2401','2403'].includes(cf)) dEnt['Substituição Tributária (ST)'] += vlO;
             else if (['1556','2556'].includes(cf)) dEnt['Uso e Consumo'] += vlO;
-            else if (['1406','1551','2551'].includes(cf)) dEnt['Ativo Imobilizado'] += vlO;
-            else if (['1910','2910'].includes(cf)) dEnt['Bonificações'] += vlO;
-            else if (['1653','2653'].includes(cf)) dEnt['Combustíveis'] += vlO;
-            else if (['1926','2926'].includes(cf)) dEnt['Desagregação de Carnes'] += vlO;
-            else if (['1922','2922'].includes(cf)) dEnt['Simples Remessa'] += vlO;
-            else if (['1252','1253','2252','2253'].includes(cf)) dEnt['Energia Elétrica'] += vlO;
-            else if (['1554','2554'].includes(cf)) dEnt['Retorno Imob.'] += vlO;
-            else if (cf.substring(1,3) === '35') dEnt['Transporte'] += vlO;
             else dEnt['Outras Entradas'] += vlO;
           } else {
             mCfopSai[cf] = (mCfopSai[cf] || 0) + vlO;
@@ -317,8 +377,8 @@ export default function ImportadorSped() {
         }
         
         if (colunas[1] === 'E110') { totalDeb += parseFloat(colunas[2].replace(',', '.')) || 0; totalCred += parseFloat(colunas[6].replace(',', '.')) || 0; iRecFinal = parseFloat(colunas[13].replace(',', '.')) || 0; sCredFinal = parseFloat(colunas[14].replace(',', '.')) || 0; }
-        if (colunas[1] === 'E111') listaAj.push({ codigo: colunas[2], descricao: colunas[2] === 'RO020003' ? 'ICMS Antecipado' : `Ajuste: ${colunas[2]}`, valor: parseFloat(colunas[4].replace(',', '.')) || 0 });
-        if (colunas[1] === 'E116') listaG.push({ codigo: colunas[5] || colunas[2], valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: colunas[4] && colunas[4].length === 8 ? `${colunas[4].substring(0,2)}/${colunas[4].substring(2,4)}/${colunas[4].substring(4,8)}` : colunas[4] });
+        if (colunas[1] === 'E111') listaAj.push({ codigo: colunas[2], descricao: `Ajuste: ${colunas[2]}`, valor: parseFloat(colunas[4].replace(',', '.')) || 0 });
+        if (colunas[1] === 'E116') listaG.push({ codigo: colunas[5] || colunas[2], valor: parseFloat(colunas[3].replace(',', '.')) || 0, vencimento: colunas[4] });
       });
 
       setListaCfops({ entradas: Object.keys(mCfopEnt).map(k => ({ cfop: k, valor: mCfopEnt[k] })).sort((a,b) => b.valor - a.valor), saidas: Object.keys(mCfopSai).map(k => ({ cfop: k, valor: mCfopSai[k] })).sort((a,b) => b.valor - a.valor) });
@@ -334,10 +394,6 @@ export default function ImportadorSped() {
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setAjustesICMS(listaAj); setGuiasE116(listaG);
 
-      setDadosComparativoMensal([
-        { name: 'Vendas', value: vafSai, fill: '#10b981' }, { name: 'Compras', value: vafEnt, fill: '#3b82f6' }, { name: 'Dev. Vendas', value: vafDV, fill: '#ef4444' }, { name: 'Dev. Compras', value: vafDC, fill: '#f59e0b' }
-      ].filter(item => item.value > 0)); 
-
       setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: (contC191 > 0 || contC173 > 0) ? 3 : 0 });
       setLogAuditoria(logTemp); 
       setRiscosFiscais(riscosTemp);
@@ -347,6 +403,14 @@ export default function ImportadorSped() {
     };
   };
 
+  const CORES_ICMS = ['#004080', '#F59E0B']; 
+  const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
+  const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
+  const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'];
+  const CORES_ENTRADAS = ['#34d399', '#f87171', '#fbbf24', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#2dd4bf'];
+  const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
+  const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+
   const BotoesAcao = () => (
     <div className="no-print act-btns">
         <button className="btn-dl" onClick={() => { const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Curado_${nomeOriginal}`; l.click(); }}><Download size={20} /> Baixar SPED Validado</button>
@@ -355,18 +419,8 @@ export default function ImportadorSped() {
     </div>
   );
 
-  const formatarTempo = (segundos) => {
-    const min = Math.floor(segundos / 60);
-    const seg = segundos % 60;
-    return `${min}:${seg.toString().padStart(2, '0')}`;
-  };
-
-  const temVendas = topProdutos.vendas && topProdutos.vendas.length > 0;
-  const tituloTopProdutos = temVendas ? "Top 10 Produtos (Vendas)" : "Top 10 Produtos (Compras)";
-  const listaExibicaoProdutos = temVendas ? topProdutos.vendas : topProdutos.compras;
-
   // ------------------------------------------------------------------------------------------------------------------
-  // TELA DE BLOQUEIO DE SISTEMA (PÓS MAIS TARDE > 10 DIAS)
+  // BLOQUEIOS (ATUALIZAÇÃO E MODAL DE UPGRADE)
   // ------------------------------------------------------------------------------------------------------------------
   if (sistemaBloqueadoPorAtualizacao) {
     return (
@@ -374,20 +428,15 @@ export default function ImportadorSped() {
         <div className="login-box" style={{ maxWidth: '500px', backgroundColor: '#fff', borderTop: '8px solid #ef4444' }}>
           <AlertTriangle size={80} color="#ef4444" style={{ margin: '0 auto 20px auto' }} />
           <h1 className="login-title" style={{ color: '#ef4444' }}>Sistema Obsoleto</h1>
-          <p className="login-sub" style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginTop: '15px' }}>
-            O prazo de carência para a atualização expirou. O uso desta versão foi bloqueado por motivos de segurança e alterações na legislação fiscal.<br/><br/>
-            É obrigatório instalar a nova atualização para continuar utilizando o sistema.
-          </p>
-          <button onClick={handleAtualizarAgora} className="login-btn" style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444' }}>
-            <DownloadCloud size={18} /> Forçar Atualização Agora
-          </button>
+          <p className="login-sub" style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginTop: '15px' }}>O prazo de carência para a atualização expirou. É obrigatório instalar a nova atualização para continuar.</p>
+          <button onClick={handleAtualizarAgora} className="login-btn" style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444' }}><DownloadCloud size={18} /> Forçar Atualização Agora</button>
         </div>
       </div>
     );
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // FASE 1 (NOVA): TELA DE LOGIN IMEDIATA (Sem segunda tela de carregamento)
+  // TELA 1: LOGIN (B2B)
   // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'login') {
     return (
@@ -398,11 +447,15 @@ export default function ImportadorSped() {
           <p className="login-sub">Inteligência Fiscal e Auditoria Digital</p>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
-              <input type="password" placeholder="Insira sua Chave de Acesso" value={senhaInput} onChange={(e) => setSenhaInput(e.target.value)} className="login-input" />
+              <input type="text" placeholder="E-mail ou CNPJ da Licença" value={senhaInput} onChange={(e) => setSenhaInput(e.target.value)} className="login-input" />
               {erroLogin && <span className="login-err">{erroLogin}</span>}
             </div>
-            <button type="submit" className="login-btn"><Lock size={18} /> Acessar Sistema</button>
+            <button type="submit" className="login-btn" disabled={isProcessandoLoading}>
+              {isProcessandoLoading ? <Loader2 size={18} className="spin" /> : <Lock size={18} />} 
+              {isProcessandoLoading ? 'Conectando ao Servidor...' : 'Acessar Sistema'}
+            </button>
           </form>
+          <p style={{ marginTop: '20px', fontSize: '12px', color: '#94a3b8' }}>Se for o seu primeiro acesso, 1 análise será liberada gratuitamente.</p>
         </div>
         <style>{`
           body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f0f4f8; font-family: system-ui, sans-serif; }
@@ -412,174 +465,119 @@ export default function ImportadorSped() {
           .login-sub { margin: 0 0 30px 0; color: #64748b; font-size: 14px; }
           .login-input { width: 100%; box-sizing: border-box; padding: 15px; border-radius: 12px; border: 2px solid #cbd5e1; font-size: 16px; outline: none; text-align: center; transition: 0.3s; }
           .login-input:focus { border-color: #004080; }
-          .login-err { color: #ef4444; font-size: 12px; display: block; margin-top: 8px; font-weight: bold; }
+          .login-err { color: #ef4444; font-size: 13px; display: block; margin-top: 8px; font-weight: bold; }
           .login-btn { padding: 15px; background: #004080; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s; }
-          .login-btn:hover { background: #003366; }
+          .login-btn:hover:not(:disabled) { background: #003366; }
+          .login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+          .spin { animation: spin 2s linear infinite; }
+          @keyframes spin { 100% { transform: rotate(360deg); } }
         `}</style>
       </div>
     );
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // FASE 2: TELA DE LOADING (A TELA BRANCA E LIMPA QUANDO IMPORTA O ARQUIVO)
+  // TELA 2: LOADING GERAL
   // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'loading') {
     return (
       <div className="fullscreen-center">
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <Loader2 size={64} color="#004080" style={{ animation: 'spin 2s linear infinite' }} />
-          <h2 style={{ color: '#004080', margin: 0, fontSize: '24px' }}>Processando SPED...</h2>
+          <Loader2 size={64} color="#004080" className="spin" />
+          <h2 style={{ color: '#004080', margin: 0, fontSize: '24px' }}>Processando...</h2>
           <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600' }}>{loadingText}</p>
-          <style>{`
-            body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f0f4f8; font-family: system-ui, sans-serif; }
-            .fullscreen-center { display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; }
-            @keyframes spin { 100% { transform: rotate(360deg); } }
-          `}</style>
         </div>
       </div>
     );
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // DASHBOARD PRINCIPAL E MODAIS
+  // TELA 3: DASHBOARD & UPLOAD
   // ------------------------------------------------------------------------------------------------------------------
   return (
     <div className="main-container">
       <style>
         {`
-          /* BASE: Ocupar 100% da tela sempre */
           body, html { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; background-color: #f0f4f8 !important; }
-          #root { width: 100% !important; min-height: 100vh !important; display: flex !important; flex-direction: column !important; max-width: none !important; padding: 0 !important; margin: 0 !important; }
-          
+          #root { width: 100% !important; min-height: 100vh !important; display: flex !important; flex-direction: column !important; padding: 0 !important; margin: 0 !important; }
           .main-container { flex: 1; width: 100%; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; }
           .content-wrapper { width: 100%; max-width: 1800px; padding: 30px; margin: 0 auto; display: flex; flex-direction: column; }
-
-          /* O LAYOUT DE OURO: Grid 3 na Esquerda + Barra na Direita */
           .dashboard-layout { display: flex; gap: 30px; align-items: flex-start; width: 100%; }
           .dash-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 25px; }
           .dash-sidebar { width: 320px; flex-shrink: 0; position: sticky; top: 30px; }
-
-          /* GRIDS ESPECÍFICOS PARA OS CARDS MANTENDO A PROPORÇÃO DA IMAGEM */
           .grid-3 { display: grid; grid-template-columns: 1fr 1.2fr 1.2fr; gap: 25px; }
           .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
           .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
-          
-          /* COMPONENTES E UPLOAD PREMIUM */
           .card-dash { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; min-width: 0; }
           .card-title { color: #004080; border-bottom: 2px solid #f0f4f8; padding-bottom: 15px; margin: 0 0 20px 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
-          
-          .upload-box { width: 100%; max-width: 800px; margin: 0 auto; padding: 80px 40px; background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 24px; border: 3px dashed #cbd5e1; text-align: center; position: relative; transition: all 0.3s ease; box-shadow: 0 20px 40px rgba(0,0,0,0.03); }
+          .upload-box { width: 100%; max-width: 800px; margin: 0 auto; padding: 80px 40px; background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 24px; border: 3px dashed #cbd5e1; text-align: center; position: relative; transition: all 0.3s; }
           .upload-box:hover { border-color: #004080; transform: translateY(-5px); box-shadow: 0 25px 50px rgba(0,64,128,0.1); }
-          .upload-icon { animation: float 3s ease-in-out infinite; opacity: 0.9; }
-          @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
-
-          /* ESTRUTURAS DE TEXTO SEGURAS (NUNCA CORTA VALORES R$) */
           .cfop-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #f0f4f8; font-size: 14px; gap: 10px; }
           .cfop-lbl { font-weight: bold; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           .cfop-val { color: #10b981; font-weight: 600; white-space: nowrap; }
           .cfop-val-s { color: #4f46e5; font-weight: 600; white-space: nowrap; }
-          
           .leg-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #f8fafc; border-radius: 12px; margin-bottom: 8px; }
-          .leg-lbl { font-size: 13px; color: #555; font-weight: 600; line-height: 1.2; }
-          .leg-val { font-size: 14px; color: #004080; margin-left: 10px; font-weight: bold; white-space: nowrap; }
-
-          /* PROTEÇÃO GRÁFICA CONTRA CORTES DA BIBLIOTECA (ALIQUOTAS PEQUENAS) */
-          .recharts-wrapper { overflow: visible !important; }
+          .leg-lbl { font-size: 13px; color: #555; font-weight: 600; }
+          .leg-val { font-size: 14px; color: #004080; font-weight: bold; white-space: nowrap; }
           .chart-container { height: 300px; width: 100%; flex-grow: 1; }
-
-          /* BOTOES */
           .act-btns { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; padding: 20px; background: #fff; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-          .act-btns button { padding: 15px 25px; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
+          .act-btns button { padding: 15px 25px; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; }
           .btn-dl { background: #004080; } .btn-pr { background: #10b981; } .btn-nw { background: #ef4444; }
-          .act-btns button:hover { opacity: 0.8; }
-
-          /* SCROLLBARS */
-          ::-webkit-scrollbar { width: 8px; height: 8px; }
-          ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
-          ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-
-          /* RESPONSIVO DE TELA */
-          @media (max-width: 1400px) { .grid-3 { grid-template-columns: 1fr 1fr; } .grid-4 { grid-template-columns: 1fr 1fr; } }
-          @media (max-width: 1024px) { .dashboard-layout { flex-direction: column; } .dash-sidebar { width: 100%; position: static; } }
-          @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
-
-          /* ================================================================================== */
-          /* MODO DE IMPRESSÃO PDF: ISOLADO E 100% BLINDADO SEM QUEBRAR O LAYOUT DE TELA */
-          /* ================================================================================== */
-          @media print {
-            @page { size: A4 portrait; margin: 15mm; } 
-            .no-print, button { display: none !important; }
-            
-            body, html, .main-container, .content-wrapper { font-size: 14pt !important; background: #fff !important; margin: 0 !important; padding: 0 !important; width: 100% !important; display: block !important; }
-            ::-webkit-scrollbar { display: none; }
-
-            h1 { font-size: 36pt !important; margin-bottom: 10px !important; }
-            h2 { font-size: 28pt !important; margin-bottom: 15px !important; }
-            h3 { font-size: 22pt !important; margin-bottom: 20px !important; border-bottom-width: 3px !important; }
-            
-            /* Força a quebra de todas as colunas para o PDF */
-            .dashboard-layout, .dash-main, .grid-3, .grid-2, .grid-4 { display: block !important; width: 100% !important; margin: 0 !important; }
-            
-            /* Cartões com Largura Fixa e Altura Dinâmica para não cortar listas */
-            .card-dash, .dash-sidebar { width: 100% !important; max-width: 750px !important; height: auto !important; min-height: 0 !important; margin: 0 auto 30px auto !important; page-break-inside: avoid !important; box-shadow: none !important; border: 2px solid #cbd5e1 !important; padding: 35px !important; box-sizing: border-box !important; }
-            
-            .print-banner { width: 100% !important; max-width: 750px !important; margin: 0 auto 25px auto !important; border: 3px solid #004080 !important; background: #fff !important; color: #004080 !important; padding: 20px !important; box-sizing: border-box !important; display: flex !important; justify-content: space-between !important; }
-            
-            /* Remove limitações de scroll nas listas de impressão */
-            div[style*="overflowY: auto"], div[style*="maxHeight: 250px"], div[style*="maxHeight: 280px"], div[style*="maxHeight: 300px"], div[style*="maxHeight: 350px"] { max-height: none !important; overflow: visible !important; height: auto !important; }
-            
-            /* Proteção máxima dos Gráficos no Papel */
-            .chart-container { height: 400px !important; width: 100% !important; display: block !important; margin: 0 auto !important; page-break-inside: avoid !important; }
-            .recharts-wrapper, .recharts-surface { overflow: visible !important; margin: 0 auto !important; }
-          }
+          ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+          @media print { .no-print { display: none !important; } .dashboard-layout, .dash-main, .grid-3, .grid-2, .grid-4 { display: block !important; width: 100% !important; margin: 0 !important; } .card-dash, .dash-sidebar { width: 100% !important; max-width: 750px !important; margin: 0 auto 30px auto !important; page-break-inside: avoid !important; box-shadow: none !important; border: 2px solid #cbd5e1 !important; } .chart-container { height: 400px !important; } }
         `}
       </style>
 
-      {/* MODAL DE ATUALIZAÇÃO (ACIONADO PELO ELECTRON/SISTEMA) */}
-      {updateModalOpen && (
-        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(5px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', padding: '40px', borderRadius: '20px', width: '100%', maxWidth: '450px', textAlign: 'center', boxShadow: '0 25px 50px rgba(0,0,0,0.2)' }}>
-            <DownloadCloud size={64} color="#0ea5e9" style={{ margin: '0 auto 20px auto' }} />
-            <h2 style={{ margin: '0 0 10px 0', color: '#1e293b', fontSize: '26px', fontWeight: '800' }}>Nova Atualização Disponível!</h2>
-            <p style={{ color: '#64748b', fontSize: '16px', lineHeight: '1.6', marginBottom: '30px' }}>Otimizações fiscais e novas regras da Receita foram adicionadas. Deseja atualizar o sistema agora?</p>
-            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
-              <button onClick={handleMaisTarde} style={{ padding: '12px 20px', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', flex: 1, transition: '0.3s' }}>Mais Tarde</button>
-              <button onClick={handleAtualizarAgora} style={{ padding: '12px 20px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', flex: 1, transition: '0.3s', boxShadow: '0 4px 15px rgba(14,165,233,0.3)' }}>Atualizar Agora</button>
+      {/* MODAL DE UPGRADE / LIMITE DE COTA */}
+      {modalPremiumAberto && (
+        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15,23,42,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', width: '100%', maxWidth: '550px', textAlign: 'center' }}>
+            <Crown size={70} color="#f59e0b" style={{ margin: '0 auto 20px auto' }} />
+            <h2 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '28px', fontWeight: '900' }}>Cota Gratuita Esgotada!</h2>
+            <p style={{ color: '#475569', fontSize: '18px', lineHeight: '1.6', marginBottom: '15px' }}>Você utilizou sua Análise Gratuita e pôde ver o poder da Auto-Cura do AUDITTUS. Para continuar processando novos SPEDs, faça um upgrade para o Plano Premium.</p>
+            
+            <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '30px' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>Sua Licença Vinculada:</p>
+              <strong style={{ fontSize: '18px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '5px' }}><User size={18}/> {licencaAtual?.identificador_cliente}</strong>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              <button style={{ padding: '18px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}><Crown size={20} /> Assinar AUDITTUS Premium</button>
+              <button onClick={() => setModalPremiumAberto(false)} style={{ padding: '15px', background: 'transparent', color: '#64748b', border: 'none', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}>Voltar</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* BANNER AVISO DE ATUALIZAÇÃO (APARECE SE CLICAR EM MAIS TARDE) */}
+      {/* AVISOS DE ATUALIZAÇÃO */}
       {diasRestantesAtualizacao !== null && (
-        <div className="no-print" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#fff', padding: '12px 20px', textAlign: 'center', fontWeight: 'bold', fontSize: '15px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', zIndex: 50 }}>
-          <AlertTriangle size={20} />
-          ATENÇÃO: Uma nova atualização está pendente. O sistema será BLOQUEADO em {diasRestantesAtualizacao} dia(s). 
-          <button onClick={() => setUpdateModalOpen(true)} style={{ marginLeft: '15px', padding: '5px 15px', background: '#fff', color: '#f59e0b', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer' }}>Atualizar Agora</button>
+        <div className="no-print" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#fff', padding: '12px', textAlign: 'center', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+          <AlertTriangle size={20} /> ATENÇÃO: O sistema será BLOQUEADO em {diasRestantesAtualizacao} dia(s) se não for atualizado.
         </div>
       )}
 
-      {/* CRONÔMETRO FLUTUANTE DE TESTE */}
-      {tipoAcesso === 'trial' && tempoRestante > 0 && (
-        <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', backgroundColor: tempoRestante < 60 ? '#ef4444' : '#f59e0b', color: '#fff', padding: '10px 20px', borderRadius: '30px', fontWeight: 'bold', zIndex: 9000, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Calendar size={18} /> Modo Teste: {formatarTempo(tempoRestante)}
-        </div>
-      )}
-
-      <div className="content-wrapper" style={{ filter: tempoRestante <= 0 && tipoAcesso === 'trial' ? 'blur(5px)' : 'none', transition: 'filter 0.5s' }}>
-        
-        <div className="no-print" style={{ textAlign: 'center', marginBottom: '30px', position: 'relative' }}>
-          <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
-          <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+      <div className="content-wrapper">
+        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+          <div>
+            <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
+            <p style={{ margin: '5px 0 0 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+          </div>
+          {licencaAtual && licencaAtual.plano !== 'admin' && (
+            <div style={{ background: '#fff', padding: '10px 20px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : '#f59e0b' }}></div>
+              <span style={{ fontWeight: 'bold', color: '#333' }}>{licencaAtual.identificador_cliente}</span>
+              <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
+            </div>
+          )}
         </div>
 
         {faseAtual === 'upload' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', height: '60vh' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
             <div className="upload-box">
               <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
-              <div className="upload-icon"><UploadCloud size={80} color="#004080" style={{ marginBottom: '25px' }} /></div>
+              <div style={{ animation: 'float 3s ease-in-out infinite' }}><UploadCloud size={80} color="#004080" style={{ marginBottom: '25px' }} /></div>
               <h2 style={{ margin: '0 0 10px 0', color: '#004080', fontSize: '28px', fontWeight: '800' }}>Importe seu Arquivo SPED</h2>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '18px' }}>Arraste o arquivo .txt para cá ou clique para buscar no computador</p>
+              <p style={{ margin: 0, color: '#64748b', fontSize: '18px' }}>Arraste o arquivo .txt para cá ou clique para buscar</p>
             </div>
           </div>
         )}
@@ -587,30 +585,26 @@ export default function ImportadorSped() {
         {faseAtual === 'dashboard' && (
           <div>
             <div className="no-print" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '30px' }}>
-              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}><LayoutDashboard size={20} /> Visão Geral</button>
-              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}><Tags size={20} /> Módulo Tributário</button>
-              <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}><AlertCircle size={20} /> Verificação do SPED</button>
-              <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}><FileSearch size={20} /> Resultados da Auditoria</button>
+              <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><LayoutDashboard size={20} /> Visão Geral</button>
+              <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Tags size={20} /> Módulo Tributário</button>
+              <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={20} /> Verificação do SPED</button>
+              <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><FileSearch size={20} /> Resultados da Auditoria</button>
             </div>
 
-            <div className="print-banner">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <div className="print-banner" style={{ display: 'flex', justifyContent: 'space-between', background: '#fff', border: '3px solid #004080', padding: '20px', borderRadius: '15px', marginBottom: '30px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: '#004080' }}>
                 <Building2 size={40} />
                 <div><h2 style={{ margin: 0, fontSize: '22px' }}>{dadosEmpresa.nome}</h2><span style={{ fontSize: '14px', opacity: 0.8 }}>CNPJ: {dadosEmpresa.cnpj}</span></div>
               </div>
-              <div style={{ textAlign: 'right', backgroundColor: 'rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '12px' }}>
-                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', opacity: 0.8 }}><Calendar size={14}/> PERÍODO</span>
+              <div style={{ textAlign: 'right', color: '#004080' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', fontWeight: 'bold' }}><Calendar size={14}/> PERÍODO</span>
                 <strong style={{ display: 'block', fontSize: '18px' }}>{dadosEmpresa.periodo}</strong>
               </div>
             </div>
 
             <div className="dashboard-layout">
-              
-              {/* PAINEL CENTRAL (HOME OU TRIBUTOS) */}
               {(abaAtiva === 'home' || abaAtiva === 'tributos') && (
                 <div className="dash-main">
-                  
-                  {/* ABA: VISÃO GERAL */}
                   {abaAtiva === 'home' && (
                     <>
                       <div className="grid-3">
@@ -635,17 +629,13 @@ export default function ImportadorSped() {
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <h4 style={{ color: '#10b981', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingDown size={18}/> Entradas</h4>
                               <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                                {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (
-                                  <div key={idx} className="cfop-row"><span className="cfop-lbl" title={item.cfop}>{item.cfop}</span><span className="cfop-val">{formatarMoeda(item.valor)}</span></div>
-                                )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
+                                {listaCfops.entradas.length > 0 ? listaCfops.entradas.map((item, idx) => (<div key={idx} className="cfop-row"><span className="cfop-lbl" title={item.cfop}>{item.cfop}</span><span className="cfop-val">{formatarMoeda(item.valor)}</span></div>)) : <p style={{ fontSize: '13px', color: '#999' }}>Sem entradas.</p>}
                               </div>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', borderLeft: '1px solid #f0f4f8', paddingLeft: '20px' }}>
                               <h4 style={{ color: '#4f46e5', margin: '0 0 10px 0', display: 'flex', alignItems: 'center', gap: '6px' }}><TrendingUp size={18}/> Saídas</h4>
                               <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '5px' }}>
-                                {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (
-                                  <div key={idx} className="cfop-row"><span className="cfop-lbl" title={item.cfop}>{item.cfop}</span><span className="cfop-val-s">{formatarMoeda(item.valor)}</span></div>
-                                )) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
+                                {listaCfops.saidas.length > 0 ? listaCfops.saidas.map((item, idx) => (<div key={idx} className="cfop-row"><span className="cfop-lbl" title={item.cfop}>{item.cfop}</span><span className="cfop-val-s">{formatarMoeda(item.valor)}</span></div>)) : <p style={{ fontSize: '13px', color: '#999' }}>Sem saídas.</p>}
                               </div>
                             </div>
                           </div>
@@ -656,16 +646,15 @@ export default function ImportadorSped() {
                             <h3 style={{ margin: 0, fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}><Calculator size={26}/> VAF Fiscal do Período</h3>
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', flexGrow: 1 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span><strong style={{ fontSize: '16px', whiteSpace: 'nowrap' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px', color: '#fca5a5' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Dev. Vendas</span><strong style={{ fontSize: '16px', whiteSpace: 'nowrap' }}>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span><strong style={{ fontSize: '16px', whiteSpace: 'nowrap' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px', color: '#6ee7b7' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Dev. Compras</span><strong style={{ fontSize: '16px', whiteSpace: 'nowrap' }}>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Saídas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px', color: '#fca5a5' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Dev. Vendas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Minus size={16}/> Entradas Brutas</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '12px 15px', borderRadius: '10px', color: '#6ee7b7' }}><span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '600' }}><Plus size={16}/> Dev. Compras</span><strong style={{ fontSize: '16px' }}>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
                           </div>
                           <div style={{ background: '#fff', color: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', marginTop: '20px' }}>
-                            <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold', textTransform: 'uppercase' }}><Equal size={16} style={{ verticalAlign: 'middle' }}/> VALOR ADICIONADO</p>
-                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900', whiteSpace: 'nowrap' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2>
+                            <p style={{ margin: '0 0 5px 0', fontSize: '14px', fontWeight: 'bold' }}><Equal size={16} style={{ verticalAlign: 'middle' }}/> VALOR ADICIONADO</p>
+                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(dadosVaf.vafTotal)}</h2>
                           </div>
-                          {dadosVaf.vafTotal < 0 && <div style={{ position: 'absolute', bottom: '-40px', left: 0, right: 0, textAlign: 'center' }}><span style={{ background: '#fee2e2', color: '#ef4444', padding: '6px 15px', borderRadius: '20px', fontWeight: 'bold' }}><AlertTriangle size={18} /> ATENÇÃO! VAF Negativo</span></div>}
                         </div>
                       </div>
 
@@ -686,11 +675,11 @@ export default function ImportadorSped() {
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
                           <div style={{ display: 'flex', gap: '20px' }}>
-                            <div className="card-dash" style={{ flex: 1, padding: '20px', borderLeft: '6px solid #10b981' }}><p style={{ margin: '0 0 10px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>SALDO CREDOR</p><h2 style={{ margin: 0, color: '#10b981', fontSize: '24px', whiteSpace: 'nowrap' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2></div>
-                            <div className="card-dash" style={{ flex: 1, padding: '20px', borderLeft: '6px solid #ef4444' }}><p style={{ margin: '0 0 10px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>ICMS RECOLHER</p><h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', whiteSpace: 'nowrap' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2></div>
+                            <div className="card-dash" style={{ flex: 1, padding: '20px', borderLeft: '6px solid #10b981' }}><p style={{ margin: '0 0 10px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>SALDO CREDOR</p><h2 style={{ margin: 0, color: '#10b981', fontSize: '24px' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2></div>
+                            <div className="card-dash" style={{ flex: 1, padding: '20px', borderLeft: '6px solid #ef4444' }}><p style={{ margin: '0 0 10px', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>ICMS RECOLHER</p><h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2></div>
                           </div>
                           <div className="card-dash" style={{ flex: 1 }}><h3 className="card-title"><DollarSign size={20}/> Obrigações e Guias</h3>
-                            <div style={{ maxHeight: '150px', overflowY: 'auto', paddingRight: '5px' }}>
+                            <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
                               {guiasE116.length > 0 ? guiasE116.map((g, i) => (<div key={i} className="leg-item"><div><span style={{fontSize:'12px', color:'#666', display:'block'}}>Cód: {g.codigo}</span><span style={{fontSize:'12px', color:'#555'}}><Calendar size={12}/> Venc: {g.vencimento}</span></div><span className="leg-val" style={{color:'#ef4444'}}>{formatarMoeda(g.valor)}</span></div>)) : <p style={{fontSize:'13px', color:'#999', textAlign:'center'}}>Sem guias.</p>}
                             </div>
                           </div>
@@ -699,97 +688,42 @@ export default function ImportadorSped() {
 
                       <div className="grid-2">
                         <div className="card-dash">
-                          <h3 className="card-title"><Package size={24}/> {tituloTopProdutos}</h3>
-                          <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                            {listaExibicaoProdutos.length > 0 ? listaExibicaoProdutos.map((it, idx) => (
-                              <div key={idx} className="cfop-row" style={{ background: idx%2===0?'#fafafa':'#fff', borderRadius:'8px', padding:'12px' }}>
-                                <div style={{display:'flex', alignItems:'center', gap:'10px', overflow:'hidden'}}><span style={{background:'#10b981', color:'#fff', minWidth:'24px', height:'24px', display:'flex', justifyContent:'center', alignItems:'center', borderRadius:'50%', fontSize:'12px', fontWeight:'bold'}}>{idx+1}</span><span className="cfop-lbl" title={it.nome}>{it.nome}</span></div><span className="cfop-val">{formatarMoeda(it.valor)}</span>
-                              </div>
-                            )) : <p style={{fontSize:'13px', color:'#999', textAlign:'center'}}>Sem produtos.</p>}
+                          <h3 className="card-title"><Package size={24}/> Top 10 Produtos</h3>
+                          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                            {(topProdutos.vendas.length > 0 ? topProdutos.vendas : topProdutos.compras).map((it, idx) => (<div key={idx} className="cfop-row" style={{ background: idx%2===0?'#fafafa':'#fff', padding:'12px' }}><div style={{display:'flex', gap:'10px'}}><span style={{background:'#10b981', color:'#fff', minWidth:'24px', height:'24px', display:'flex', justifyContent:'center', alignItems:'center', borderRadius:'50%', fontSize:'12px'}}>{idx+1}</span><span className="cfop-lbl" title={it.nome}>{it.nome}</span></div><span className="cfop-val">{formatarMoeda(it.valor)}</span></div>))}
                           </div>
                         </div>
                         <div className="card-dash">
                           <h3 className="card-title"><Truck size={24}/> Top Fornecedores</h3>
-                          <div style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '5px' }}>
-                            {topFornecedores.length > 0 ? topFornecedores.map((it, idx) => (
-                              <div key={idx} className="cfop-row" style={{ background: idx%2===0?'#fafafa':'#fff', borderRadius:'8px', padding:'12px' }}>
-                                <div style={{display:'flex', alignItems:'center', gap:'10px', overflow:'hidden'}}><span style={{background:'#f59e0b', color:'#fff', minWidth:'24px', height:'24px', display:'flex', justifyContent:'center', alignItems:'center', borderRadius:'50%', fontSize:'12px', fontWeight:'bold'}}>{idx+1}</span><span className="cfop-lbl" title={it.nome}>{it.nome}</span></div><span className="leg-val">{formatarMoeda(it.valor)}</span>
-                              </div>
-                            )) : <p style={{fontSize:'13px', color:'#999', textAlign:'center'}}>Sem fornecedores.</p>}
+                          <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                            {topFornecedores.map((it, idx) => (<div key={idx} className="cfop-row" style={{ background: idx%2===0?'#fafafa':'#fff', padding:'12px' }}><div style={{display:'flex', gap:'10px'}}><span style={{background:'#f59e0b', color:'#fff', minWidth:'24px', height:'24px', display:'flex', justifyContent:'center', alignItems:'center', borderRadius:'50%', fontSize:'12px'}}>{idx+1}</span><span className="cfop-lbl" title={it.nome}>{it.nome}</span></div><span className="leg-val">{formatarMoeda(it.valor)}</span></div>))}
                           </div>
                         </div>
                       </div>
                     </>
                   )}
 
-                  {/* ABA: TRIBUTOS */}
                   {abaAtiva === 'tributos' && (
                     <>
                       <div className="grid-4">
-                        <div className="card-dash" style={{ borderTop: '6px solid #004080', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>FATURAMENTO ANALISADO</p><h2 style={{margin:0, color:'#004080', fontSize:'24px', whiteSpace:'nowrap'}}>{formatarMoeda(resumoTributacao.total)}</h2></div>
-                        <div className="card-dash" style={{ borderTop: '6px solid #f59e0b', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>SUBSTITUIÇÃO (ST)</p><h2 style={{margin:0, color:'#f59e0b', fontSize:'24px', whiteSpace:'nowrap'}}>{formatarMoeda(resumoTributacao.st)}</h2></div>
-                        <div className="card-dash" style={{ borderTop: '6px solid #8b5cf6', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>PRESTAÇÕES DE SERVIÇOS</p><h2 style={{margin:0, color:'#8b5cf6', fontSize:'24px', whiteSpace:'nowrap'}}>{formatarMoeda(resumoTributacao.servicos)}</h2></div>
-                        <div className="card-dash" style={{ borderTop: '6px solid #ef4444', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>ISENTAS / NÃO TRIB</p><h2 style={{margin:0, color:'#ef4444', fontSize:'24px', whiteSpace:'nowrap'}}>{formatarMoeda(resumoTributacao.isento)}</h2></div>
+                        <div className="card-dash" style={{ borderTop: '6px solid #004080', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>FATURAMENTO ANALISADO</p><h2 style={{margin:0, color:'#004080', fontSize:'24px'}}>{formatarMoeda(resumoTributacao.total)}</h2></div>
+                        <div className="card-dash" style={{ borderTop: '6px solid #f59e0b', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>SUBSTITUIÇÃO (ST)</p><h2 style={{margin:0, color:'#f59e0b', fontSize:'24px'}}>{formatarMoeda(resumoTributacao.st)}</h2></div>
+                        <div className="card-dash" style={{ borderTop: '6px solid #8b5cf6', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>PRESTAÇÕES DE SERVIÇOS</p><h2 style={{margin:0, color:'#8b5cf6', fontSize:'24px'}}>{formatarMoeda(resumoTributacao.servicos)}</h2></div>
+                        <div className="card-dash" style={{ borderTop: '6px solid #ef4444', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>ISENTAS / NÃO TRIB</p><h2 style={{margin:0, color:'#ef4444', fontSize:'24px'}}>{formatarMoeda(resumoTributacao.isento)}</h2></div>
                       </div>
-
                       <div className="card-dash">
                         <h3 className="card-title"><Activity size={24} /> Tributação das Saídas (C190)</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', alignItems: 'center' }}>
-                          <div className="chart-container">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart margin={{ top: 20, right: 35, bottom: 20, left: 35 }}>
-                                    <Pie data={dadosTributacaoSaida.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                                        {dadosTributacaoSaida.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]} />)}
-                                    </Pie>
-                                    <Tooltip formatter={(v)=>formatarMoeda(v)}/>
-                                </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                          <div style={{maxHeight:'300px', overflowY:'auto', paddingRight:'10px'}}>{dadosTributacaoSaida.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}`}}><span className="leg-lbl">{it.name}</span><strong className="leg-val">{formatarMoeda(it.value)}</strong></div>))}</div>
-                        </div>
-                      </div>
-
-                      <div className="grid-2">
-                        <div className="card-dash">
-                          <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado</h3>
-                          <div className="chart-container">
-                              <ResponsiveContainer width="100%" height="100%">
-                                  <PieChart margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
-                                      <Pie data={dadosEstados.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                                          {dadosEstados.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]} />)}
-                                      </Pie>
-                                      <Tooltip formatter={(v)=>formatarMoeda(v)}/>
-                                  </PieChart>
-                              </ResponsiveContainer>
-                          </div>
-                          <div style={{maxHeight:'250px', overflowY:'auto', marginTop:'20px', paddingRight:'5px'}}>{dadosEstados.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_MAPA[idx%CORES_MAPA.length]}`}}><span className="leg-lbl">{it.name}</span><strong className="leg-val">{formatarMoeda(it.value)}</strong></div>))}</div>
-                        </div>
-
-                        <div className="card-dash">
-                          <h3 className="card-title"><Package size={24}/> Divisão de Entradas</h3>
-                          <div className="chart-container">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
-                                    <Pie data={dadosRoscaEntradas.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
-                                        {dadosRoscaEntradas.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_ENTRADAS[i%CORES_ENTRADAS.length]} />)}
-                                    </Pie>
-                                    <Tooltip formatter={(v)=>formatarMoeda(v)}/>
-                                </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                          <div style={{maxHeight:'250px', overflowY:'auto', marginTop:'20px', paddingRight:'5px'}}>
-                            {dadosRoscaEntradas.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_ENTRADAS[idx%CORES_ENTRADAS.length]}`}}><span className="leg-lbl">{it.name}</span><strong className="leg-val">{formatarMoeda(it.value)}</strong></div>))}
-                          </div>
+                          <div className="chart-container"><ResponsiveContainer width="100%" height="100%"><PieChart margin={{ top: 20, right: 35, bottom: 20, left: 35 }}><Pie data={dadosTributacaoSaida.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>{dadosTributacaoSaida.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]} />)}</Pie><Tooltip formatter={(v)=>formatarMoeda(v)}/></PieChart></ResponsiveContainer></div>
+                          <div style={{maxHeight:'300px', overflowY:'auto'}}>{dadosTributacaoSaida.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}`}}><span className="leg-lbl">{it.name}</span><strong className="leg-val">{formatarMoeda(it.value)}</strong></div>))}</div>
                         </div>
                       </div>
                     </>
                   )}
-                  
                   <BotoesAcao />
                 </div>
               )}
 
-              {/* BARRA LATERAL FIXA DA DIREITA (O SEGREDO DO LAYOUT DE OURO) */}
               {(abaAtiva === 'home' || abaAtiva === 'tributos') && (
                 <div className="dash-sidebar no-print">
                   <div className="card-dash" style={{ padding: '25px' }}>
@@ -797,109 +731,37 @@ export default function ImportadorSped() {
                       <div style={{ background: '#10b981', padding: '12px', borderRadius: '12px', color: '#fff' }}><Shield size={28} /></div>
                       <div><h3 style={{ margin: 0, color: '#004080', fontSize: '18px' }}>Auditoria Automática</h3><p style={{ margin: '2px 0 0', color: '#666', fontSize: '13px' }}>Ajustes e Correções</p></div>
                     </div>
-                    
-                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6', marginBottom: '15px' }}>
-                      <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: 'bold' }}>Registros Removidos (C191/C173)</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos}</strong>
-                    </div>
-                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b', marginBottom: '15px' }}>
-                      <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: 'bold' }}>Termos Proibidos Limpos</span><strong style={{ fontSize: '22px', color: '#f59e0b' }}>{relatorioCorrecoes.textosRemovidos}</strong>
-                      <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>Ex: ISENTO, Zeros, Sem GTIN</span>
-                    </div>
-                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981' }}>
-                      <span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: 'bold' }}>Totalizadores Corrigidos</span><strong style={{ fontSize: '22px', color: '#10b981' }}>{relatorioCorrecoes.blocosRecalculados}</strong>
-                      <span style={{ display: 'block', fontSize: '11px', color: '#999', marginTop: '4px' }}>C990, 9990, 9999</span>
-                    </div>
-                    <div style={{ marginTop: '25px', background: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', color: '#fff' }}>
-                      <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>TOTAL DE INTERVENÇÕES</span><strong style={{ fontSize: '36px', fontWeight: '900' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos + relatorioCorrecoes.blocosRecalculados}</strong>
-                    </div>
+                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6', marginBottom: '15px' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: 'bold' }}>Registros Removidos (C191/C173)</span><strong style={{ fontSize: '22px', color: '#3b82f6' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos}</strong></div>
+                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b', marginBottom: '15px' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: 'bold' }}>Termos Proibidos Limpos</span><strong style={{ fontSize: '22px', color: '#f59e0b' }}>{relatorioCorrecoes.textosRemovidos}</strong></div>
+                    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981' }}><span style={{ display: 'block', fontSize: '13px', color: '#666', fontWeight: 'bold' }}>Totalizadores Corrigidos</span><strong style={{ fontSize: '22px', color: '#10b981' }}>{relatorioCorrecoes.blocosRecalculados}</strong></div>
+                    <div style={{ marginTop: '25px', background: '#004080', padding: '20px', borderRadius: '15px', textAlign: 'center', color: '#fff' }}><span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold' }}>TOTAL DE INTERVENÇÕES</span><strong style={{ fontSize: '36px', fontWeight: '900' }}>{relatorioCorrecoes.c191Removidos + relatorioCorrecoes.c173Removidos + relatorioCorrecoes.textosRemovidos + relatorioCorrecoes.blocosRecalculados}</strong></div>
                   </div>
                 </div>
               )}
 
-              {/* NOVA ABA: VERIFICAÇÃO DO SPED (TABELA EXECUTIVA DE RISCOS E MALHA FINA) */}
               {abaAtiva === 'verificacao' && (
                 <div className="card-dash" style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
-                    <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Zap size={32} color="#f59e0b" /> Radar de Malha Fina (Riscos Detectados)</h2>
-                    <button className="no-print btn-pr" onClick={() => window.print()}><Printer size={18}/> Salvar PDF</button>
-                  </div>
-                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}><h2 style={{ margin: 0, color: '#f59e0b', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Zap size={32} color="#f59e0b" /> Radar de Malha Fina (Riscos Detectados)</h2></div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: '#f59e0b', color: '#fff', textAlign: 'left' }}>
-                        <th style={{ padding: '15px' }}>Tipo de Risco</th><th style={{ padding: '15px' }}>Registro / Documento</th><th style={{ padding: '15px' }}>Nível de Alerta</th><th style={{ padding: '15px' }}>Detalhe da Infração</th>
-                      </tr>
-                    </thead>
+                    <thead><tr style={{ background: '#f59e0b', color: '#fff', textAlign: 'left' }}><th style={{ padding: '15px' }}>Tipo de Risco</th><th style={{ padding: '15px' }}>Registro</th><th style={{ padding: '15px' }}>Alerta</th><th style={{ padding: '15px' }}>Detalhe</th></tr></thead>
                     <tbody>
-                      {riscosFiscais.length > 0 ? riscosFiscais.map((risco, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f0f4f8', background: i%2===0?'#fff':'#f8fafc' }}>
-                          <td style={{ padding: '15px', fontWeight: 'bold', color: '#333' }}>{risco.tipo}</td>
-                          <td style={{ padding: '15px', fontWeight: 'bold', color: '#666' }}>{risco.registro}</td>
-                          <td style={{ padding: '15px' }}>
-                            <span style={{ 
-                              background: risco.cor === '#ef4444' ? '#fee2e2' : '#fef3c7', 
-                              color: risco.cor, 
-                              padding: '6px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' 
-                            }}>
-                              {risco.cor === '#ef4444' ? 'ALTO RISCO' : 'ATENÇÃO'}
-                            </span>
-                          </td>
-                          <td style={{ padding: '15px', color: '#555', lineHeight: '1.4' }}>{risco.detalhe}</td>
-                        </tr>
-                      )) : (
-                        <tr>
-                          <td colSpan="4" style={{ padding: '50px', textAlign: 'center', background: '#f8fafc' }}>
-                            <CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 15px auto' }} />
-                            <h3 style={{ margin: 0, color: '#10b981', fontSize: '20px' }}>Nenhum Risco de Malha Fina Detectado</h3>
-                            <p style={{ color: '#64748b', marginTop: '10px' }}>A inteligência do sistema não encontrou notas puladas ou conflitos de CFOP/CST neste arquivo.</p>
-                          </td>
-                        </tr>
-                      )}
+                      {riscosFiscais.length > 0 ? riscosFiscais.map((risco, i) => (<tr key={i} style={{ borderBottom: '1px solid #f0f4f8', background: i%2===0?'#fff':'#f8fafc' }}><td style={{ padding: '15px', fontWeight: 'bold' }}>{risco.tipo}</td><td style={{ padding: '15px', fontWeight: 'bold', color: '#666' }}>{risco.registro}</td><td style={{ padding: '15px' }}><span style={{ background: risco.cor === '#ef4444' ? '#fee2e2' : '#fef3c7', color: risco.cor, padding: '6px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '900' }}>{risco.cor === '#ef4444' ? 'ALTO RISCO' : 'ATENÇÃO'}</span></td><td style={{ padding: '15px', color: '#555' }}>{risco.detalhe}</td></tr>)) : (<tr><td colSpan="4" style={{ padding: '50px', textAlign: 'center' }}><CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 15px auto' }} /><h3 style={{ margin: 0, color: '#10b981', fontSize: '20px' }}>Nenhum Risco Detectado</h3></td></tr>)}
                     </tbody>
                   </table>
-                  <BotoesAcao />
                 </div>
               )}
 
-              {/* ABA AUDITORIA (LOG COMPLETO COM AUTO-CURA DESTACADA) */}
               {abaAtiva === 'auditoria' && (
                 <div className="card-dash" style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
-                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2>
-                    <button className="no-print btn-pr" onClick={() => window.print()}><Printer size={18}/> Salvar PDF</button>
-                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}><h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2></div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: '#004080', color: '#fff', textAlign: 'left' }}>
-                        <th style={{ padding: '15px' }}>Linha</th><th style={{ padding: '15px' }}>Registro do SPED</th><th style={{ padding: '15px' }}>Ação Realizada pelo Robô</th><th style={{ padding: '15px' }}>Detalhe Fiscal</th>
-                      </tr>
-                    </thead>
+                    <thead><tr style={{ background: '#004080', color: '#fff', textAlign: 'left' }}><th style={{ padding: '15px' }}>Linha</th><th style={{ padding: '15px' }}>Registro</th><th style={{ padding: '15px' }}>Ação Realizada</th><th style={{ padding: '15px' }}>Detalhe Fiscal</th></tr></thead>
                     <tbody>
-                      {logAuditoria.length > 0 ? logAuditoria.map((log, i) => {
-                        const isCura = log.acao === 'CORRIGIDO PELO ROBÔ';
-                        return (
-                          <tr key={i} style={{ borderBottom: '1px solid #f0f4f8', background: isCura ? '#ecfdf5' : (i%2===0?'#fff':'#f8fafc') }}>
-                            <td style={{ padding: '15px' }}>{log.linha}</td>
-                            <td style={{ padding: '15px', fontWeight: 'bold' }}>{log.registro}</td>
-                            <td style={{ padding: '15px' }}>
-                              <span style={{ 
-                                background: log.acao.includes('Removida') ? '#fee2e2' : isCura ? '#10b981' : '#fef3c7', 
-                                color: log.acao.includes('Removida') ? '#ef4444' : isCura ? '#ffffff' : '#d97706', 
-                                padding: '6px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px', boxShadow: isCura ? '0 4px 6px rgba(16,185,129,0.2)' : 'none'
-                              }}>
-                                {log.acao}
-                              </span>
-                            </td>
-                            <td style={{ padding: '15px', color: isCura ? '#047857' : '#666', fontWeight: isCura ? '600' : 'normal' }}>{log.detalhe}</td>
-                          </tr>
-                        );
-                      }) : (<tr><td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#999', fontSize: '16px' }}>Nenhuma intervenção necessária neste arquivo. O SPED está limpo!</td></tr>)}
+                      {logAuditoria.length > 0 ? logAuditoria.map((log, i) => { const isCura = log.acao === 'CORRIGIDO PELO ROBÔ'; return (<tr key={i} style={{ borderBottom: '1px solid #f0f4f8', background: isCura ? '#ecfdf5' : (i%2===0?'#fff':'#f8fafc') }}><td style={{ padding: '15px' }}>{log.linha}</td><td style={{ padding: '15px', fontWeight: 'bold' }}>{log.registro}</td><td style={{ padding: '15px' }}><span style={{ background: log.acao.includes('Removida') ? '#fee2e2' : isCura ? '#10b981' : '#fef3c7', color: log.acao.includes('Removida') ? '#ef4444' : isCura ? '#ffffff' : '#d97706', padding: '6px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '900' }}>{log.acao}</span></td><td style={{ padding: '15px', color: isCura ? '#047857' : '#666' }}>{log.detalhe}</td></tr>); }) : (<tr><td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#999' }}>Nenhuma intervenção necessária.</td></tr>)}
                     </tbody>
                   </table>
-                  <BotoesAcao />
                 </div>
               )}
-
             </div>
           </div>
         )}
