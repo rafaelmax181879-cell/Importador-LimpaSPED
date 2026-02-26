@@ -1,71 +1,69 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron'); // <-- ipcMain adicionado
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
-// 1. Desativa o download automático para o sistema só baixar se o usuário clicar em "Atualizar Agora"
-autoUpdater.autoDownload = false;
+let mainWindow;
 
 function createWindow() {
-  const splash = new BrowserWindow({
-    width: 550,
-    height: 350,
-    transparent: true,
-    frame: false, 
-    alwaysOnTop: true,
-    resizable: false,
-    icon: path.join(__dirname, 'unnamed.ico')
-  });
-
-  splash.loadFile(path.join(__dirname, 'dist', 'splash.html'));
-
-  const mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 750,
-    show: false, 
-    autoHideMenuBar: true, 
-    title: "Corretor Inteligente - SPED Fiscal",
-    icon: path.join(__dirname, 'unnamed.ico'),
+  mainWindow = new BrowserWindow({
+    width: 1200,
+    height: 800,
+    show: false, // Mantém a janela invisível até carregar tudo
+    autoHideMenuBar: true, // Esconde o menu superior do Windows (Arquivo, Editar, etc) para visual profissional
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false // <-- IMPORTANTE: Permite que o React consiga usar o comando require('electron')
+      contextIsolation: false,
     },
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  // =========================================================
+  // CARREGAMENTO DA TELA (VITE OU COMPILADO)
+  // =========================================================
+  if (process.env.VITE_DEV_SERVER_URL) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+  }
 
-  setTimeout(() => {
-    splash.close(); 
-    mainWindow.show(); 
-    mainWindow.maximize(); 
-    
-    // Procura atualizações silenciosamente lá no GitHub assim que a tela principal abre
-    autoUpdater.checkForUpdates();
-  }, 7500);
+  // Só mostra a tela quando ela estiver 100% carregada, evitando tela branca
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+  });
 
   // =========================================================
-  // PONTE DE INTELIGÊNCIA: ELECTRON <-> REACT
+  // INTELIGÊNCIA DE ATUALIZAÇÃO AUTOMÁTICA
   // =========================================================
+  
+  // 1. Assim que a tela terminar de carregar, o Cérebro checa o GitHub em silêncio
+  mainWindow.webContents.once('did-finish-load', () => {
+    autoUpdater.checkForUpdatesAndNotify();
+  });
 
-  // 2. Achou versão nova no GitHub? Manda um "sinal" para o React abrir o Modal na tela!
+  // 2. A PONTE: Se o GitHub disser que tem versão nova, ele injeta o sinal no React!
   autoUpdater.on('update-available', () => {
-    mainWindow.webContents.executeJavaScript(`if(window.triggerUpdateModal) window.triggerUpdateModal();`);
+    mainWindow.webContents.executeJavaScript('if(window.triggerUpdateModal) window.triggerUpdateModal();');
   });
 
-  // 3. Ouve o clique do botão "Atualizar Agora" vindo do React e inicia o download real
-  ipcMain.on('iniciar_atualizacao', () => {
-    autoUpdater.downloadUpdate(); 
-  });
-
-  // 4. Download concluiu em 100%? Fecha o sistema e abre a versão nova curada!
+  // 3. Fica ouvindo quando o .exe novo termina de baixar no fundo
   autoUpdater.on('update-downloaded', () => {
-    autoUpdater.quitAndInstall();
+    console.log('Atualização baixada e pronta para instalação.');
   });
 }
 
+// Inicializa o aplicativo
 app.whenReady().then(createWindow);
 
+// =========================================================
+// ESCUTAS DO REACT
+// =========================================================
+
+// Quando o usuário clicar no botão azul "Instalar Atualização" na tela do sistema
+ipcMain.on('iniciar_atualizacao', () => {
+  // O comando abaixo força o fechamento do sistema e instala a atualização na hora
+  autoUpdater.quitAndInstall(false, true); 
+});
+
+// Fecha o aplicativo se todas as janelas forem fechadas (padrão Windows)
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (process.platform !== 'darwin') app.quit();
 });

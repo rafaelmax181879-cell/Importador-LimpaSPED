@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
 const SENHA_ADMIN = "master336"; // Senha de Bypass (Ignora a nuvem para você testar)
-const VERSAO_ATUAL = "1.1.20";
+const VERSAO_ATUAL = "1.1.21";
 
 // Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
