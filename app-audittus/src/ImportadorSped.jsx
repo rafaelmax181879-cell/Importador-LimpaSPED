@@ -16,8 +16,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
-const SENHA_ADMIN = "master336"; // Senha de Bypass
-const VERSAO_ATUAL = "1.1.22";
+const SENHA_ADMIN = "master336"; 
+const VERSAO_ATUAL = "1.1.23";
 
 // Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
@@ -45,22 +45,22 @@ const formatarDataGuia = (dataStr) => {
 };
 
 const getNomeGuia = (cod) => {
-  if (cod === '1212') return '1212 - ICMS COMÉRCIO';
-  if (cod === '1112') return '1112 - ICMS INDÚSTRIA';
-  if (cod === '6307') return '6307 - FECOEP A RECOLHER';
-  return 'CÓD NÃO IDENTIFICADO';
+  const c = cod ? cod.toString().trim() : '';
+  if (c === '1212') return '1212 - ICMS COMÉRCIO';
+  if (c === '1112') return '1112 - ICMS INDÚSTRIA';
+  if (c === '6307') return '6307 - FECOEP A RECOLHER';
+  return c ? `${c} - CÓDIGO NÃO IDENTIFICADO` : 'CÓDIGO NÃO IDENTIFICADO';
 };
 
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
 
 export default function ImportadorSped() {
-  const [faseAtual, setFaseAtual] = useState('login'); 
+  const [faseAtual, setFaseAtual] = useState('splash'); 
   const [senhaInput, setSenhaInput] = useState(''); 
   const [erroLogin, setErroLogin] = useState('');
   const [loadingText, setLoadingText] = useState('');
   const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
   
-  // Controle de Licença e Razão Social
   const [licencaAtual, setLicencaAtual] = useState(null);
   const [modalPremiumAberto, setModalPremiumAberto] = useState(false);
   const [razaoSocialLogada, setRazaoSocialLogada] = useState(''); 
@@ -88,10 +88,17 @@ export default function ImportadorSped() {
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
 
-  // Inteligência de Atualização (Electron)
+  // Atualização
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
+
+  useEffect(() => {
+    if (faseAtual === 'splash') {
+      const timer = setTimeout(() => { setFaseAtual('login'); }, 3000); 
+      return () => clearTimeout(timer);
+    }
+  }, [faseAtual]);
 
   useEffect(() => {
     window.triggerUpdateModal = () => setUpdateModalOpen(true);
@@ -113,22 +120,16 @@ export default function ImportadorSped() {
     if (window.require) window.require('electron').ipcRenderer.send('iniciar_atualizacao');
   };
 
-  // ==========================================
-  // INTELIGÊNCIA DE LOGIN (B2B - CNPJ/EMAIL)
-  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
 
     const ident = senhaInput.trim();
-    if (!ident) {
-      setErroLogin('Por favor, informe seu E-mail ou CNPJ.');
-      return;
-    }
+    if (!ident) { setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); return; }
 
     if (ident === SENHA_ADMIN) {
-      setLicencaAtual({ plano: 'admin', identificador_cliente: 'Administrador' });
-      setRazaoSocialLogada('Acesso Mestre Liberado');
+      setLicencaAtual({ plano: 'admin', identificador_cliente: 'Acesso Mestre' });
+      setRazaoSocialLogada('Administrador');
       setFaseAtual('upload');
       return;
     }
@@ -136,7 +137,7 @@ export default function ImportadorSped() {
     const mem = navigator.deviceMemory || 4;
     const cores = navigator.hardwareConcurrency || 4;
     if (mem < 2 || cores < 2) {
-      setErroLogin('Erro FATAL: Ambiente de execução gráfico não suportado (ERR_VM_DETECT).');
+      setErroLogin('Erro FATAL: Ambiente de execução gráfico não suportado.');
       return;
     }
 
@@ -144,7 +145,6 @@ export default function ImportadorSped() {
     const hwId = obterOuGerarHardwareId();
 
     try {
-      // Busca a Razão Social na Receita Federal (BrasilAPI)
       let razaoEncontrada = '';
       const apenasNumeros = ident.replace(/\D/g, '');
       if (apenasNumeros.length === 14) {
@@ -152,33 +152,17 @@ export default function ImportadorSped() {
           const resApi = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${apenasNumeros}`);
           if (resApi.ok) {
             const dadosCnpj = await resApi.json();
-            // Remove parênteses caso a API traga
             razaoEncontrada = dadosCnpj.razao_social.replace(/[()]/g, '').trim();
           }
-        } catch (errApi) {
-          console.log("Aviso: Falha ao buscar razão social na API pública.", errApi);
-        }
+        } catch (errApi) { console.log("Aviso: Falha ao buscar razão social."); }
       }
 
-      let { data: licenca, error } = await supabase
-        .from('licencas_clientes')
-        .select('*')
-        .eq('identificador_cliente', ident)
-        .single();
+      let { data: licenca, error } = await supabase.from('licencas_clientes').select('*').eq('identificador_cliente', ident).single();
 
-      if (error && error.code !== 'PGRST116') {
-         throw new Error("Erro de conexão com o Servidor de Licenças.");
-      }
+      if (error && error.code !== 'PGRST116') { throw new Error("Erro de conexão."); }
 
       if (!licenca) {
-        const novaLicenca = {
-          identificador_cliente: ident,
-          hardware_id: hwId,
-          plano: 'trial',
-          analises_gratuitas_restantes: 1,
-          limite_cnpjs: 1,
-          cnpjs_vinculados: []
-        };
+        const novaLicenca = { identificador_cliente: ident, hardware_id: hwId, plano: 'trial', analises_gratuitas_restantes: 1, limite_cnpjs: 1, cnpjs_vinculados: [] };
         const { data: criada, error: errInsert } = await supabase.from('licencas_clientes').insert([novaLicenca]).select().single();
         if (errInsert) throw errInsert;
         licenca = criada;
@@ -187,7 +171,7 @@ export default function ImportadorSped() {
           await supabase.from('licencas_clientes').update({ hardware_id: hwId }).eq('id', licenca.id);
           licenca.hardware_id = hwId;
         } else if (licenca.hardware_id !== hwId) {
-          setErroLogin('Este CNPJ/E-mail já está vinculado a outro computador. Contate o suporte técnico.');
+          setErroLogin('Este CNPJ/E-mail já está vinculado a outro computador.');
           setIsProcessandoLoading(false);
           return;
         }
@@ -195,7 +179,7 @@ export default function ImportadorSped() {
 
       if (licenca.status_bloqueio) {
         setIsProcessandoLoading(false);
-        setErroLogin('O acesso desta licença está bloqueado no Servidor. Regularize sua situação.');
+        setErroLogin('O acesso desta licença está bloqueado no Servidor.');
         return;
       }
 
@@ -204,8 +188,7 @@ export default function ImportadorSped() {
       setFaseAtual('upload');
       
     } catch (err) {
-      console.error(err);
-      setErroLogin('Erro de rede: Verifique sua conexão com a internet para validar a licença.');
+      setErroLogin('Erro de rede: Verifique sua conexão com a internet.');
     } finally {
       setIsProcessandoLoading(false);
     }
@@ -237,19 +220,12 @@ export default function ImportadorSped() {
       
       let cnpjArquivo = "";
       for (let i = 0; i < linhasOriginais.length; i++) {
-        if (linhasOriginais[i].startsWith('|0000|')) {
-          cnpjArquivo = linhasOriginais[i].split('|')[7];
-          break;
-        }
+        if (linhasOriginais[i].startsWith('|0000|')) { cnpjArquivo = linhasOriginais[i].split('|')[7]; break; }
       }
 
       if (licencaAtual && licencaAtual.plano !== 'admin') {
         if (licencaAtual.plano === 'trial') {
-          if (licencaAtual.analises_gratuitas_restantes <= 0) {
-            setFaseAtual('upload');
-            setModalPremiumAberto(true); 
-            return;
-          }
+          if (licencaAtual.analises_gratuitas_restantes <= 0) { setFaseAtual('upload'); setModalPremiumAberto(true); return; }
           await supabase.from('licencas_clientes').update({ analises_gratuitas_restantes: 0 }).eq('id', licencaAtual.id);
           setLicencaAtual({...licencaAtual, analises_gratuitas_restantes: 0});
         } 
@@ -257,9 +233,7 @@ export default function ImportadorSped() {
           let listaCnpjs = licencaAtual.cnpjs_vinculados || [];
           if (!listaCnpjs.includes(cnpjArquivo)) {
             if (listaCnpjs.length >= licencaAtual.limite_cnpjs) {
-              setFaseAtual('upload');
-              alert(`⛔ Limite de Empresas Atingido!\n\nSeu plano atual permite auditar ${licencaAtual.limite_cnpjs} CNPJ(s).\nO CNPJ do arquivo (${cnpjArquivo}) não faz parte da sua cota. Faça um upgrade no painel.`);
-              return;
+              setFaseAtual('upload'); alert(`⛔ Limite Atingido!\nCNPJ do arquivo não faz parte da cota.`); return;
             } else {
               listaCnpjs.push(cnpjArquivo);
               await supabase.from('licencas_clientes').update({ cnpjs_vinculados: listaCnpjs }).eq('id', licencaAtual.id);
@@ -270,23 +244,17 @@ export default function ImportadorSped() {
       }
 
       setNomeOriginal(file.name);
-      const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas...", "Aplicando Auto-Cura Tributária...", "Gerando painel Business Intelligence..."];
+      const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas...", "Aplicando Auto-Cura...", "Gerando painel..."];
       let step = 0; setLoadingText(mensagens[0]);
       const inter = setInterval(() => { step++; if(step < mensagens.length) setLoadingText(mensagens[step]); }, 600);
 
       let linhasProcessadas = [];
       let contC191 = 0, contC173 = 0, contTextos = 0, logTemp = [], riscosTemp = [], numLinha = 0;
-      let numDocAtual = 'S/N'; 
-      let notasPorSerie = {}; 
-      let mapNcm = {}; 
-
+      let numDocAtual = 'S/N'; let notasPorSerie = {}; let mapNcm = {}; 
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
 
       linhasOriginais.forEach((linhaOriginal) => {
-        numLinha++;
-        let linha = linhaOriginal;
-        let cols = linha.split('|');
-
+        numLinha++; let linha = linhaOriginal; let cols = linha.split('|');
         if (cols[1] === 'C100' || cols[1] === 'D100') {
            numDocAtual = cols[8] || 'S/N';
            if (cols[1] === 'C100') {
@@ -300,42 +268,37 @@ export default function ImportadorSped() {
         }
 
         if (cols[1] === '0200') { mapNcm[cols[2]] = cols[8]; }
-
         if (cols[1] === 'C170') {
             const codItem = cols[3]; const cst = cols[10]; const cfop = cols[11];
             if (cfop === '5405' && cst && cst.includes('000')) {
-                riscosTemp.push({ tipo: 'Tributação em Duplicidade', registro: `C170 (NF: ${numDocAtual})`, cor: '#ef4444', detalhe: `Item cód. ${codItem} usa CFOP de ST (5405) combinado com CST Tributado Integralmente (${cst}). A empresa está pagando ICMS duas vezes.` });
+                riscosTemp.push({ tipo: 'Tributação Dupla', registro: `C170 (NF: ${numDocAtual})`, cor: '#ef4444', detalhe: `Item cód. ${codItem} usa ST (5405) com CST Tributado Integral.` });
             }
         }
 
-        if (linha.startsWith('|C191|')) { contC191++; logTemp.push({ linha: numLinha, registro: `C191 (NF: ${numDocAtual})`, acao: 'Linha Removida', detalhe: 'Registro C191 excluído do arquivo.' }); return; }
-        if (linha.startsWith('|C173|')) { contC173++; logTemp.push({ linha: numLinha, registro: `C173 (NF: ${numDocAtual})`, acao: 'Linha Removida', detalhe: 'Registro C173 excluído do arquivo.' }); return; }
+        if (linha.startsWith('|C191|')) { contC191++; logTemp.push({ linha: numLinha, registro: `C191 (NF: ${numDocAtual})`, acao: 'Linha Removida', detalhe: 'Registro excluído.' }); return; }
+        if (linha.startsWith('|C173|')) { contC173++; logTemp.push({ linha: numLinha, registro: `C173 (NF: ${numDocAtual})`, acao: 'Linha Removida', detalhe: 'Registro excluído.' }); return; }
         
         if (cols[1] === 'C190' || cols[1] === 'D190') {
             const cf = cols[3];
             if (cf === '1556' || cf === '2556') {
                 const vlIcms = parseFloat(cols[7]?.replace(',', '.')) || 0;
                 if (vlIcms > 0) {
-                    const vlIcmsOriginal = cols[7];
-                    cols[6] = '0,00'; cols[7] = '0,00'; 
-                    linha = cols.join('|');
-                    logTemp.push({ linha: numLinha, registro: `${cols[1]} (NF: ${numDocAtual})`, acao: 'CORRIGIDO PELO ROBÔ', detalhe: `CFOP ${cf} (Uso/Consumo) com imposto. Sistema zerou R$ ${vlIcmsOriginal} de crédito indevido para evitar autuação.` });
+                    const vlIcmsOriginal = cols[7]; cols[6] = '0,00'; cols[7] = '0,00'; linha = cols.join('|');
+                    logTemp.push({ linha: numLinha, registro: `${cols[1]} (NF: ${numDocAtual})`, acao: 'CORRIGIDO PELO ROBÔ', detalhe: `CFOP ${cf} com imposto. Zerado R$ ${vlIcmsOriginal} de crédito indevido.` });
                 }
             }
         }
 
         const matches = linha.match(textosParaRemover);
         if (matches) { 
-            contTextos += matches.length; 
-            logTemp.push({ linha: numLinha, registro: `${cols[1]} (NF: ${numDocAtual})`, acao: 'Termos Limpos', detalhe: `Removido: ${matches.join(', ')}` }); 
+            contTextos += matches.length; logTemp.push({ linha: numLinha, registro: `${cols[1]} (NF: ${numDocAtual})`, acao: 'Termos Limpos', detalhe: `Removido: ${matches.join(', ')}` }); 
             linha = linha.replace(textosParaRemover, ''); 
         }
         if (linha.trim() !== '') linhasProcessadas.push(linha);
       });
 
       Object.keys(notasPorSerie).forEach(key => {
-          let nums = notasPorSerie[key].sort((a,b) => a - b);
-          let buracos = [];
+          let nums = notasPorSerie[key].sort((a,b) => a - b); let buracos = [];
           for (let i = 1; i < nums.length; i++) {
               if (nums[i] - nums[i-1] > 1) {
                   if (nums[i] - nums[i-1] === 2) buracos.push(`${nums[i-1] + 1}`);
@@ -344,7 +307,7 @@ export default function ImportadorSped() {
           }
           if (buracos.length > 0) {
               const mod = key.split('-')[0]; const serie = key.split('-')[1];
-              riscosTemp.push({ tipo: 'NUMERAÇÃO FALTANTE', registro: `Mod ${mod} - Série ${serie}`, cor: '#f59e0b', detalhe: `Faltam as Notas Fiscais: ${buracos.join(', ')}.` });
+              riscosTemp.push({ tipo: 'NOTA FALTANTE', registro: `Mod ${mod} - Série ${serie}`, cor: '#f59e0b', detalhe: `Faltam NFs: ${buracos.join(', ')}.` });
           }
       });
 
@@ -428,11 +391,13 @@ export default function ImportadorSped() {
     };
   };
 
-  const aliquotaEfetiva = resumoTributacao.total > 0 ? (((resumoIcms.icmsRecolher + resumoTributacao.st) / resumoTributacao.total) * 100).toFixed(2) : '0.00';
+  // CÁLCULO EXATO DA ALÍQUOTA EFETIVA: (ICMS A RECOLHER / FATURAMENTO TOTAL) * 100
+  const aliquotaEfetiva = resumoTributacao.total > 0 ? ((resumoIcms.icmsRecolher / resumoTributacao.total) * 100).toFixed(2) : '0.00';
 
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
   const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
+  const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'];
   const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
 
   const BotoesAcao = () => (
@@ -443,25 +408,35 @@ export default function ImportadorSped() {
     </div>
   );
 
-  // ------------------------------------------------------------------------------------------------------------------
-  // BLOQUEIOS (ATUALIZAÇÃO E MODAL DE UPGRADE)
-  // ------------------------------------------------------------------------------------------------------------------
+  if (faseAtual === 'splash') {
+    return (
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #004080 0%, #0284c7 100%)', flexDirection: 'column' }}>
+        <div style={{ animation: 'pulse 2s infinite', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Shield size={100} color="#ffffff" style={{ marginBottom: '20px' }} />
+          <h1 style={{ color: '#ffffff', fontSize: '48px', margin: 0, fontWeight: '900', letterSpacing: '2px' }}>AUDITTUS</h1>
+          <p style={{ color: '#cbd5e1', fontSize: '18px', marginTop: '10px', letterSpacing: '1px' }}>Inteligência Fiscal e Auditoria Digital</p>
+        </div>
+        <div style={{ position: 'absolute', bottom: '60px' }}>
+          <Loader2 size={30} color="#ffffff" className="spin" />
+        </div>
+        <style>{`.spin { animation: spin 2s linear infinite; } @keyframes spin { 100% { transform: rotate(360deg); } } @keyframes pulse { 0% { transform: scale(0.95); opacity: 0.8; } 50% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(0.95); opacity: 0.8; } }`}</style>
+      </div>
+    );
+  }
+
   if (sistemaBloqueadoPorAtualizacao) {
     return (
       <div className="fullscreen-center" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' }}>
         <div className="login-box" style={{ maxWidth: '500px', backgroundColor: '#fff', borderTop: '8px solid #ef4444' }}>
           <AlertTriangle size={80} color="#ef4444" style={{ margin: '0 auto 20px auto' }} />
           <h1 className="login-title" style={{ color: '#ef4444' }}>Sistema Obsoleto</h1>
-          <p className="login-sub" style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginTop: '15px' }}>O prazo de carência para a atualização expirou. É obrigatório instalar a nova atualização para continuar.</p>
-          <button onClick={handleAtualizarAgora} className="login-btn" style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444' }}><DownloadCloud size={18} /> Forçar Atualização Agora</button>
+          <p className="login-sub" style={{ fontSize: '18px', color: '#475569', lineHeight: '1.6', marginTop: '15px' }}>Atualização obrigatória para continuar.</p>
+          <button onClick={handleAtualizarAgora} className="login-btn" style={{ width: '100%', marginTop: '20px', backgroundColor: '#ef4444' }}><DownloadCloud size={18} /> Forçar Atualização</button>
         </div>
       </div>
     );
   }
 
-  // ------------------------------------------------------------------------------------------------------------------
-  // TELA 1: LOGIN (B2B)
-  // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'login') {
     return (
       <div className="fullscreen-center">
@@ -476,7 +451,7 @@ export default function ImportadorSped() {
             </div>
             <button type="submit" className="login-btn" disabled={isProcessandoLoading}>
               {isProcessandoLoading ? <Loader2 size={18} className="spin" /> : <Lock size={18} />} 
-              {isProcessandoLoading ? 'Conectando ao Servidor...' : 'Acessar Sistema'}
+              {isProcessandoLoading ? 'Conectando...' : 'Acessar Sistema'}
             </button>
           </form>
           <p style={{ marginTop: '20px', fontSize: '12px', color: '#94a3b8' }}>Se for o seu primeiro acesso, 1 análise será liberada gratuitamente.</p>
@@ -495,15 +470,11 @@ export default function ImportadorSped() {
           .login-btn:hover:not(:disabled) { background: #003366; }
           .login-btn:disabled { opacity: 0.7; cursor: not-allowed; }
           .spin { animation: spin 2s linear infinite; }
-          @keyframes spin { 100% { transform: rotate(360deg); } }
         `}</style>
       </div>
     );
   }
 
-  // ------------------------------------------------------------------------------------------------------------------
-  // TELA 2: LOADING GERAL (CENTRALIZADO E MODERNO)
-  // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'loading') {
     return (
       <div className="fullscreen-center">
@@ -519,9 +490,6 @@ export default function ImportadorSped() {
     );
   }
 
-  // ------------------------------------------------------------------------------------------------------------------
-  // TELA 3: DASHBOARD & UPLOAD
-  // ------------------------------------------------------------------------------------------------------------------
   return (
     <div className="main-container">
       <style>
@@ -536,7 +504,7 @@ export default function ImportadorSped() {
           .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
           .card-dash { background: #fff; padding: 30px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); display: flex; flex-direction: column; min-width: 0; }
           .card-title { color: #004080; border-bottom: 2px solid #f0f4f8; padding-bottom: 15px; margin: 0 0 20px 0; font-size: 20px; display: flex; align-items: center; gap: 10px; }
-          .upload-box { width: 100%; max-width: 800px; margin: 0 auto; padding: 80px 40px; background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 24px; border: 3px dashed #cbd5e1; text-align: center; position: relative; transition: all 0.3s; }
+          .upload-box { width: 100%; max-width: 800px; margin: auto; padding: 80px 40px; background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%); border-radius: 24px; border: 3px dashed #cbd5e1; text-align: center; position: relative; transition: all 0.3s; }
           .upload-box:hover { border-color: #004080; transform: translateY(-5px); box-shadow: 0 25px 50px rgba(0,64,128,0.1); }
           .cfop-row { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #f0f4f8; font-size: 14px; gap: 10px; }
           .cfop-lbl { font-weight: bold; color: #555; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -555,24 +523,15 @@ export default function ImportadorSped() {
         `}
       </style>
 
-      {/* MODAL DE NOVA ATUALIZAÇÃO DISPONÍVEL */}
       {updateModalOpen && !sistemaBloqueadoPorAtualizacao && (
         <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', backgroundColor: '#004080', color: '#fff', padding: '20px', borderRadius: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', zIndex: 9999, maxWidth: '350px', border: '2px solid #38bdf8' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-            <DownloadCloud size={24} color="#38bdf8" />
-            <h3 style={{ margin: 0, fontSize: '18px' }}>Nova Versão Disponível!</h3>
-          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}><DownloadCloud size={24} color="#38bdf8" /><h3 style={{ margin: 0, fontSize: '18px' }}>Nova Versão Disponível!</h3></div>
           <p style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#cbd5e1' }}>Uma atualização de segurança e performance foi encontrada.</p>
-          <button onClick={handleAtualizarAgora} style={{ width: '100%', padding: '12px', backgroundColor: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
-            <RefreshCw size={18} /> Instalar Atualização
-          </button>
-          <button onClick={() => setUpdateModalOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'transparent', color: '#cbd5e1', border: 'none', marginTop: '5px', cursor: 'pointer', fontSize: '12px' }}>
-            Lembrar mais tarde
-          </button>
+          <button onClick={handleAtualizarAgora} style={{ width: '100%', padding: '12px', backgroundColor: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}><RefreshCw size={18} /> Instalar Atualização</button>
+          <button onClick={() => setUpdateModalOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'transparent', color: '#cbd5e1', border: 'none', marginTop: '5px', cursor: 'pointer', fontSize: '12px' }}>Lembrar mais tarde</button>
         </div>
       )}
 
-      {/* MODAL DE UPGRADE / LIMITE DE COTA */}
       {modalPremiumAberto && (
         <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15,23,42,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', width: '100%', maxWidth: '550px', textAlign: 'center' }}>
@@ -581,7 +540,7 @@ export default function ImportadorSped() {
             <p style={{ color: '#475569', fontSize: '18px', lineHeight: '1.6', marginBottom: '15px' }}>Você utilizou sua Análise Gratuita e pôde ver o poder da Auto-Cura do AUDITTUS. Para continuar processando novos SPEDs, faça um upgrade para o Plano Premium.</p>
             <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '30px' }}>
               <p style={{ margin: 0, fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>Sua Licença Vinculada:</p>
-              <strong style={{ fontSize: '18px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '5px' }}><User size={18}/> {licencaAtual?.identificador_cliente}</strong>
+              <strong style={{ fontSize: '18px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '5px' }}><User size={18}/> {formatarCNPJ(licencaAtual?.identificador_cliente)}</strong>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <button style={{ padding: '18px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}><Crown size={20} /> Assinar AUDITTUS Premium</button>
@@ -591,37 +550,34 @@ export default function ImportadorSped() {
         </div>
       )}
 
-      {/* AVISOS DE ATUALIZAÇÃO */}
       {diasRestantesAtualizacao !== null && (
-        <div className="no-print" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#fff', padding: '12px', textAlign: 'center', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-          <AlertTriangle size={20} /> ATENÇÃO: O sistema será BLOQUEADO em {diasRestantesAtualizacao} dia(s) se não for atualizado.
-        </div>
+        <div className="no-print" style={{ width: '100%', backgroundColor: '#f59e0b', color: '#fff', padding: '12px', textAlign: 'center', fontWeight: 'bold', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}><AlertTriangle size={20} /> ATENÇÃO: O sistema será BLOQUEADO em {diasRestantesAtualizacao} dia(s) se não for atualizado.</div>
       )}
 
       <div className="content-wrapper">
-        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <div>
-            <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
-            <p style={{ margin: '5px 0 15px 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
-            
-            {/* CAIXA DE MENSAGEM VERMELHA COM RAZÃO SOCIAL FORMATADA */}
-            {licencaAtual && licencaAtual.plano !== 'admin' && (
-              <h3 style={{ color: '#ef4444', margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
-                Olá, {formatarCNPJ(licencaAtual.identificador_cliente)} {razaoSocialLogada ? `- ${razaoSocialLogada}` : ''}
-              </h3>
-            )}
-            
-          </div>
+        <div className="no-print" style={{ marginBottom: '30px' }}>
+          
+          {/* BADGE CNPJ/TRIAL FIXADO NO TOPO ESQUERDO DA TELA */}
           {licencaAtual && (
-            <div style={{ background: '#fff', padding: '10px 20px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
-              <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
+              <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>{formatarCNPJ(licencaAtual.identificador_cliente)}</span>
+              <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
             </div>
           )}
+
+          <div>
+            <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
+            <p style={{ margin: '5px 0 15px 0', color: '#64748b', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+            {/* BOAS VINDAS RAZÃO SOCIAL (Sem Parênteses) */}
+            {licencaAtual && licencaAtual.plano !== 'admin' && razaoSocialLogada && (
+              <h3 style={{ color: '#ef4444', margin: 0, fontSize: '18px', fontWeight: 'bold' }}>Olá, {razaoSocialLogada}</h3>
+            )}
+          </div>
         </div>
 
         {faseAtual === 'upload' && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexGrow: 1, minHeight: 'calc(100vh - 250px)', width: '100%' }}>
             <div className="upload-box">
               <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
               <div style={{ animation: 'float 3s ease-in-out infinite' }}><UploadCloud size={80} color="#004080" style={{ marginBottom: '25px' }} /></div>
@@ -712,7 +668,6 @@ export default function ImportadorSped() {
                           <h3 className="card-title">Apuração de ICMS</h3>
                           <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
-                              {/* MARGENS E RAIOS CORRIGIDOS PARA NÃO CORTAR OS NÚMEROS */}
                               <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
                                 <Pie data={dadosGraficoIcms.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
                                   {dadosGraficoIcms.filter(d=>d.value>0).map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
@@ -738,7 +693,7 @@ export default function ImportadorSped() {
                                   </div>
                                   <span className="leg-val" style={{color:'#ef4444'}}>{formatarMoeda(g.valor)}</span>
                                 </div>
-                              )) : <p style={{fontSize:'13px', color:'#999', textAlign:'center'}}>Sem guias.</p>}
+                              )) : <p style={{fontSize:'13px', color:'#999', textAlign:'center'}}>Sem guias detectadas (E116).</p>}
                             </div>
                           </div>
                         </div>
@@ -770,21 +725,20 @@ export default function ImportadorSped() {
                         <div className="card-dash" style={{ borderTop: '6px solid #ef4444', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>ISENTAS / NÃO TRIB</p><h2 style={{margin:0, color:'#ef4444', fontSize:'24px'}}>{formatarMoeda(resumoTributacao.isento)}</h2></div>
                       </div>
                       
-                      {/* CAIXA PROFISSIONAL DE ALÍQUOTA EFETIVA */}
+                      {/* CAIXA DE ALÍQUOTA EFETIVA CORRIGIDA: ICMS / FATURAMENTO */}
                       <div className="card-dash" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)', padding: '25px', borderRadius: '15px', borderLeft: '6px solid #004080', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div>
                           <h4 style={{ margin: 0, color: '#0f172a', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Calculator size={24} color="#004080"/> Alíquota Efetiva de Impostos</h4>
-                          <p style={{ margin: '5px 0 0 0', color: '#475569', fontSize: '15px' }}>Percentual representativo da carga tributária a recolher com base no faturamento total analisado.</p>
+                          <p style={{ margin: '5px 0 0 0', color: '#475569', fontSize: '15px' }}>Cálculo exato: ICMS a Recolher dividido pelo Faturamento Total Analisado.</p>
                         </div>
                         <div style={{ background: '#004080', color: '#fff', padding: '15px 30px', borderRadius: '12px', fontSize: '32px', fontWeight: '900', boxShadow: '0 10px 20px rgba(0,64,128,0.2)' }}>
                           {aliquotaEfetiva}%
                         </div>
                       </div>
 
-                      {/* RESTAURAÇÃO DO GRÁFICO DE ENTRADAS LADO A LADO COM AS SAÍDAS */}
                       <div className="grid-2">
                         <div className="card-dash">
-                          <h3 className="card-title"><Activity size={24} /> Tributação das Entradas (C190)</h3>
+                          <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
                             <div className="chart-container"><ResponsiveContainer width="100%" height="100%"><PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}><Pie data={dadosRoscaEntradas.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>{dadosRoscaEntradas.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]} />)}</Pie><Tooltip formatter={(v)=>formatarMoeda(v)}/></PieChart></ResponsiveContainer></div>
                             <div style={{maxHeight:'250px', overflowY:'auto'}}>{dadosRoscaEntradas.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}`}}><span className="leg-lbl" style={{fontSize: '11px'}}>{it.name}</span><strong className="leg-val" style={{fontSize: '12px'}}>{formatarMoeda(it.value)}</strong></div>))}</div>
@@ -792,10 +746,35 @@ export default function ImportadorSped() {
                         </div>
 
                         <div className="card-dash">
-                          <h3 className="card-title"><Activity size={24} /> Tributação das Saídas (C190)</h3>
+                          <h3 className="card-title"><Activity size={24} /> Tributação das Saídas</h3>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
                             <div className="chart-container"><ResponsiveContainer width="100%" height="100%"><PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}><Pie data={dadosTributacaoSaida.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>{dadosTributacaoSaida.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]} />)}</Pie><Tooltip formatter={(v)=>formatarMoeda(v)}/></PieChart></ResponsiveContainer></div>
                             <div style={{maxHeight:'250px', overflowY:'auto'}}>{dadosTributacaoSaida.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}`}}><span className="leg-lbl" style={{fontSize: '11px'}}>{it.name}</span><strong className="leg-val" style={{fontSize: '12px'}}>{formatarMoeda(it.value)}</strong></div>))}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* GRAFICO DE ESTADOS DE VOLTA A TELA */}
+                      <div className="card-dash" style={{ gridColumn: '1 / -1' }}>
+                        <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', alignItems: 'center' }}>
+                          <div className="chart-container">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                <Pie data={dadosEstados.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>
+                                  {dadosEstados.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]} />)}
+                                </Pie>
+                                <Tooltip formatter={(v)=>formatarMoeda(v)}/>
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+                          <div style={{maxHeight:'250px', overflowY:'auto'}}>
+                            {dadosEstados.map((it, idx)=>(
+                              <div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_MAPA[idx%CORES_MAPA.length]}`}}>
+                                <span className="leg-lbl" style={{fontSize: '12px'}}>{it.name}</span>
+                                <strong className="leg-val" style={{fontSize: '13px'}}>{formatarMoeda(it.value)}</strong>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       </div>
@@ -823,13 +802,8 @@ export default function ImportadorSped() {
               {abaAtiva === 'verificacao' && (
                 <div className="card-dash" style={{ width: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
-                    <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <Zap size={32} color="#f59e0b" /> Radar de Malha Fina (Riscos Detectados)
-                    </h2>
-                    {/* BOTÃO DE PDF ADICIONADO AQUI */}
-                    <button onClick={() => window.print()} className="no-print" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
-                      <Printer size={18} /> Exportar em PDF
-                    </button>
+                    <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Zap size={32} color="#f59e0b" /> Radar de Malha Fina (Riscos Detectados)</h2>
+                    <button onClick={() => window.print()} className="no-print" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Printer size={18} /> Exportar em PDF</button>
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr style={{ background: '#f59e0b', color: '#fff', textAlign: 'left' }}><th style={{ padding: '15px' }}>Tipo de Risco</th><th style={{ padding: '15px' }}>Registro</th><th style={{ padding: '15px' }}>Alerta</th><th style={{ padding: '15px' }}>Detalhe</th></tr></thead>
@@ -843,13 +817,8 @@ export default function ImportadorSped() {
               {abaAtiva === 'auditoria' && (
                 <div className="card-dash" style={{ width: '100%' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
-                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria
-                    </h2>
-                    {/* BOTÃO DE PDF ADICIONADO AQUI */}
-                    <button onClick={() => window.print()} className="no-print" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
-                      <Printer size={18} /> Exportar em PDF
-                    </button>
+                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2>
+                    <button onClick={() => window.print()} className="no-print" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}><Printer size={18} /> Exportar em PDF</button>
                   </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr style={{ background: '#004080', color: '#fff', textAlign: 'left' }}><th style={{ padding: '15px' }}>Linha</th><th style={{ padding: '15px' }}>Registro</th><th style={{ padding: '15px' }}>Ação Realizada</th><th style={{ padding: '15px' }}>Detalhe Fiscal</th></tr></thead>
