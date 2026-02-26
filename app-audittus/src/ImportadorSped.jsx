@@ -16,8 +16,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
-const SENHA_ADMIN = "master336"; // Senha de Bypass (Ignora a nuvem para você testar)
-const VERSAO_ATUAL = "1.1.21";
+const SENHA_ADMIN = "master336"; // Senha de Bypass
+const VERSAO_ATUAL = "1.1.22";
 
 // Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
@@ -29,9 +29,33 @@ const obterOuGerarHardwareId = () => {
   return hwId;
 };
 
+// ==========================================
+// FUNÇÕES FORMATADORAS GLOBAIS
+// ==========================================
+const formatarCNPJ = (cnpj) => {
+  if (!cnpj) return '';
+  const num = cnpj.replace(/\D/g, '');
+  if (num.length === 14) return num.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+  return cnpj;
+};
+
+const formatarDataGuia = (dataStr) => {
+  if (!dataStr || dataStr.length !== 8) return dataStr;
+  return `${dataStr.substring(0,2)}/${dataStr.substring(2,4)}/${dataStr.substring(4,8)}`;
+};
+
+const getNomeGuia = (cod) => {
+  if (cod === '1212') return '1212 - ICMS COMÉRCIO';
+  if (cod === '1112') return '1112 - ICMS INDÚSTRIA';
+  if (cod === '6307') return '6307 - FECOEP A RECOLHER';
+  return 'CÓD NÃO IDENTIFICADO';
+};
+
+const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+
 export default function ImportadorSped() {
   const [faseAtual, setFaseAtual] = useState('login'); 
-  const [senhaInput, setSenhaInput] = useState(''); // Guarda o CNPJ ou Email
+  const [senhaInput, setSenhaInput] = useState(''); 
   const [erroLogin, setErroLogin] = useState('');
   const [loadingText, setLoadingText] = useState('');
   const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
@@ -39,7 +63,7 @@ export default function ImportadorSped() {
   // Controle de Licença e Razão Social
   const [licencaAtual, setLicencaAtual] = useState(null);
   const [modalPremiumAberto, setModalPremiumAberto] = useState(false);
-  const [razaoSocialLogada, setRazaoSocialLogada] = useState(''); // NOVO: Guarda o nome da empresa logada
+  const [razaoSocialLogada, setRazaoSocialLogada] = useState(''); 
 
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
@@ -120,7 +144,7 @@ export default function ImportadorSped() {
     const hwId = obterOuGerarHardwareId();
 
     try {
-      // NOVO: Busca a Razão Social na Receita Federal (BrasilAPI)
+      // Busca a Razão Social na Receita Federal (BrasilAPI)
       let razaoEncontrada = '';
       const apenasNumeros = ident.replace(/\D/g, '');
       if (apenasNumeros.length === 14) {
@@ -128,7 +152,8 @@ export default function ImportadorSped() {
           const resApi = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${apenasNumeros}`);
           if (resApi.ok) {
             const dadosCnpj = await resApi.json();
-            razaoEncontrada = dadosCnpj.razao_social;
+            // Remove parênteses caso a API traga
+            razaoEncontrada = dadosCnpj.razao_social.replace(/[()]/g, '').trim();
           }
         } catch (errApi) {
           console.log("Aviso: Falha ao buscar razão social na API pública.", errApi);
@@ -201,7 +226,7 @@ export default function ImportadorSped() {
     if (!file) return;
     
     setFaseAtual('loading'); 
-    setLoadingText("Verificando integridade e licenciamento...");
+    setLoadingText("Lendo estrutura do arquivo SPED...");
     
     const reader = new FileReader();
     reader.readAsText(file, 'windows-1252');
@@ -403,13 +428,12 @@ export default function ImportadorSped() {
     };
   };
 
+  const aliquotaEfetiva = resumoTributacao.total > 0 ? (((resumoIcms.icmsRecolher + resumoTributacao.st) / resumoTributacao.total) * 100).toFixed(2) : '0.00';
+
   const CORES_ICMS = ['#004080', '#F59E0B']; 
   const CORES_OPERACOES = ['#10b981', '#4f46e5']; 
   const CORES_TRIBUTACAO = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899'];
-  const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'];
-  const CORES_ENTRADAS = ['#34d399', '#f87171', '#fbbf24', '#60a5fa', '#a78bfa', '#f472b6', '#fb923c', '#2dd4bf'];
   const mapUfIbge = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
-  const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
 
   const BotoesAcao = () => (
     <div className="no-print act-btns">
@@ -458,8 +482,9 @@ export default function ImportadorSped() {
           <p style={{ marginTop: '20px', fontSize: '12px', color: '#94a3b8' }}>Se for o seu primeiro acesso, 1 análise será liberada gratuitamente.</p>
         </div>
         <style>{`
-          body, html, #root { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f0f4f8; font-family: system-ui, sans-serif; }
-          .fullscreen-center { display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; }
+          body, html { margin: 0; padding: 0; width: 100%; min-height: 100vh; background-color: #f0f4f8; font-family: system-ui, sans-serif; overflow-x: hidden; overflow-y: auto; }
+          #root { width: 100%; min-height: 100vh; display: flex; flex-direction: column; }
+          .fullscreen-center { display: flex; min-height: 100vh; width: 100%; align-items: center; justify-content: center; flex-direction: column; padding: 20px; box-sizing: border-box; }
           .login-box { background: #fff; padding: 50px; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
           .login-title { margin: 0 0 5px 0; color: #004080; font-size: 32px; font-weight: 900; letter-spacing: -1px; }
           .login-sub { margin: 0 0 30px 0; color: #64748b; font-size: 14px; }
@@ -477,15 +502,18 @@ export default function ImportadorSped() {
   }
 
   // ------------------------------------------------------------------------------------------------------------------
-  // TELA 2: LOADING GERAL
+  // TELA 2: LOADING GERAL (CENTRALIZADO E MODERNO)
   // ------------------------------------------------------------------------------------------------------------------
   if (faseAtual === 'loading') {
     return (
       <div className="fullscreen-center">
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-          <Loader2 size={64} color="#004080" className="spin" />
-          <h2 style={{ color: '#004080', margin: 0, fontSize: '24px' }}>Processando...</h2>
-          <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600' }}>{loadingText}</p>
+        <div style={{ background: '#fff', padding: '60px 80px', borderRadius: '24px', boxShadow: '0 25px 50px rgba(0,64,128,0.1)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid #e2e8f0' }}>
+          <div style={{ position: 'relative' }}>
+            <Loader2 size={80} color="#004080" className="spin" />
+            <Zap size={30} color="#f59e0b" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+          </div>
+          <h2 style={{ color: '#004080', margin: '10px 0 0 0', fontSize: '28px', fontWeight: '900' }}>Processando...</h2>
+          <p style={{ color: '#64748b', fontSize: '16px', fontWeight: '600', margin: 0, maxWidth: '250px' }}>{loadingText}</p>
         </div>
       </div>
     );
@@ -498,9 +526,7 @@ export default function ImportadorSped() {
     <div className="main-container">
       <style>
         {`
-          body, html { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh !important; background-color: #f0f4f8 !important; }
-          #root { width: 100% !important; min-height: 100vh !important; display: flex !important; flex-direction: column !important; padding: 0 !important; margin: 0 !important; }
-          .main-container { flex: 1; width: 100%; padding: 0; box-sizing: border-box; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; }
+          .main-container { flex: 1; width: 100%; padding: 0; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
           .content-wrapper { width: 100%; max-width: 1800px; padding: 30px; margin: 0 auto; display: flex; flex-direction: column; }
           .dashboard-layout { display: flex; gap: 30px; align-items: flex-start; width: 100%; }
           .dash-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 25px; }
@@ -521,7 +547,8 @@ export default function ImportadorSped() {
           .leg-val { font-size: 14px; color: #004080; font-weight: bold; white-space: nowrap; }
           .chart-container { height: 300px; width: 100%; flex-grow: 1; }
           .act-btns { display: flex; justify-content: center; flex-wrap: wrap; gap: 20px; padding: 20px; background: #fff; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-          .act-btns button { padding: 15px 25px; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+          .act-btns button { padding: 15px 25px; color: #fff; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
+          .act-btns button:hover { opacity: 0.8; transform: translateY(-2px); }
           .btn-dl { background: #004080; } .btn-pr { background: #10b981; } .btn-nw { background: #ef4444; }
           ::-webkit-scrollbar { width: 8px; height: 8px; } ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; } ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
           @media print { .no-print { display: none !important; } .dashboard-layout, .dash-main, .grid-3, .grid-2, .grid-4 { display: block !important; width: 100% !important; margin: 0 !important; } .card-dash, .dash-sidebar { width: 100% !important; max-width: 750px !important; margin: 0 auto 30px auto !important; page-break-inside: avoid !important; box-shadow: none !important; border: 2px solid #cbd5e1 !important; } .chart-container { height: 400px !important; } }
@@ -552,12 +579,10 @@ export default function ImportadorSped() {
             <Crown size={70} color="#f59e0b" style={{ margin: '0 auto 20px auto' }} />
             <h2 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '28px', fontWeight: '900' }}>Cota Gratuita Esgotada!</h2>
             <p style={{ color: '#475569', fontSize: '18px', lineHeight: '1.6', marginBottom: '15px' }}>Você utilizou sua Análise Gratuita e pôde ver o poder da Auto-Cura do AUDITTUS. Para continuar processando novos SPEDs, faça um upgrade para o Plano Premium.</p>
-            
             <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '30px' }}>
               <p style={{ margin: 0, fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>Sua Licença Vinculada:</p>
               <strong style={{ fontSize: '18px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '5px' }}><User size={18}/> {licencaAtual?.identificador_cliente}</strong>
             </div>
-
             <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <button style={{ padding: '18px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}><Crown size={20} /> Assinar AUDITTUS Premium</button>
               <button onClick={() => setModalPremiumAberto(false)} style={{ padding: '15px', background: 'transparent', color: '#64748b', border: 'none', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}>Voltar</button>
@@ -579,18 +604,17 @@ export default function ImportadorSped() {
             <h1 style={{ color: '#004080', margin: '0', fontSize: '32px', fontWeight: '800' }}>AUDITTUS</h1>
             <p style={{ margin: '5px 0 15px 0', color: '#666', fontSize: '16px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
             
-            {/* NOVO: CAIXA DE MENSAGEM VERMELHA COM RAZÃO SOCIAL */}
+            {/* CAIXA DE MENSAGEM VERMELHA COM RAZÃO SOCIAL FORMATADA */}
             {licencaAtual && licencaAtual.plano !== 'admin' && (
               <h3 style={{ color: '#ef4444', margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
-                Olá, {licencaAtual.identificador_cliente} {razaoSocialLogada ? `- (${razaoSocialLogada})` : ''}
+                Olá, {formatarCNPJ(licencaAtual.identificador_cliente)} {razaoSocialLogada ? `- ${razaoSocialLogada}` : ''}
               </h3>
             )}
             
           </div>
-          {licencaAtual && licencaAtual.plano !== 'admin' && (
+          {licencaAtual && (
             <div style={{ background: '#fff', padding: '10px 20px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : '#f59e0b' }}></div>
-              <span style={{ fontWeight: 'bold', color: '#333' }}>{licencaAtual.identificador_cliente}</span>
+              <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
               <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
             </div>
           )}
@@ -619,7 +643,7 @@ export default function ImportadorSped() {
             <div className="print-banner" style={{ display: 'flex', justifyContent: 'space-between', background: '#fff', border: '3px solid #004080', padding: '20px', borderRadius: '15px', marginBottom: '30px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: '#004080' }}>
                 <Building2 size={40} />
-                <div><h2 style={{ margin: 0, fontSize: '22px' }}>{dadosEmpresa.nome}</h2><span style={{ fontSize: '14px', opacity: 0.8 }}>CNPJ: {dadosEmpresa.cnpj}</span></div>
+                <div><h2 style={{ margin: 0, fontSize: '22px' }}>{dadosEmpresa.nome}</h2><span style={{ fontSize: '14px', opacity: 0.8 }}>CNPJ: {formatarCNPJ(dadosEmpresa.cnpj)}</span></div>
               </div>
               <div style={{ textAlign: 'right', color: '#004080' }}>
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '12px', fontWeight: 'bold' }}><Calendar size={14}/> PERÍODO</span>
@@ -638,7 +662,7 @@ export default function ImportadorSped() {
                           <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart margin={{ top: 20, right: 35, bottom: 20, left: 35 }}>
-                                <Pie data={dadosGraficoOperacoes.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={75} outerRadius={115} paddingAngle={5} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                                <Pie data={dadosGraficoOperacoes.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
                                   {dadosGraficoOperacoes.filter(d=>d.value>0).map((e, i) => <Cell key={i} fill={CORES_OPERACOES[i % CORES_OPERACOES.length]} />)}
                                 </Pie>
                                 <Tooltip formatter={(v) => formatarMoeda(v)} />
@@ -688,8 +712,9 @@ export default function ImportadorSped() {
                           <h3 className="card-title">Apuração de ICMS</h3>
                           <div className="chart-container">
                             <ResponsiveContainer width="100%" height="100%">
-                              <PieChart margin={{ top: 20, right: 40, bottom: 20, left: 40 }}>
-                                <Pie data={dadosGraficoIcms.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={75} outerRadius={115} paddingAngle={5} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
+                              {/* MARGENS E RAIOS CORRIGIDOS PARA NÃO CORTAR OS NÚMEROS */}
+                              <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
+                                <Pie data={dadosGraficoIcms.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={100} paddingAngle={5} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>
                                   {dadosGraficoIcms.filter(d=>d.value>0).map((e, i) => <Cell key={i} fill={CORES_ICMS[i % CORES_ICMS.length]} />)}
                                 </Pie>
                                 <Tooltip formatter={(v) => formatarMoeda(v)} />
@@ -705,7 +730,15 @@ export default function ImportadorSped() {
                           </div>
                           <div className="card-dash" style={{ flex: 1 }}><h3 className="card-title"><DollarSign size={20}/> Obrigações e Guias</h3>
                             <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                              {guiasE116.length > 0 ? guiasE116.map((g, i) => (<div key={i} className="leg-item"><div><span style={{fontSize:'12px', color:'#666', display:'block'}}>Cód: {g.codigo}</span><span style={{fontSize:'12px', color:'#555'}}><Calendar size={12}/> Venc: {g.vencimento}</span></div><span className="leg-val" style={{color:'#ef4444'}}>{formatarMoeda(g.valor)}</span></div>)) : <p style={{fontSize:'13px', color:'#999', textAlign:'center'}}>Sem guias.</p>}
+                              {guiasE116.length > 0 ? guiasE116.map((g, i) => (
+                                <div key={i} className="leg-item">
+                                  <div>
+                                    <span style={{fontSize:'12px', color:'#666', display:'block', fontWeight: 'bold'}}>{getNomeGuia(g.codigo)}</span>
+                                    <span style={{fontSize:'12px', color:'#555'}}><Calendar size={12}/> Venc: {formatarDataGuia(g.vencimento)}</span>
+                                  </div>
+                                  <span className="leg-val" style={{color:'#ef4444'}}>{formatarMoeda(g.valor)}</span>
+                                </div>
+                              )) : <p style={{fontSize:'13px', color:'#999', textAlign:'center'}}>Sem guias.</p>}
                             </div>
                           </div>
                         </div>
@@ -736,11 +769,34 @@ export default function ImportadorSped() {
                         <div className="card-dash" style={{ borderTop: '6px solid #8b5cf6', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>PRESTAÇÕES DE SERVIÇOS</p><h2 style={{margin:0, color:'#8b5cf6', fontSize:'24px'}}>{formatarMoeda(resumoTributacao.servicos)}</h2></div>
                         <div className="card-dash" style={{ borderTop: '6px solid #ef4444', textAlign: 'center', padding: '20px' }}><p style={{fontSize:'12px', fontWeight:'bold', color:'#666'}}>ISENTAS / NÃO TRIB</p><h2 style={{margin:0, color:'#ef4444', fontSize:'24px'}}>{formatarMoeda(resumoTributacao.isento)}</h2></div>
                       </div>
-                      <div className="card-dash">
-                        <h3 className="card-title"><Activity size={24} /> Tributação das Saídas (C190)</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', alignItems: 'center' }}>
-                          <div className="chart-container"><ResponsiveContainer width="100%" height="100%"><PieChart margin={{ top: 20, right: 35, bottom: 20, left: 35 }}><Pie data={dadosTributacaoSaida.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '12px', fontWeight: 'bold' }}>{dadosTributacaoSaida.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]} />)}</Pie><Tooltip formatter={(v)=>formatarMoeda(v)}/></PieChart></ResponsiveContainer></div>
-                          <div style={{maxHeight:'300px', overflowY:'auto'}}>{dadosTributacaoSaida.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}`}}><span className="leg-lbl">{it.name}</span><strong className="leg-val">{formatarMoeda(it.value)}</strong></div>))}</div>
+                      
+                      {/* CAIXA PROFISSIONAL DE ALÍQUOTA EFETIVA */}
+                      <div className="card-dash" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)', padding: '25px', borderRadius: '15px', borderLeft: '6px solid #004080', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div>
+                          <h4 style={{ margin: 0, color: '#0f172a', fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}><Calculator size={24} color="#004080"/> Alíquota Efetiva de Impostos</h4>
+                          <p style={{ margin: '5px 0 0 0', color: '#475569', fontSize: '15px' }}>Percentual representativo da carga tributária a recolher com base no faturamento total analisado.</p>
+                        </div>
+                        <div style={{ background: '#004080', color: '#fff', padding: '15px 30px', borderRadius: '12px', fontSize: '32px', fontWeight: '900', boxShadow: '0 10px 20px rgba(0,64,128,0.2)' }}>
+                          {aliquotaEfetiva}%
+                        </div>
+                      </div>
+
+                      {/* RESTAURAÇÃO DO GRÁFICO DE ENTRADAS LADO A LADO COM AS SAÍDAS */}
+                      <div className="grid-2">
+                        <div className="card-dash">
+                          <h3 className="card-title"><Activity size={24} /> Tributação das Entradas (C190)</h3>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
+                            <div className="chart-container"><ResponsiveContainer width="100%" height="100%"><PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}><Pie data={dadosRoscaEntradas.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>{dadosRoscaEntradas.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]} />)}</Pie><Tooltip formatter={(v)=>formatarMoeda(v)}/></PieChart></ResponsiveContainer></div>
+                            <div style={{maxHeight:'250px', overflowY:'auto'}}>{dadosRoscaEntradas.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}`}}><span className="leg-lbl" style={{fontSize: '11px'}}>{it.name}</span><strong className="leg-val" style={{fontSize: '12px'}}>{formatarMoeda(it.value)}</strong></div>))}</div>
+                          </div>
+                        </div>
+
+                        <div className="card-dash">
+                          <h3 className="card-title"><Activity size={24} /> Tributação das Saídas (C190)</h3>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
+                            <div className="chart-container"><ResponsiveContainer width="100%" height="100%"><PieChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}><Pie data={dadosTributacaoSaida.filter(d=>d.value>0)} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={4} dataKey="value" label={({percent}) => `${(percent*100).toFixed(1)}%`} labelLine={true} style={{ fontSize: '11px', fontWeight: 'bold' }}>{dadosTributacaoSaida.filter(d=>d.value>0).map((e, i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]} />)}</Pie><Tooltip formatter={(v)=>formatarMoeda(v)}/></PieChart></ResponsiveContainer></div>
+                            <div style={{maxHeight:'250px', overflowY:'auto'}}>{dadosTributacaoSaida.map((it, idx)=>(<div key={idx} className="leg-item" style={{borderLeft:`5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}`}}><span className="leg-lbl" style={{fontSize: '11px'}}>{it.name}</span><strong className="leg-val" style={{fontSize: '12px'}}>{formatarMoeda(it.value)}</strong></div>))}</div>
+                          </div>
                         </div>
                       </div>
                     </>
@@ -766,7 +822,15 @@ export default function ImportadorSped() {
 
               {abaAtiva === 'verificacao' && (
                 <div className="card-dash" style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}><h2 style={{ margin: 0, color: '#f59e0b', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Zap size={32} color="#f59e0b" /> Radar de Malha Fina (Riscos Detectados)</h2></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
+                    <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <Zap size={32} color="#f59e0b" /> Radar de Malha Fina (Riscos Detectados)
+                    </h2>
+                    {/* BOTÃO DE PDF ADICIONADO AQUI */}
+                    <button onClick={() => window.print()} className="no-print" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
+                      <Printer size={18} /> Exportar em PDF
+                    </button>
+                  </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr style={{ background: '#f59e0b', color: '#fff', textAlign: 'left' }}><th style={{ padding: '15px' }}>Tipo de Risco</th><th style={{ padding: '15px' }}>Registro</th><th style={{ padding: '15px' }}>Alerta</th><th style={{ padding: '15px' }}>Detalhe</th></tr></thead>
                     <tbody>
@@ -778,7 +842,15 @@ export default function ImportadorSped() {
 
               {abaAtiva === 'auditoria' && (
                 <div className="card-dash" style={{ width: '100%' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}><h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}><Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria</h2></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '3px solid #f0f4f8', paddingBottom: '20px', marginBottom: '30px' }}>
+                    <h2 style={{ margin: 0, color: '#004080', fontSize: '28px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <Shield size={32} color="#10b981" /> Relatório Detalhado de Auditoria
+                    </h2>
+                    {/* BOTÃO DE PDF ADICIONADO AQUI */}
+                    <button onClick={() => window.print()} className="no-print" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
+                      <Printer size={18} /> Exportar em PDF
+                    </button>
+                  </div>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr style={{ background: '#004080', color: '#fff', textAlign: 'left' }}><th style={{ padding: '15px' }}>Linha</th><th style={{ padding: '15px' }}>Registro</th><th style={{ padding: '15px' }}>Ação Realizada</th><th style={{ padding: '15px' }}>Detalhe Fiscal</th></tr></thead>
                     <tbody>
