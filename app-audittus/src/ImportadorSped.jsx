@@ -7,7 +7,7 @@ import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, 
 // ==========================================
 import { createClient } from '@supabase/supabase-js';
 
-// COLE SUAS CHAVES DO SUPABASE EXATAMENTE AQUI DENTRO DAS ASPAS
+// ATENÇÃO: COLE SUAS CHAVES DO SUPABASE EXATAMENTE AQUI DENTRO DAS ASPAS
 const SUPABASE_URL = "https://quzffabofgnzcfjwuwqm.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 
@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
 const SENHA_ADMIN = "master7474"; // Senha de Bypass (Ignora a nuvem para você testar)
-const VERSAO_ATUAL = "1.1.22";
+const VERSAO_ATUAL = "1.1.19";
 
 // Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
@@ -31,7 +31,7 @@ const obterOuGerarHardwareId = () => {
 
 export default function ImportadorSped() {
   const [faseAtual, setFaseAtual] = useState('login'); 
-  const [senhaInput, setSenhaInput] = useState(''); // Agora guarda o CNPJ ou Email
+  const [senhaInput, setSenhaInput] = useState(''); // Guarda o CNPJ ou Email
   const [erroLogin, setErroLogin] = useState('');
   const [loadingText, setLoadingText] = useState('');
   const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
@@ -120,7 +120,6 @@ export default function ImportadorSped() {
     const hwId = obterOuGerarHardwareId();
 
     try {
-      // 2. Busca a licença pelo CNPJ ou Email digitado
       let { data: licenca, error } = await supabase
         .from('licencas_clientes')
         .select('*')
@@ -131,7 +130,6 @@ export default function ImportadorSped() {
          throw new Error("Erro de conexão com o Servidor de Licenças.");
       }
 
-      // 3. Se o CNPJ não existe, cadastra ele automaticamente e dá 1 Trial
       if (!licenca) {
         const novaLicenca = {
           identificador_cliente: ident,
@@ -145,20 +143,16 @@ export default function ImportadorSped() {
         if (errInsert) throw errInsert;
         licenca = criada;
       } else {
-        // 4. Se a licença existe, vamos checar se a máquina bate com a licença
         if (!licenca.hardware_id) {
-          // É o primeiro login deste cliente que você cadastrou na mão? Amarra a máquina nele.
           await supabase.from('licencas_clientes').update({ hardware_id: hwId }).eq('id', licenca.id);
           licenca.hardware_id = hwId;
         } else if (licenca.hardware_id !== hwId) {
-          // Cliente tentando piratear: A máquina atual é diferente da máquina cadastrada!
           setErroLogin('Este CNPJ/E-mail já está vinculado a outro computador. Contate o suporte técnico.');
           setIsProcessandoLoading(false);
           return;
         }
       }
 
-      // 5. Checagem de Guilhotina (Bloqueio Remoto por Falta de Pagamento)
       if (licenca.status_bloqueio) {
         setIsProcessandoLoading(false);
         setErroLogin('O acesso desta licença está bloqueado no Servidor. Regularize sua situação.');
@@ -200,9 +194,6 @@ export default function ImportadorSped() {
       const conteudoArquivo = e.target.result;
       const linhasOriginais = conteudoArquivo.split(/\r?\n/);
       
-      // ==========================================
-      // INTELIGÊNCIA DE CNPJ E LICENÇA
-      // ==========================================
       let cnpjArquivo = "";
       for (let i = 0; i < linhasOriginais.length; i++) {
         if (linhasOriginais[i].startsWith('|0000|')) {
@@ -212,18 +203,15 @@ export default function ImportadorSped() {
       }
 
       if (licencaAtual && licencaAtual.plano !== 'admin') {
-        // Validação Trial (Cota)
         if (licencaAtual.plano === 'trial') {
           if (licencaAtual.analises_gratuitas_restantes <= 0) {
             setFaseAtual('upload');
-            setModalPremiumAberto(true); // Cota estourou, levanta a Guilhotina!
+            setModalPremiumAberto(true); 
             return;
           }
-          // Consume a 1ª e única cota
           await supabase.from('licencas_clientes').update({ analises_gratuitas_restantes: 0 }).eq('id', licencaAtual.id);
           setLicencaAtual({...licencaAtual, analises_gratuitas_restantes: 0});
         } 
-        // Validação Premium (Limite de CNPJs)
         else if (licencaAtual.plano === 'premium') {
           let listaCnpjs = licencaAtual.cnpjs_vinculados || [];
           if (!listaCnpjs.includes(cnpjArquivo)) {
@@ -232,7 +220,6 @@ export default function ImportadorSped() {
               alert(`⛔ Limite de Empresas Atingido!\n\nSeu plano atual permite auditar ${licencaAtual.limite_cnpjs} CNPJ(s).\nO CNPJ do arquivo (${cnpjArquivo}) não faz parte da sua cota. Faça um upgrade no painel.`);
               return;
             } else {
-              // Salva o novo CNPJ na vaga livre do cliente
               listaCnpjs.push(cnpjArquivo);
               await supabase.from('licencas_clientes').update({ cnpjs_vinculados: listaCnpjs }).eq('id', licencaAtual.id);
               setLicencaAtual({...licencaAtual, cnpjs_vinculados: listaCnpjs});
@@ -241,9 +228,6 @@ export default function ImportadorSped() {
         }
       }
 
-      // ==========================================
-      // PROCESSAMENTO FISCAL (MOTOR SPED)
-      // ==========================================
       setNomeOriginal(file.name);
       const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas...", "Aplicando Auto-Cura Tributária...", "Gerando painel Business Intelligence..."];
       let step = 0; setLoadingText(mensagens[0]);
@@ -527,6 +511,23 @@ export default function ImportadorSped() {
           @media print { .no-print { display: none !important; } .dashboard-layout, .dash-main, .grid-3, .grid-2, .grid-4 { display: block !important; width: 100% !important; margin: 0 !important; } .card-dash, .dash-sidebar { width: 100% !important; max-width: 750px !important; margin: 0 auto 30px auto !important; page-break-inside: avoid !important; box-shadow: none !important; border: 2px solid #cbd5e1 !important; } .chart-container { height: 400px !important; } }
         `}
       </style>
+
+      {/* MODAL DE NOVA ATUALIZAÇÃO DISPONÍVEL */}
+      {updateModalOpen && !sistemaBloqueadoPorAtualizacao && (
+        <div className="no-print" style={{ position: 'fixed', bottom: '20px', right: '20px', backgroundColor: '#004080', color: '#fff', padding: '20px', borderRadius: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.3)', zIndex: 9999, maxWidth: '350px', border: '2px solid #38bdf8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <DownloadCloud size={24} color="#38bdf8" />
+            <h3 style={{ margin: 0, fontSize: '18px' }}>Nova Versão Disponível!</h3>
+          </div>
+          <p style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#cbd5e1' }}>Uma atualização de segurança e performance foi encontrada.</p>
+          <button onClick={handleAtualizarAgora} style={{ width: '100%', padding: '12px', backgroundColor: '#38bdf8', color: '#0f172a', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}>
+            <RefreshCw size={18} /> Instalar Atualização
+          </button>
+          <button onClick={() => setUpdateModalOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'transparent', color: '#cbd5e1', border: 'none', marginTop: '5px', cursor: 'pointer', fontSize: '12px' }}>
+            Lembrar mais tarde
+          </button>
+        </div>
+      )}
 
       {/* MODAL DE UPGRADE / LIMITE DE COTA */}
       {modalPremiumAberto && (
