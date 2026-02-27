@@ -94,7 +94,7 @@ function createWindow() {
   // =========================================================
   // 4. ESCUTA DO RADAR DE ATUALIZAÇÃO
   // =========================================================
-  autoUpdater.on('update-available', () => {
+  autoUpdater.on('update-downloaded', () => {
     mainWindow.webContents.executeJavaScript('if(window.triggerUpdateModal) window.triggerUpdateModal();');
   });
 }
