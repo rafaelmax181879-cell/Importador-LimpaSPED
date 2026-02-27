@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.34";
+const VERSAO_ATUAL = "1.1.35";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -111,7 +111,7 @@ export default function ImportadorSped() {
     }
   };
 
-  const handleLogin = async (e) => {
+const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
     const ident = senhaInput.trim();
@@ -150,18 +150,47 @@ export default function ImportadorSped() {
       let { data: licenca, error } = await supabase.from('licencas_clientes').select('*').eq('identificador_cliente', ident).single();
       if (error && error.code !== 'PGRST116') { throw new Error("Erro de conexão."); }
 
+      // =========================================================================
+      // NOVA LÓGICA DE MÚLTIPLAS MÁQUINAS E MIGRAÇÃO AUTOMÁTICA
+      // =========================================================================
       if (!licenca) {
-        const novaLicenca = { identificador_cliente: ident, hardware_id: hwId, plano: 'trial', analises_gratuitas_restantes: 1, limite_cnpjs: 1, cnpjs_vinculados: [] };
+        // Cliente Novo
+        const novaLicenca = { 
+          identificador_cliente: ident, 
+          hardware_id: hwId, // Mantido por segurança na transição
+          maquinas_vinculadas: [hwId],
+          limite_maquinas: 1,
+          plano: 'trial', 
+          analises_gratuitas_restantes: 1, 
+          limite_cnpjs: 1, 
+          cnpjs_vinculados: [] 
+        };
         const { data: criada, error: errInsert } = await supabase.from('licencas_clientes').insert([novaLicenca]).select().single();
         if (errInsert) throw errInsert;
         licenca = criada;
       } else {
-        if (!licenca.hardware_id) {
-          await supabase.from('licencas_clientes').update({ hardware_id: hwId }).eq('id', licenca.id);
-          licenca.hardware_id = hwId;
-        } else if (licenca.hardware_id !== hwId) { 
-          setErroLogin('Licença vinculada a outro computador. Contate o suporte.'); 
-          setIsProcessandoLoading(false); return; 
+        // Cliente Existente
+        let maquinasAtuais = licenca.maquinas_vinculadas || [];
+        const limite = licenca.limite_maquinas || 1;
+
+        // Migração de clientes antigos que não tinham a lista JSONB ainda
+        if (licenca.hardware_id && maquinasAtuais.length === 0) {
+          maquinasAtuais = [licenca.hardware_id];
+        }
+
+        // Verifica se esta máquina atual já está na lista
+        if (!maquinasAtuais.includes(hwId)) {
+          // Se não estiver, verifica se tem espaço no limite
+          if (maquinasAtuais.length >= limite) {
+            setErroLogin(`Limite de ${limite} tela(s) excedido para esta licença. Contate o suporte.`);
+            setIsProcessandoLoading(false); 
+            return;
+          } else {
+            // Se tiver espaço, adiciona o novo computador na lista do cliente
+            maquinasAtuais.push(hwId);
+            await supabase.from('licencas_clientes').update({ maquinas_vinculadas: maquinasAtuais }).eq('id', licenca.id);
+            licenca.maquinas_vinculadas = maquinasAtuais;
+          }
         }
       }
 
