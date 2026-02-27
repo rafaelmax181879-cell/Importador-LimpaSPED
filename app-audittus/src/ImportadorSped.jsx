@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.27";
+const VERSAO_ATUAL = "1.1.28";
 
 // Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
@@ -61,7 +61,7 @@ const renderCustomLabel = ({ percent }) => {
 };
 
 export default function ImportadorSped() {
-  const [faseAtual, setFaseAtual] = useState('splash'); 
+  const [faseAtual, setFaseAtual] = useState('login'); 
   const [splashProgress, setSplashProgress] = useState(0); 
 
   const [senhaInput, setSenhaInput] = useState(''); 
