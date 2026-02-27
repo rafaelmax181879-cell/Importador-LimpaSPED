@@ -3,14 +3,14 @@ const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
 // DESLIGA A INSTALAÇÃO AUTOMÁTICA AO FECHAR O SISTEMA
-autoUpdater.autoInstallOnAppQuit = false;
+autoUpdater.autoInstallOnAppQuit = false; 
 
 let mainWindow;
 let splashWindow;
 
 function createWindow() {
   // =========================================================
-  // 1. A TELA DE ABERTURA SEPARADA (SPLASH SCREEN NATIVA)
+  // 1. A TELA DE ABERTURA SEPARADA (SPLASH SCREEN 600x420)
   // =========================================================
   splashWindow = new BrowserWindow({
     width: 600,
@@ -21,24 +21,40 @@ function createWindow() {
     show: true
   });
 
-  // ATENÇÃO AQUI: Na linha do "animation: load 5s", o 5s significa 5 SEGUNDOS. 
-  // Se quiser aumentar para 7 segundos, mude para 7s.
+  // Pega o caminho absoluto da imagem do SPED para o fundo
+  const imagePath = `file://${path.join(__dirname, 'image_d785e2.png').replace(/\\/g, '/')}`;
+
   const splashHTML = `
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
       <meta charset="UTF-8">
       <style>
-        body { margin: 0; padding: 0; background-color: #1e293b; color: #fff; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; border-radius: 12px; border: 1px solid #334155; }
-        h1 { font-size: 26px; margin: 0 0 10px 0; font-weight: 900; letter-spacing: 1px; }
-        h3 { color: #38bdf8; font-size: 13px; margin: 0 0 35px 0; font-weight: 400; letter-spacing: 3px; }
-        .progress-container { width: 80%; height: 4px; background-color: #334155; border-radius: 2px; overflow: hidden; margin-bottom: 15px; }
+        body { 
+          margin: 0; padding: 0; 
+          color: #fff; 
+          font-family: system-ui, sans-serif; 
+          display: flex; flex-direction: column; align-items: center; justify-content: center; 
+          height: 100vh; overflow: hidden; 
+          border-radius: 16px; 
+          border: 1px solid rgba(255,255,255,0.1);
+          
+          /* A MÁGICA: Película Escura + A Imagem do SPED no Fundo */
+          background: 
+            linear-gradient(rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.95)), 
+            url('${imagePath}') center center no-repeat;
+          background-size: 50%;
+          box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        h1 { font-size: 32px; margin: 0 0 10px 0; font-weight: 900; letter-spacing: 2px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        h3 { color: #38bdf8; font-size: 15px; margin: 0 0 50px 0; font-weight: 600; letter-spacing: 4px; }
         
-        /* TEMPO DA BARRINHA DE PROGRESSO (5s = 5 Segundos) */
-        .progress-bar { width: 0%; height: 100%; background-color: #06b6d4; animation: load 5s linear forwards; }
+        .progress-container { width: 70%; height: 6px; background-color: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; margin-bottom: 20px; box-shadow: inset 0 1px 3px rgba(0,0,0,0.3); }
+        .progress-bar { width: 0%; height: 100%; background-color: #06b6d4; box-shadow: 0 0 15px #06b6d4; animation: load 5s linear forwards; }
         
-        p { color: #94a3b8; font-size: 12px; margin: 0 0 20px 0; }
-        .version { color: #38bdf8; font-size: 12px; font-weight: bold; margin: 0; }
+        p { color: #cbd5e1; font-size: 14px; margin: 0 0 20px 0; }
+        .version { position: absolute; bottom: 20px; color: #38bdf8; font-size: 12px; font-weight: bold; margin: 0; opacity: 0.8; }
+        
         @keyframes load { 0% { width: 0%; } 100% { width: 100%; } }
       </style>
     </head>
@@ -47,7 +63,7 @@ function createWindow() {
       <h3>SPED FISCAL</h3>
       <div class="progress-container"><div class="progress-bar"></div></div>
       <p>Carregando módulos de auditoria...</p>
-      <p class="version">Versão 1.1.30</p>
+      <p class="version">Versão 1.1.31</p>
     </body>
     </html>
   `;
@@ -75,25 +91,23 @@ function createWindow() {
   }
 
   // =========================================================
-  // 3. A MÁGICA DA TROCA DE TELAS
+  // 3. A MÁGICA DA TROCA DE TELAS (5 SEGUNDOS)
   // =========================================================
   mainWindow.once('ready-to-show', () => {
-    
-    // TEMPO DO CRONÔMETRO INTERNO (5000 = 5 Segundos)
-    // Se mudou o tempo lá em cima, mude aqui também multiplicando por 1000.
     setTimeout(() => {
-      splashWindow.close(); // Destrói a janelinha
-      mainWindow.maximize(); // Força o Widescreen Profissional ocupando a tela toda
-      mainWindow.show();     // Mostra o sistema
+      splashWindow.close(); 
+      mainWindow.maximize(); 
+      mainWindow.show();     
 
-      // Assim que o sistema abre, ele já liga o radar do GitHub em silêncio
+      // Inicia a busca por atualizações no GitHub de forma silenciosa
       autoUpdater.checkForUpdatesAndNotify();
     }, 5000); 
   });
 
   // =========================================================
-  // 4. ESCUTA DO RADAR DE ATUALIZAÇÃO
+  // 4. ESCUTA DO RADAR DE ATUALIZAÇÃO (CORRIGIDO PARA O LOOP)
   // =========================================================
+  // Só avisa a tela do React DEPOIS que o .exe novo baixar completamente
   autoUpdater.on('update-downloaded', () => {
     mainWindow.webContents.executeJavaScript('if(window.triggerUpdateModal) window.triggerUpdateModal();');
   });
