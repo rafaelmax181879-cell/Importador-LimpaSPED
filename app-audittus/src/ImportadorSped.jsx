@@ -17,9 +17,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.29";
+const VERSAO_ATUAL = "1.1.30";
 
-// Gerador de Hardware ID seguro
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
   if (!hwId) {
@@ -30,7 +29,7 @@ const obterOuGerarHardwareId = () => {
 };
 
 // ==========================================
-// FUNÇÕES FORMATADORAS GLOBAIS
+// FUNÇÕES FORMATADORAS
 // ==========================================
 const formatarCNPJ = (cnpj) => {
   if (!cnpj) return '';
@@ -54,33 +53,28 @@ const getNomeGuia = (cod) => {
 
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
 
-// Formatador para os rótulos do PieChart não vazarem e mostrarem apenas a %
+// Rótulos do Gráfico (Liberei para mostrar todas as porcentagens, não vai mais ocultar as menores)
 const renderCustomLabel = ({ percent }) => {
-  if (percent < 0.02) return null; 
+  if (percent === 0) return null; 
   return `${(percent * 100).toFixed(1)}%`;
 };
 
 export default function ImportadorSped() {
-  // Controle de Telas
   const [faseAtual, setFaseAtual] = useState('login'); 
 
-  // Autenticação
   const [senhaInput, setSenhaInput] = useState(''); 
   const [erroLogin, setErroLogin] = useState('');
   const [loadingText, setLoadingText] = useState('');
   const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
   
-  // Licença e Dados do Usuário
   const [licencaAtual, setLicencaAtual] = useState(null);
   const [modalPremiumAberto, setModalPremiumAberto] = useState(false);
   const [razaoSocialLogada, setRazaoSocialLogada] = useState(''); 
 
-  // Dashboard Navegação
   const [abaAtiva, setAbaAtiva] = useState('home'); 
   const [arquivoProcessado, setArquivoProcessado] = useState(null);
   const [nomeOriginal, setNomeOriginal] = useState('');
   
-  // Estados de Dados do SPED Fiscal
   const [dadosGraficoIcms, setDadosGraficoIcms] = useState([]);
   const [ajustesICMS, setAjustesICMS] = useState([]);
   const [resumoIcms, setResumoIcms] = useState({ saldoCredor: 0, icmsRecolher: 0 });
@@ -99,14 +93,10 @@ export default function ImportadorSped() {
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
 
-  // Atualização Inteligente (Electron)
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
 
-  // ==========================================
-  // EFEITOS E TEMPORIZADORES
-  // ==========================================
   useEffect(() => {
     window.triggerUpdateModal = () => setUpdateNotification(true);
     
@@ -120,40 +110,26 @@ export default function ImportadorSped() {
         setDiasRestantesAtualizacao(restantes);
       }
     }
-    
-    return () => { 
-      delete window.triggerUpdateModal; 
-    };
+    return () => { delete window.triggerUpdateModal; };
   }, []);
 
   const handleAtualizarAgora = () => {
     setUpdateNotification(false);
     setFaseAtual('loading');
     setLoadingText('Aplicando novas tecnologias... O sistema reiniciará em instantes.');
-    
     if (window.require) {
       window.require('electron').ipcRenderer.send('iniciar_atualizacao');
     }
   };
 
-  // ==========================================
-  // SISTEMA DE LOGIN E LICENÇAS
-  // ==========================================
   const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
-    
     const ident = senhaInput.trim();
-    if (!ident) { 
-      setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); 
-      return; 
-    }
+    if (!ident) { setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); return; }
     
     if (ident === SENHA_ADMIN) {
-      setLicencaAtual({ 
-        plano: 'admin', 
-        identificador_cliente: 'Acesso Mestre' 
-      });
+      setLicencaAtual({ plano: 'admin', identificador_cliente: 'Acesso Mestre' });
       setRazaoSocialLogada('Administrador');
       setFaseAtual('upload');
       return;
@@ -172,7 +148,6 @@ export default function ImportadorSped() {
     try {
       let razaoEncontrada = '';
       const apenasNumeros = ident.replace(/\D/g, '');
-      
       if (apenasNumeros.length === 14) {
         try {
           const resApi = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${apenasNumeros}`);
@@ -180,41 +155,18 @@ export default function ImportadorSped() {
             const dadosCnpj = await resApi.json();
             razaoEncontrada = dadosCnpj.razao_social.replace(/[()]/g, '').trim();
           }
-        } catch (errApi) { 
-          console.log("Aviso: Falha ao buscar razão social na API pública."); 
-        }
+        } catch (errApi) { console.log("Aviso: Falha ao buscar razão social na API pública."); }
       }
 
-      let { data: licenca, error } = await supabase
-        .from('licencas_clientes')
-        .select('*')
-        .eq('identificador_cliente', ident)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { 
-        throw new Error("Erro de conexão com o banco de dados."); 
-      }
+      let { data: licenca, error } = await supabase.from('licencas_clientes').select('*').eq('identificador_cliente', ident).single();
+      if (error && error.code !== 'PGRST116') { throw new Error("Erro de conexão com o banco de dados."); }
 
       if (!licenca) {
-        const novaLicenca = { 
-          identificador_cliente: ident, 
-          hardware_id: hwId, 
-          plano: 'trial', 
-          analises_gratuitas_restantes: 1, 
-          limite_cnpjs: 1, 
-          cnpjs_vinculados: [] 
-        };
-        
-        const { data: criada, error: errInsert } = await supabase
-          .from('licencas_clientes')
-          .insert([novaLicenca])
-          .select()
-          .single();
-          
+        const novaLicenca = { identificador_cliente: ident, hardware_id: hwId, plano: 'trial', analises_gratuitas_restantes: 1, limite_cnpjs: 1, cnpjs_vinculados: [] };
+        const { data: criada, error: errInsert } = await supabase.from('licencas_clientes').insert([novaLicenca]).select().single();
         if (errInsert) throw errInsert;
         licenca = criada;
-      } 
-      else {
+      } else {
         if (!licenca.hardware_id) {
           await supabase.from('licencas_clientes').update({ hardware_id: hwId }).eq('id', licenca.id);
           licenca.hardware_id = hwId;
@@ -234,7 +186,6 @@ export default function ImportadorSped() {
       setRazaoSocialLogada(razaoEncontrada);
       setLicencaAtual(licenca);
       setFaseAtual('upload');
-      
     } catch (err) { 
       setErroLogin('Erro de rede: Verifique sua conexão com a internet.'); 
     } finally { 
@@ -243,32 +194,15 @@ export default function ImportadorSped() {
   };
 
   const limparDados = () => {
-    setFaseAtual('upload'); 
-    setArquivoProcessado(null); 
-    setNomeOriginal(''); 
-    setAbaAtiva('home');
-    setDadosGraficoIcms([]); 
-    setAjustesICMS([]); 
-    setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
-    setGuiasE116([]); 
-    setDadosEmpresa({ nome: '', cnpj: '', periodo: '' }); 
-    setDadosGraficoOperacoes([]);
-    setListaCfops({ entradas: [], saidas: [] }); 
-    setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
+    setFaseAtual('upload'); setArquivoProcessado(null); setNomeOriginal(''); setAbaAtiva('home');
+    setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
+    setGuiasE116([]); setDadosEmpresa({ nome: '', cnpj: '', periodo: '' }); setDadosGraficoOperacoes([]);
+    setListaCfops({ entradas: [], saidas: [] }); setDadosVaf({ entradasBrutas: 0, saidasBrutas: 0, devVendas: 0, devCompras: 0, vafTotal: 0 });
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
-    setTopProdutos({ vendas: [], compras: [] }); 
-    setTopFornecedores([]); 
-    setDadosTributacaoSaida([]);
-    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); 
-    setDadosEstados([]); 
-    setLogAuditoria([]); 
-    setDadosRoscaEntradas([]); 
-    setRiscosFiscais([]);
+    setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
+    setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setRiscosFiscais([]);
   };
 
-  // ==========================================
-  // PROCESSAMENTO DO SPED FISCAL (CÉREBRO DO ROBÔ)
-  // ==========================================
   const processarArquivo = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -285,19 +219,12 @@ export default function ImportadorSped() {
       
       let cnpjArquivo = "";
       for (let i = 0; i < linhasOriginais.length; i++) {
-        if (linhasOriginais[i].startsWith('|0000|')) { 
-          cnpjArquivo = linhasOriginais[i].split('|')[7]; 
-          break; 
-        }
+        if (linhasOriginais[i].startsWith('|0000|')) { cnpjArquivo = linhasOriginais[i].split('|')[7]; break; }
       }
 
       if (licencaAtual && licencaAtual.plano !== 'admin') {
         if (licencaAtual.plano === 'trial') {
-          if (licencaAtual.analises_gratuitas_restantes <= 0) { 
-            setFaseAtual('upload'); 
-            setModalPremiumAberto(true); 
-            return; 
-          }
+          if (licencaAtual.analises_gratuitas_restantes <= 0) { setFaseAtual('upload'); setModalPremiumAberto(true); return; }
           await supabase.from('licencas_clientes').update({ analises_gratuitas_restantes: 0 }).eq('id', licencaAtual.id);
           setLicencaAtual({...licencaAtual, analises_gratuitas_restantes: 0});
         } 
@@ -305,9 +232,7 @@ export default function ImportadorSped() {
           let listaCnpjs = licencaAtual.cnpjs_vinculados || [];
           if (!listaCnpjs.includes(cnpjArquivo)) {
             if (listaCnpjs.length >= licencaAtual.limite_cnpjs) {
-              setFaseAtual('upload'); 
-              alert(`⛔ Limite Atingido!\nO CNPJ deste arquivo não faz parte da sua cota atual de empresas.`); 
-              return;
+              setFaseAtual('upload'); alert(`⛔ Limite Atingido!\nO CNPJ deste arquivo não faz parte da sua cota atual de empresas.`); return;
             } else {
               listaCnpjs.push(cnpjArquivo);
               await supabase.from('licencas_clientes').update({ cnpjs_vinculados: listaCnpjs }).eq('id', licencaAtual.id);
@@ -318,39 +243,16 @@ export default function ImportadorSped() {
       }
 
       setNomeOriginal(file.name);
-      
-      const mensagens = [
-        "Lendo estrutura do arquivo SPED...", 
-        "Mapeando inteligência de CFOPs...", 
-        "Procurando Notas Puladas na série...", 
-        "Aplicando rotinas de Auto-Cura Tributária...", 
-        "Gerando painéis de Business Intelligence..."
-      ];
-      let step = 0; 
-      setLoadingText(mensagens[0]);
-      
-      const inter = setInterval(() => { 
-        step++; 
-        if(step < mensagens.length) {
-          setLoadingText(mensagens[step]); 
-        }
-      }, 600);
+      const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas na série...", "Aplicando rotinas de Auto-Cura Tributária...", "Gerando painéis de Business Intelligence..."];
+      let step = 0; setLoadingText(mensagens[0]);
+      const inter = setInterval(() => { step++; if(step < mensagens.length) setLoadingText(mensagens[step]); }, 600);
 
       let linhasProcessadas = [];
       let contC191 = 0, contC173 = 0, contTextos = 0, logTemp = [], riscosTemp = [], numLinha = 0;
-      let numDocAtual = 'S/N'; 
-      let notasPorSerie = {}; 
-      let mapNcm = {}; 
-      
+      let numDocAtual = 'S/N'; let notasPorSerie = {}; let mapNcm = {}; 
       const textosParaRemover = /\b(ISENTO|0000000|1111111|9999999|1500300|0300200|0300100|SEM GTIN|0500500|2003901|0300900|0301900|0112900|1800300)\b/gi;
 
-      const mapUfIbgeLocal = { 
-        '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', 
-        '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', 
-        '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', 
-        '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', 
-        '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' 
-      };
+      const mapUfIbgeLocal = { '11': 'Rondônia', '12': 'Acre', '13': 'Amazonas', '14': 'Roraima', '15': 'Pará', '16': 'Amapá', '17': 'Tocantins', '21': 'Maranhão', '22': 'Piauí', '23': 'Ceará', '24': 'Rio Grande do Norte', '25': 'Paraíba', '26': 'Pernambuco', '27': 'Alagoas', '28': 'Sergipe', '29': 'Bahia', '31': 'Minas Gerais', '32': 'Espírito Santo', '33': 'Rio de Janeiro', '35': 'São Paulo', '41': 'Paraná', '42': 'Santa Catarina', '43': 'Rio Grande do Sul', '50': 'Mato Grosso do Sul', '51': 'Mato Grosso', '52': 'Goiás', '53': 'Distrito Federal', '99': 'Exterior' };
 
       const cfopsEntradasBrutas = new Set(['1102','2102','3102','1117','2117','1403','2403','1101','2101','3101','1122','2122','1401','2401','1351','1352','1353','1354','1355','1356','2351','2352','2353','2354','2355','2356','3351','3352','3353','3354','3355','3356']);
       const cfopsSaidasBrutas = new Set(['5102','6102','7102','5115','6115','5403','6403','5405','5101','6101','7101','5113','6113','5401','6401','5117','6117','5351','6351','7351','5352','6352','7352','5353','6353','7353','5354','6354','7354','5355','6355','7355','5356','6356','7356','5357','6357','7357','5301','6301','7301','5302','6302','7302','5303','6303','7303','5304','6304','7304','5305','6305','7305','5306','6306','7306','5307','6307','7307','5251','6251','7251']);
@@ -362,115 +264,96 @@ export default function ImportadorSped() {
       let mCfopEnt = {}, mCfopSai = {}, listaAj = [], listaG = [], sCredFinal = 0, iRecFinal = 0;
       let mProd = {}, mPart = {}, mPartEst = {}, vProd = {}, cProd = {}, cForn = {}, opAt = ''; 
       let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
-      let dEnt = { 'Revenda/Ind. - Tributadas': 0, 'Revenda/Ind. - Isentas': 0, 'Substituição Tributária (ST)': 0, 'Uso e Consumo': 0, 'Outras Entradas': 0 };
+      
+      // Inteligência de Identificação de Indústria
+      let hasIndustrialCfop = false;
+      let dEnt = { 
+        'Revenda_Trib_Temp': 0, 
+        'Revenda_Ise_Temp': 0, 
+        'Substituição Tributária (ST)': 0, 
+        'Desagregação de Carnes': 0, 
+        'Bonificações': 0, 
+        'Uso e Consumo': 0, 
+        'Outras Entradas': 0 
+      };
+
+      // Loop Rápido para identificar se a empresa é Indústria antes de processar
+      for (let i = 0; i < linhasOriginais.length; i++) {
+        let cols = linhasOriginais[i].split('|');
+        if (cols[1] === 'C190' || cols[1] === 'D190') {
+          if (['1101','1401','2101','2401','3101','3401','1122','2122'].includes(cols[3])) {
+            hasIndustrialCfop = true; break;
+          }
+        }
+      }
 
       linhasOriginais.forEach((linhaOriginal) => {
-        numLinha++; 
-        let linha = linhaOriginal; 
-        let cols = linha.split('|');
+        numLinha++; let linha = linhaOriginal; let cols = linha.split('|');
 
         if (cols[1] === '0000') {
-          const dtIni = cols[4] || ''; 
-          const dtFin = cols[5] || '';
+          const dtIni = cols[4] || ''; const dtFin = cols[5] || '';
           let pFormatado = 'Período Indefinido';
-          if (dtIni && dtFin) {
-            pFormatado = `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}`;
-          }
+          if (dtIni && dtFin) { pFormatado = `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}`; }
           setDadosEmpresa({ nome: cols[6] || 'Não Identificada', cnpj: cols[7] || '', periodo: pFormatado });
         }
         
-        // MAPEAMENTO DOS ESTADOS DOS FORNECEDORES PARA AQUISIÇÕES
-        if (cols[1] === '0150') { 
-          mPart[cols[2]] = cols[3]; 
-          mPartEst[cols[2]] = cols[8] ? (mapUfIbgeLocal[cols[8].substring(0,2)] || 'Outros') : 'N/A'; 
-        }
-        
-        if (cols[1] === '0200') {
-          mProd[cols[2]] = cols[3];
-        }
+        if (cols[1] === '0150') { mPart[cols[2]] = cols[3]; mPartEst[cols[2]] = cols[8] ? (mapUfIbgeLocal[cols[8].substring(0,2)] || 'Outros') : 'N/A'; }
+        if (cols[1] === '0200') { mProd[cols[2]] = cols[3]; }
 
         if (cols[1] === 'C100' || cols[1] === 'D100') {
-           numDocAtual = cols[8] || 'S/N'; 
-           opAt = cols[2]; 
-           const vlD = parseFloat(cols[12]?.replace(',', '.')) || 0; 
-           
+           numDocAtual = cols[8] || 'S/N'; opAt = cols[2]; const vlD = parseFloat(cols[12]?.replace(',', '.')) || 0; 
            if (opAt === '0') { 
              tEnt += vlD; 
              if (cols[4]) { 
                cForn[cols[4]] = (cForn[cols[4]] || 0) + vlD; 
-               
-               // LÓGICA EXATA DAS AQUISIÇÕES POR ESTADO
                const estadoOrigem = mPartEst[cols[4]] || 'Estado Não Mapeado';
                cEstObj[estadoOrigem] = (cEstObj[estadoOrigem] || 0) + vlD; 
              } 
-           } else if (opAt === '1') {
-             tSai += vlD; 
-           }
+           } else if (opAt === '1') { tSai += vlD; }
            
            if (cols[1] === 'C100') {
                const numNF = parseInt(cols[8], 10);
                if (cols[2] === '1' && cols[3] === '0' && !isNaN(numNF)) {
                    const key = `${cols[5]}-${cols[7]}`; 
-                   if (!notasPorSerie[key]) {
-                     notasPorSerie[key] = []; 
-                   }
+                   if (!notasPorSerie[key]) notasPorSerie[key] = []; 
                    notasPorSerie[key].push(numNF);
                }
            }
         }
         
-        if (cols[1] === 'C170') { 
-          const vlI = parseFloat(cols[7]?.replace(',', '.')) || 0; 
-          if (opAt === '1') {
-            vProd[cols[3]] = (vProd[cols[3]] || 0) + vlI; 
-          } else if (opAt === '0') {
-            cProd[cols[3]] = (cProd[cols[3]] || 0) + vlI; 
-          }
-        }
+        if (cols[1] === 'C170') { const vlI = parseFloat(cols[7]?.replace(',', '.')) || 0; if (opAt === '1') vProd[cols[3]] = (vProd[cols[3]] || 0) + vlI; else if (opAt === '0') cProd[cols[3]] = (cProd[cols[3]] || 0) + vlI; }
         
-        if (linha.startsWith('|C191|')) { 
-          contC191++; 
-          logTemp.push({ linha: numLinha, registro: `C191`, acao: 'Limpeza', detalhe: 'Registro C191 excluído.' }); 
-          return; 
-        }
-        if (linha.startsWith('|C173|')) { 
-          contC173++; 
-          logTemp.push({ linha: numLinha, registro: `C173`, acao: 'Limpeza', detalhe: 'Registro C173 excluído.' }); 
-          return; 
-        }
+        if (linha.startsWith('|C191|')) { contC191++; logTemp.push({ linha: numLinha, registro: `C191`, acao: 'Limpeza', detalhe: 'Registro C191 excluído.' }); return; }
+        if (linha.startsWith('|C173|')) { contC173++; logTemp.push({ linha: numLinha, registro: `C173`, acao: 'Limpeza', detalhe: 'Registro C173 excluído.' }); return; }
         
         if (cols[1] === 'C190' || cols[1] === 'D190') {
-          const cf = cols[3] || '';
-          const vlO = parseFloat(cols[5]?.replace(',', '.')) || 0;
-          const vlIc = parseFloat(cols[7]?.replace(',', '.')) || 0;
+          const cf = cols[3] || ''; const vlO = parseFloat(cols[5]?.replace(',', '.')) || 0; const vlIc = parseFloat(cols[7]?.replace(',', '.')) || 0;
           
           if (cf.startsWith('1') || cf.startsWith('2') || cf.startsWith('3')) {
             mCfopEnt[cf] = (mCfopEnt[cf] || 0) + vlO;
             
-            if (['1101','1102','2101','2102','3101','3102'].includes(cf)) {
-              if (vlIc > 0) dEnt['Revenda/Ind. - Tributadas'] += vlO;
-              else dEnt['Revenda/Ind. - Isentas'] += vlO;
+            // INTELIGÊNCIA EXATA DE CFOPS PARA ENTRADAS
+            if (cf === '1926') {
+              dEnt['Desagregação de Carnes'] += vlO;
             }
-            else if (cf.startsWith('14') || cf.startsWith('24')) {
-              dEnt['Substituição Tributária (ST)'] += vlO;
+            else if (cf === '1910' || cf === '2910') {
+              dEnt['Bonificações'] += vlO;
             }
-            else if (['1556','2556'].includes(cf)) {
-              dEnt['Uso e Consumo'] += vlO;
+            else if (['1101','1102','2101','2102','3101','3102'].includes(cf)) {
+              if (vlIc > 0) dEnt['Revenda_Trib_Temp'] += vlO; else dEnt['Revenda_Ise_Temp'] += vlO;
             }
-            else {
-              dEnt['Outras Entradas'] += vlO;
-            }
+            else if (cf.startsWith('14') || cf.startsWith('24')) { dEnt['Substituição Tributária (ST)'] += vlO; }
+            else if (['1556','2556'].includes(cf)) { dEnt['Uso e Consumo'] += vlO; }
+            else { dEnt['Outras Entradas'] += vlO; }
+
           } else {
             mCfopSai[cf] = (mCfopSai[cf] || 0) + vlO;
-            
             if (!cfopsNaoFaturamento.has(cf)) {
               let cat = 'Tributadas a ' + (cols[4] ? `${cols[4]}%` : 'Diversas');
               if (cf.startsWith('54') || cf.startsWith('64')) cat = 'Saídas ST';
               else if (vlIc === 0) cat = 'Saídas Isentas';
-              
               if (cat === 'Saídas ST') vST += vlO; 
               if (cat === 'Saídas Isentas') vIse += vlO;
-              
               mTribSaida[cat] = (mTribSaida[cat] || 0) + vlO; 
               tAnalise += vlO;
             }
@@ -482,112 +365,63 @@ export default function ImportadorSped() {
           if (cfopsDevCompras.has(cf)) vafDC += vlO; 
         }
         
-        if (cols[1] === 'E110') { 
-          totalDeb = parseFloat(cols[2].replace(',', '.')) || 0; 
-          totalCred = parseFloat(cols[6].replace(',', '.')) || 0; 
-          iRecFinal = parseFloat(cols[13].replace(',', '.')) || 0; 
-          sCredFinal = parseFloat(cols[14].replace(',', '.')) || 0; 
-        }
+        if (cols[1] === 'E110') { totalDeb = parseFloat(cols[2].replace(',', '.')) || 0; totalCred = parseFloat(cols[6].replace(',', '.')) || 0; iRecFinal = parseFloat(cols[13].replace(',', '.')) || 0; sCredFinal = parseFloat(cols[14].replace(',', '.')) || 0; }
 
+        // INTELIGÊNCIA RESTAURADA DAS GUIAS E116 (Lendo COD_REC primeiro, depois COD_OR)
         if (cols[1] === 'E116') { 
-          listaG.push({ 
-            codigo: cols[2], 
-            valor: parseFloat(cols[3].replace(',', '.')) || 0, 
-            vencimento: cols[4] 
-          }); 
+          const codObrigacao = cols[5] ? cols[5].trim() : (cols[2] ? cols[2].trim() : '');
+          listaG.push({ codigo: codObrigacao, valor: parseFloat(cols[3].replace(',', '.')) || 0, vencimento: cols[4] }); 
         }
 
         const matches = linha.match(textosParaRemover);
-        if (matches) { 
-          contTextos += matches.length; 
-          logTemp.push({ linha: numLinha, registro: cols[1], acao: 'Limpeza', detalhe: `Removido: ${matches.join(', ')}` }); 
-          linha = linha.replace(textosParaRemover, ''); 
-        }
-        
-        if (linha.trim() !== '') {
-          linhasProcessadas.push(linha);
-        }
+        if (matches) { contTextos += matches.length; logTemp.push({ linha: numLinha, registro: cols[1], acao: 'Limpeza', detalhe: `Removido: ${matches.join(', ')}` }); linha = linha.replace(textosParaRemover, ''); }
+        if (linha.trim() !== '') { linhasProcessadas.push(linha); }
       });
+
+      // Mapeando os nomes dinâmicos (Com Ind. ou Sem Ind.)
+      let finalEntradasMap = {};
+      const lblTrib = hasIndustrialCfop ? 'Revenda/Ind. - Tributadas' : 'Revenda - Tributadas';
+      const lblIse = hasIndustrialCfop ? 'Revenda/Ind. - Isentas' : 'Revenda - Isentas';
+
+      if (dEnt['Revenda_Trib_Temp'] > 0) finalEntradasMap[lblTrib] = dEnt['Revenda_Trib_Temp'];
+      if (dEnt['Revenda_Ise_Temp'] > 0) finalEntradasMap[lblIse] = dEnt['Revenda_Ise_Temp'];
+      if (dEnt['Substituição Tributária (ST)'] > 0) finalEntradasMap['Substituição Tributária (ST)'] = dEnt['Substituição Tributária (ST)'];
+      if (dEnt['Desagregação de Carnes'] > 0) finalEntradasMap['Desagregação de Carnes'] = dEnt['Desagregação de Carnes'];
+      if (dEnt['Bonificações'] > 0) finalEntradasMap['Bonificações'] = dEnt['Bonificações'];
+      if (dEnt['Uso e Consumo'] > 0) finalEntradasMap['Uso e Consumo'] = dEnt['Uso e Consumo'];
+      if (dEnt['Outras Entradas'] > 0) finalEntradasMap['Outras Entradas'] = dEnt['Outras Entradas'];
 
       Object.keys(notasPorSerie).forEach(key => {
         let nums = notasPorSerie[key].sort((a,b) => a - b);
         for (let i = 1; i < nums.length; i++) {
           if (nums[i] - nums[i-1] > 1) { 
-            riscosTemp.push({ 
-              tipo: 'NOTA FALTANTE', 
-              registro: `Mod/Série: ${key}`, 
-              cor: '#f59e0b', 
-              detalhe: `Possível quebra de sequência detectada entre as notas ${nums[i-1]} e ${nums[i]}. Verifique a inutilização.` 
-            }); 
-            break; 
+            riscosTemp.push({ tipo: 'NOTA FALTANTE', registro: `Mod/Série: ${key}`, cor: '#f59e0b', detalhe: `Buraco na numeração entre ${nums[i-1]} e ${nums[i]}. Verifique a inutilização.` }); break; 
           }
         }
       });
 
-      setListaCfops({ 
-        entradas: Object.keys(mCfopEnt).map(k=>({cfop:k, valor:mCfopEnt[k]})).sort((a,b)=>b.valor-a.valor), 
-        saidas: Object.keys(mCfopSai).map(k=>({cfop:k, valor:mCfopSai[k]})).sort((a,b)=>b.valor-a.valor) 
-      });
-      setTopProdutos({ 
-        vendas: Object.keys(vProd).map(k=>({nome:mProd[k]||k, valor:vProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10), 
-        compras: Object.keys(cProd).map(k=>({nome:mProd[k]||k, valor:cProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10) 
-      });
-      setTopFornecedores(
-        Object.keys(cForn).map(k=>({nome:mPart[k]||k, valor:cForn[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 5)
-      );
-      setDadosEstados(
-        Object.keys(cEstObj).map(k=>({name:k, value:cEstObj[k]})).sort((a,b)=>b.value-a.value)
-      );
+      setListaCfops({ entradas: Object.keys(mCfopEnt).map(k=>({cfop:k, valor:mCfopEnt[k]})).sort((a,b)=>b.valor-a.valor), saidas: Object.keys(mCfopSai).map(k=>({cfop:k, valor:mCfopSai[k]})).sort((a,b)=>b.valor-a.valor) });
+      setTopProdutos({ vendas: Object.keys(vProd).map(k=>({nome:mProd[k]||k, valor:vProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10), compras: Object.keys(cProd).map(k=>({nome:mProd[k]||k, valor:cProd[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 10) });
+      setTopFornecedores(Object.keys(cForn).map(k=>({nome:mPart[k]||k, valor:cForn[k]})).sort((a,b)=>b.valor-a.valor).slice(0, 5));
+      setDadosEstados(Object.keys(cEstObj).map(k=>({name:k, value:cEstObj[k]})).sort((a,b)=>b.value-a.value));
       setDadosTributacaoSaida(Object.keys(mTribSaida).map(k=>({name:k, value:mTribSaida[k]})));
-      setDadosRoscaEntradas(Object.keys(dEnt).map(k=>({name:k, value:dEnt[k]})));
+      setDadosRoscaEntradas(Object.keys(finalEntradasMap).map(k=>({name:k, value:finalEntradasMap[k]})));
       
-      setDadosVaf({ 
-        entradasBrutas: vafEnt, 
-        saidasBrutas: vafSai, 
-        devVendas: vafDV, 
-        devCompras: vafDC, 
-        vafTotal: (vafSai - vafDV) - (vafEnt - vafDC) 
-      });
-      
-      setDadosGraficoIcms([
-        { name: 'Créditos', value: totalCred }, 
-        { name: 'Débitos', value: totalDeb }
-      ]);
-      setDadosGraficoOperacoes([
-        { name: 'Total Entradas', value: tEnt }, 
-        { name: 'Total Saídas', value: tSai }
-      ]);
+      setDadosVaf({ entradasBrutas: vafEnt, saidasBrutas: vafSai, devVendas: vafDV, devCompras: vafDC, vafTotal: (vafSai - vafDV) - (vafEnt - vafDC) });
+      setDadosGraficoIcms([{ name: 'Créditos', value: totalCred }, { name: 'Débitos', value: totalDeb }]);
+      setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
-      setGuiasE116(listaG); 
-      setRiscosFiscais(riscosTemp); 
-      setLogAuditoria(logTemp);
-      
-      setRelatorioCorrecoes({ 
-        c191Removidos: contC191, 
-        c173Removidos: contC173, 
-        textosRemovidos: contTextos, 
-        blocosRecalculados: 3 
-      });
+      setGuiasE116(listaG); setRiscosFiscais(riscosTemp); setLogAuditoria(logTemp);
+      setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: 3 });
       
       setArquivoProcessado(linhasProcessadas.join('\r\n')); 
-      
-      setTimeout(() => { 
-        clearInterval(inter); 
-        setFaseAtual('dashboard'); 
-      }, 3000);
+      setTimeout(() => { clearInterval(inter); setFaseAtual('dashboard'); }, 3000);
     };
   };
 
-  // ==========================================
-  // CÁLCULOS FINAIS E CORES DO DASHBOARD
-  // ==========================================
-
-  // CÁLCULO EXATO DA ALÍQUOTA EFETIVA: (ICMS A RECOLHER / FATURAMENTO TOTAL) * 100
-  const aliquotaEfetiva = resumoTributacao.total > 0 
-    ? ((resumoIcms.icmsRecolher / resumoTributacao.total) * 100).toFixed(2) 
-    : '0.00';
+  const aliquotaEfetiva = resumoTributacao.total > 0 ? ((resumoIcms.icmsRecolher / resumoTributacao.total) * 100).toFixed(2) : '0.00';
 
   const CORES_TRIBUTACAO = ['#004080', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
   const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272'];
@@ -596,32 +430,20 @@ export default function ImportadorSped() {
     <div className="act-btns no-print" style={{ marginBottom: '50px' }}>
         <button className="btn-dl" onClick={() => { 
           const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); 
-          const l = document.createElement('a'); 
-          l.href = URL.createObjectURL(b); 
-          l.download = `AUDITTUS_Curado_${nomeOriginal}`; 
-          l.click(); 
-        }}>
-          <Download size={20} /> Baixar SPED Validado
-        </button>
-        <button className="btn-pr" onClick={() => window.print()}>
-          <Printer size={20} /> Salvar Relatório Geral (PDF)
-        </button>
-        <button className="btn-nw" onClick={limparDados}>
-          <RefreshCw size={20} /> Nova Validação
-        </button>
+          const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Curado_${nomeOriginal}`; l.click(); 
+        }}><Download size={20} /> Baixar SPED Validado</button>
+        <button className="btn-pr" onClick={() => window.print()}><Printer size={20} /> Salvar Relatório Geral (PDF)</button>
+        <button className="btn-nw" onClick={limparDados}><RefreshCw size={20} /> Nova Validação</button>
     </div>
   );
 
-  // =========================================================================
-  // RENDERIZAÇÃO: BLOQUEIO DE SISTEMA OBSOLETO
-  // =========================================================================
   if (sistemaBloqueadoPorAtualizacao) {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', zIndex: 9999 }}>
         <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', maxWidth: '500px', textAlign: 'center', borderTop: '8px solid #ef4444' }}>
           <AlertTriangle size={80} color="#ef4444" style={{ margin: '0 auto 20px' }} />
           <h1 style={{ color: '#ef4444', margin: '0 0 15px' }}>Sistema Obsoleto</h1>
-          <p style={{ color: '#475569', fontSize: '18px', marginBottom: '20px' }}>O prazo de carência para a atualização expirou. É obrigatório instalar a nova atualização para continuar.</p>
+          <p style={{ color: '#475569', fontSize: '18px', marginBottom: '20px' }}>Atualização obrigatória para continuar.</p>
           <button onClick={handleAtualizarAgora} style={{ width: '100%', padding: '15px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
             <DownloadCloud size={18} /> Forçar Atualização
           </button>
@@ -631,11 +453,11 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // RENDERIZAÇÃO: TELA 1 - LOGIN CENTRALIZADO
+  // TELA 1 - LOGIN CENTRALIZADO (TRAVADO NO MEIO DA TELA)
   // =========================================================================
   if (faseAtual === 'login') {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', zIndex: 9999 }}>
         <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', boxShadow: '0 20px 40px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px', textAlign: 'center' }}>
           <Shield size={64} color="#004080" style={{ marginBottom: '20px' }} />
           <h1 style={{ color: '#004080', margin: '0 0 5px', fontSize: '32px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -652,11 +474,7 @@ export default function ImportadorSped() {
               />
               {erroLogin && <span style={{ color: '#ef4444', fontSize: '13px', display: 'block', marginTop: '8px', fontWeight: 'bold' }}>{erroLogin}</span>}
             </div>
-            <button 
-              type="submit" 
-              disabled={isProcessandoLoading} 
-              style={{ padding: '15px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}
-            >
+            <button type="submit" disabled={isProcessandoLoading} style={{ padding: '15px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}>
               {isProcessandoLoading ? <Loader2 size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Lock size={18} />} 
               {isProcessandoLoading ? 'Conectando ao Servidor...' : 'Acessar Sistema'}
             </button>
@@ -669,11 +487,11 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // RENDERIZAÇÃO: TELA DE CARREGAMENTO ENTRE TELAS
+  // TELA DE CARREGAMENTO (TRAVADA NO MEIO DA TELA)
   // =========================================================================
   if (faseAtual === 'loading') {
     return (
-      <div style={{ display: 'flex', minHeight: '100vh', width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', fontFamily: 'system-ui, sans-serif' }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', zIndex: 9999 }}>
         <div style={{ background: '#fff', padding: '60px 80px', borderRadius: '24px', boxShadow: '0 25px 50px rgba(0,64,128,0.1)', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px', border: '2px solid #e2e8f0' }}>
           <div style={{ position: 'relative' }}>
             <Loader2 size={80} color="#004080" style={{ animation: 'spin 2s linear infinite' }} />
@@ -688,7 +506,7 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // RENDERIZAÇÃO: ESTRUTURA PRINCIPAL (UPLOAD E DASHBOARD)
+  // ESTRUTURA PRINCIPAL (UPLOAD E DASHBOARD WIDESCREEN)
   // =========================================================================
   return (
     <div className="main-container">
@@ -701,18 +519,14 @@ export default function ImportadorSped() {
         .btn-update { background: #38bdf8; color: #0f172a; border: none; padding: 8px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
         .btn-update:hover { background: #fff; transform: translateY(-1px); }
         
-        /* CONTAINER WIDESCREEN PARA DASHBOARD (Aquele visual grandioso) */
         .content-wrapper { width: 100%; max-width: 1600px; padding: 30px; margin: 0 auto; box-sizing: border-box; }
-        
         .card-dash { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 25px; border: 1px solid #e2e8f0; }
         .card-title { color: #004080; border-bottom: 2px solid #f0f4f8; padding-bottom: 15px; margin: 0 0 20px 0; font-size: 18px; display: flex; align-items: center; gap: 10px; font-weight: bold; }
         
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
-        /* Grid 3 adaptado para o Widescreen Perfeito com o Audit Menu na lateral */
         .grid-3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 25px; }
         .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
         
-        /* ANIMAÇÃO DA NUVEM PARA UPLOAD */
         @keyframes flutuar { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
         .nuvem-animada { animation: flutuar 3s ease-in-out infinite; display: block; margin: 0 auto 25px; }
         
@@ -720,9 +534,8 @@ export default function ImportadorSped() {
         .upload-box:hover { border-color: #004080; background: #f8fafc; transform: translateY(-2px); }
         
         .act-btns { display: flex; justify-content: center; gap: 20px; padding: 20px; background: #fff; border-radius: 16px; margin-top: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        .btn-dl { background: #004080; color: #fff; border: none; padding: 15px 25px; border-radius: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
-        .btn-pr { background: #10b981; color: #fff; border: none; padding: 15px 25px; border-radius: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
-        .btn-nw { background: #ef4444; color: #fff; border: none; padding: 15px 25px; border-radius: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; }
+        .btn-dl, .btn-pr, .btn-nw { border: none; padding: 15px 25px; border-radius: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: 0.3s; color: #fff; }
+        .btn-dl { background: #004080; } .btn-pr { background: #10b981; } .btn-nw { background: #ef4444; }
         .act-btns button:hover { opacity: 0.9; transform: translateY(-2px); }
         
         .cfop-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f0f4f8; font-size: 14px; }
@@ -735,7 +548,6 @@ export default function ImportadorSped() {
         @media print { .no-print { display: none !important; } }
       `}</style>
 
-      {/* BARRA DE ATUALIZAÇÃO NO TOPO */}
       {updateNotification && (
         <div className="update-bar no-print">
           <Sparkles size={24} color="#38bdf8" />
@@ -749,27 +561,19 @@ export default function ImportadorSped() {
         </div>
       )}
 
-      {/* MODAL DE UPGRADE */}
       {modalPremiumAberto && (
-        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(15,23,42,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', width: '100%', maxWidth: '550px', textAlign: 'center' }}>
             <Crown size={70} color="#f59e0b" style={{ margin: '0 auto 20px auto' }} />
             <h2 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '28px', fontWeight: '900' }}>Cota Gratuita Esgotada!</h2>
-            <p style={{ color: '#475569', fontSize: '18px', lineHeight: '1.6', marginBottom: '15px' }}>Você utilizou sua Análise Gratuita e pôde ver o poder da Auto-Cura do AUDITTUS. Para continuar processando novos SPEDs, faça um upgrade para o Plano Premium.</p>
+            <p style={{ color: '#475569', fontSize: '18px', lineHeight: '1.6', marginBottom: '15px' }}>Faça um upgrade para o Plano Premium.</p>
             <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1', marginBottom: '30px' }}>
-              <p style={{ margin: 0, fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>Sua Licença Vinculada:</p>
+              <p style={{ margin: 0, fontSize: '14px', color: '#64748b', fontWeight: 'bold' }}>Licença Vinculada:</p>
               <strong style={{ fontSize: '18px', color: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '5px' }}>
                 <User size={18}/> {formatarCNPJ(licencaAtual?.identificador_cliente)}
               </strong>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <button style={{ padding: '18px', background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '18px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-                <Crown size={20} /> Assinar AUDITTUS Premium
-              </button>
-              <button onClick={() => setModalPremiumAberto(false)} style={{ padding: '15px', background: 'transparent', color: '#64748b', border: 'none', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}>
-                Voltar
-              </button>
-            </div>
+            <button onClick={() => setModalPremiumAberto(false)} style={{ padding: '15px', background: 'transparent', color: '#64748b', border: 'none', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}>Voltar</button>
           </div>
         </div>
       )}
@@ -778,35 +582,29 @@ export default function ImportadorSped() {
       {/* TELA DE IMPORTAÇÃO (TOTALMENTE CENTRALIZADA COM SELO NO TOPO ESQUERDO) */}
       {/* ========================================================================= */}
       {faseAtual === 'upload' && (
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', width: '100%', position: 'relative' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           
-          {/* SELO FIXADO NO TOPO ESQUERDO (A SETA VERMELHA) */}
           {licencaAtual && (
-            <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', zIndex: 50 }}>
+            <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
               <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
               <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>{formatarCNPJ(licencaAtual.identificador_cliente)}</span>
               <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
             </div>
           )}
 
-          {/* ÁREA DE IMPORTAÇÃO NO CENTRO EXATO DA TELA */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-              <h1 style={{ color: '#004080', margin: '0 0 5px 0', fontSize: '42px', fontWeight: '900', letterSpacing: '-1.5px' }}>AUDITTUS</h1>
-              <p style={{ margin: '0 0 15px 0', color: '#64748b', fontSize: '18px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
-              
-              {/* SAUDAÇÃO CENTRALIZADA SEM PARÊNTESES */}
-              {licencaAtual && licencaAtual.plano !== 'admin' && razaoSocialLogada && (
-                <h3 style={{ color: '#ef4444', margin: '0', fontSize: '20px', fontWeight: 'bold' }}>Olá, {razaoSocialLogada}</h3>
-              )}
-            </div>
-            
-            <div className="upload-box">
-              <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
-              <UploadCloud size={80} color="#004080" className="nuvem-animada" />
-              <h2 style={{ color: '#004080', margin: '0 0 10px 0', fontSize: '28px', fontWeight: '800' }}>Importe seu Arquivo SPED</h2>
-              <p style={{ margin: 0, color: '#64748b', fontSize: '18px' }}>Arraste o arquivo .txt para cá ou clique para buscar</p>
-            </div>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <h1 style={{ color: '#004080', margin: '0 0 5px 0', fontSize: '42px', fontWeight: '900', letterSpacing: '-1.5px' }}>AUDITTUS</h1>
+            <p style={{ margin: '0 0 15px 0', color: '#64748b', fontSize: '18px', fontWeight: '500' }}>Inteligência Fiscal e Auditoria Digital</p>
+            {licencaAtual && licencaAtual.plano !== 'admin' && razaoSocialLogada && (
+              <h3 style={{ color: '#ef4444', margin: '0', fontSize: '20px', fontWeight: 'bold' }}>Olá, {razaoSocialLogada}</h3>
+            )}
+          </div>
+          
+          <div className="upload-box">
+            <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
+            <UploadCloud size={80} color="#004080" className="nuvem-animada" />
+            <h2 style={{ color: '#004080', margin: '0 0 10px 0', fontSize: '28px', fontWeight: '800' }}>Importe seu Arquivo SPED</h2>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '18px' }}>Arraste o arquivo .txt para cá ou clique para buscar</p>
           </div>
         </div>
       )}
@@ -817,7 +615,7 @@ export default function ImportadorSped() {
       {faseAtual === 'dashboard' && (
         <div className="content-wrapper">
           
-          <div className="no-print" style={{ marginBottom: '30px', position: 'relative' }}>
+          <div className="no-print" style={{ marginBottom: '30px' }}>
             {licencaAtual && (
               <div style={{ display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', marginBottom: '15px', border: '1px solid #e2e8f0' }}>
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
@@ -832,18 +630,10 @@ export default function ImportadorSped() {
           </div>
 
           <div className="no-print" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px', marginBottom: '30px' }}>
-            <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
-              <LayoutDashboard size={20} /> Visão Geral
-            </button>
-            <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
-              <Tags size={20} /> Módulo Tributário
-            </button>
-            <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
-              <AlertTriangle size={20} /> Riscos Fiscais
-            </button>
-            <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
-              <FileSearch size={20} /> Relatório de Auditoria
-            </button>
+            <button onClick={() => setAbaAtiva('home')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><LayoutDashboard size={20} /> Visão Geral</button>
+            <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><Tags size={20} /> Módulo Tributário</button>
+            <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><AlertTriangle size={20} /> Riscos Fiscais</button>
+            <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '12px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><FileSearch size={20} /> Relatório de Auditoria</button>
           </div>
 
           <div className="print-banner card-dash" style={{ display: 'flex', justifyContent: 'space-between', borderLeft: '10px solid #004080', padding: '25px', alignItems: 'center' }}>
@@ -860,26 +650,14 @@ export default function ImportadorSped() {
             </div>
           </div>
 
-          {/* ========================================================================= */}
-          {/* ABA: HOME COM ESTRUTURA WIDESCREEN ORIGINAL (DASH AO LADO DA AUDITORIA) */}
-          {/* ========================================================================= */}
           {abaAtiva === 'home' && (
             <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
-              {/* Coluna da Esquerda (Dashboards Principais) */}
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
                 <div className="grid-3">
                   <div className="card-dash">
                     <h3 className="card-title"><ArrowRightLeft size={20}/> Operações</h3>
                     <div style={{ height: 250 }}>
-                      <ResponsiveContainer>
-                        <PieChart>
-                          <Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={5} label={renderCustomLabel}>
-                            {dadosGraficoOperacoes.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i+1]}/>)}
-                          </Pie>
-                          <Tooltip formatter={v=>formatarMoeda(v)}/>
-                          <Legend/>
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <ResponsiveContainer><PieChart><Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={5} label={renderCustomLabel}>{dadosGraficoOperacoes.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i+1]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
                     </div>
                   </div>
 
@@ -906,15 +684,7 @@ export default function ImportadorSped() {
                   <div className="card-dash">
                     <h3 className="card-title">Apuração ICMS</h3>
                     <div style={{ height: 300 }}>
-                      <ResponsiveContainer>
-                        <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
-                          <Pie data={dadosGraficoIcms} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
-                            {dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}
-                          </Pie>
-                          <Tooltip formatter={v=>formatarMoeda(v)}/>
-                          <Legend/>
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosGraficoIcms} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
                     </div>
                   </div>
 
@@ -935,7 +705,6 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* Coluna da Direita (Auditoria Automática Original) */}
               <div className="dash-sidebar no-print" style={{ width: '320px', flexShrink: 0 }}>
                 <div className="card-dash" style={{ padding: '25px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '2px solid #f0f4f8', paddingBottom: '20px', marginBottom: '20px' }}>
@@ -963,12 +732,8 @@ export default function ImportadorSped() {
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* ABA: MÓDULO TRIBUTÁRIO */}
-          {/* ========================================================================= */}
           {abaAtiva === 'tributos' && (
             <>
-              {/* BORDAS COLORIDAS NO TOPO COMO NO PRINT */}
               <div className="grid-4">
                 <div className="card-dash" style={{ borderTop: '6px solid #004080', textAlign: 'center', padding: '25px 15px' }}>
                   <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>FATURAMENTO ANALISADO</p>
@@ -988,7 +753,6 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* CARD DE ALÍQUOTA EFETIVA IDÊNTICO AO SEU PRINT (Borda grossa e pílula azul marinho) */}
               <div className="card-dash" style={{ background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '8px solid #004080', padding: '30px' }}>
                 <div>
                   <h3 style={{ margin: '0 0 5px 0', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', color: '#004080', fontWeight: '900' }}>
@@ -1008,14 +772,7 @@ export default function ImportadorSped() {
                   <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
                     <div style={{ height: 300 }}>
-                      <ResponsiveContainer>
-                        <PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
-                          <Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
-                            {dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
-                          </Pie>
-                          <Tooltip formatter={v=>formatarMoeda(v)}/>
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
                     </div>
                     <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
                       {dadosRoscaEntradas.map((it, idx)=>(
@@ -1032,14 +789,7 @@ export default function ImportadorSped() {
                   <h3 className="card-title"><Activity size={24} /> Tributação das Saídas</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
                     <div style={{ height: 300 }}>
-                      <ResponsiveContainer>
-                        <PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
-                          <Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
-                            {dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
-                          </Pie>
-                          <Tooltip formatter={v=>formatarMoeda(v)}/>
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
                     </div>
                     <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
                       {dadosTributacaoSaida.map((it, idx)=>(
@@ -1053,19 +803,11 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* GRÁFICO DE ESTADOS (AQUISIÇÕES C100 -> 0150) */}
               <div className="card-dash">
                 <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', alignItems: 'center' }}>
                   <div style={{ height: 350 }}>
-                    <ResponsiveContainer>
-                      <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
-                        <Pie data={dadosEstados} dataKey="value" innerRadius={80} outerRadius={120} paddingAngle={4} label={renderCustomLabel}>
-                          {dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}
-                        </Pie>
-                        <Tooltip formatter={v=>formatarMoeda(v)}/>
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosEstados} dataKey="value" innerRadius={80} outerRadius={120} paddingAngle={4} label={renderCustomLabel}>{dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
                   </div>
                   <div style={{maxHeight:'320px', overflowY:'auto', paddingRight: '10px'}}>
                     {dadosEstados.map((it, idx)=>(
@@ -1080,16 +822,11 @@ export default function ImportadorSped() {
             </>
           )}
 
-          {/* ========================================================================= */}
-          {/* ABA: RISCOS FISCAIS */}
-          {/* ========================================================================= */}
           {abaAtiva === 'verificacao' && (
             <div className="card-dash">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
                 <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><AlertTriangle size={28} color="#f59e0b" /> Radar de Riscos Fiscais (Malha Fina)</h3>
-                <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}>
-                  <Printer size={18}/> Exportar Relatório em PDF
-                </button>
+                <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}><Printer size={18}/> Exportar em PDF</button>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -1105,9 +842,7 @@ export default function ImportadorSped() {
                     <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i%2===0?'#fff':'#f8fafc' }}>
                       <td style={{ padding: '15px', fontWeight: 'bold', color: '#334155' }}>{r.tipo}</td>
                       <td style={{ padding: '15px', color: '#64748b', fontWeight: '600' }}>{r.registro}</td>
-                      <td style={{ padding: '15px' }}>
-                        <span style={{ background: r.cor, color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' }}>ATENÇÃO</span>
-                      </td>
+                      <td style={{ padding: '15px' }}><span style={{ background: r.cor, color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' }}>ATENÇÃO</span></td>
                       <td style={{ padding: '15px', color: '#475569', lineHeight: '1.5' }}>{r.detalhe}</td>
                     </tr>
                   )) : (
@@ -1115,7 +850,6 @@ export default function ImportadorSped() {
                       <td colSpan="4" style={{ padding: '60px', textAlign: 'center' }}>
                         <CheckCircle size={64} color="#10b981" style={{ margin: '0 auto 15px auto', display: 'block' }} />
                         <h3 style={{ margin: 0, color: '#10b981', fontSize: '24px' }}>Nenhum Risco Detectado no Arquivo!</h3>
-                        <p style={{ color: '#64748b', marginTop: '10px' }}>A estrutura e as numerações aparentam estar íntegras.</p>
                       </td>
                     </tr>
                   )}
@@ -1124,16 +858,11 @@ export default function ImportadorSped() {
             </div>
           )}
 
-          {/* ========================================================================= */}
-          {/* ABA: RELATÓRIO DE AUDITORIA (COM OS TEXTOS EXATOS SOLICITADOS) */}
-          {/* ========================================================================= */}
           {abaAtiva === 'auditoria' && (
             <div className="card-dash">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
                 <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><Shield size={28} color="#10b981" /> Histórico de Correções</h3>
-                <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}>
-                  <Printer size={18}/> Exportar Relatório em PDF
-                </button>
+                <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}><Printer size={18}/> Exportar em PDF</button>
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -1149,9 +878,7 @@ export default function ImportadorSped() {
                     <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i%2===0?'#fff':'#f8fafc' }}>
                       <td style={{ padding: '15px', color: '#64748b', fontWeight: 'bold' }}>{l.linha}</td>
                       <td style={{ padding: '15px', fontWeight: '900', color: '#004080' }}>{l.registro}</td>
-                      <td style={{ padding: '15px' }}>
-                        <span style={{ background: '#ecfdf5', color: '#047857', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', border: '1px solid #10b981' }}>{l.acao}</span>
-                      </td>
+                      <td style={{ padding: '15px' }}><span style={{ background: '#ecfdf5', color: '#047857', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', border: '1px solid #10b981' }}>{l.acao}</span></td>
                       <td style={{ padding: '15px', color: '#475569', lineHeight: '1.5' }}>{l.detalhe}</td>
                     </tr>
                   )) : (
@@ -1168,7 +895,6 @@ export default function ImportadorSped() {
           )}
 
           <BotoesAcao />
-
         </div>
       )}
     </div>
