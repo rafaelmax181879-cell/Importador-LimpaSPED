@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 
 // DESLIGA A INSTALAÇÃO AUTOMÁTICA AO FECHAR O SISTEMA
@@ -9,9 +10,6 @@ let mainWindow;
 let splashWindow;
 
 function createWindow() {
-  // =========================================================
-  // 1. A TELA DE ABERTURA SEPARADA (SPLASH SCREEN 600x420)
-  // =========================================================
   splashWindow = new BrowserWindow({
     width: 600,
     height: 420,
@@ -21,8 +19,17 @@ function createWindow() {
     show: true
   });
 
-  // Pega o caminho absoluto da SUA imagem do SPED (agora com o nome SPED.png)
-  const imagePath = `file://${path.join(__dirname, 'SPED.png').replace(/\\/g, '/')}`;
+  // =========================================================
+  // CORREÇÃO 1: IMAGEM EM BASE64 PARA FUNCIONAR NO .EXE
+  // =========================================================
+  let base64Image = '';
+  try {
+    const imagePath = path.join(__dirname, 'SPED.png');
+    const imageBuffer = fs.readFileSync(imagePath);
+    base64Image = `data:image/png;base64,${imageBuffer.toString('base64')}`;
+  } catch (error) {
+    console.error('Imagem SPED.png não encontrada na raiz do projeto.');
+  }
 
   const splashHTML = `
     <!DOCTYPE html>
@@ -39,12 +46,10 @@ function createWindow() {
           border-radius: 16px; 
           border: 1px solid rgba(255,255,255,0.1);
           
-          /* A MÁGICA: Película Escura + A Imagem do SPED no Fundo centralizada no quadro */
+          /* O FUNDO AGORA USA A IMAGEM CRIPTOGRAFADA EM BASE64 */
           background: 
             linear-gradient(rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.95)), 
-            url('${imagePath}') center center no-repeat;
-          
-          /* Tamanho ajustado para ocupar a área do quadro azul que você desenhou */
+            url('${base64Image}') center center no-repeat;
           background-size: 55%; 
           
           box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
@@ -66,7 +71,7 @@ function createWindow() {
       <h3>SPED FISCAL</h3>
       <div class="progress-container"><div class="progress-bar"></div></div>
       <p>Carregando módulos de auditoria...</p>
-      <p class="version">Versão 1.1.33</p>
+      <p class="version">Versão 1.1.34</p>
     </body>
     </html>
   `;
@@ -74,12 +79,12 @@ function createWindow() {
   splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHTML)}`);
 
   // =========================================================
-  // 2. A TELA DO SISTEMA (CARREGANDO INVISÍVEL NO FUNDO)
+  // 2. A TELA DO SISTEMA
   // =========================================================
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
-    show: false, // Começa invisível!
+    show: false,
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: true,
@@ -94,7 +99,7 @@ function createWindow() {
   }
 
   // =========================================================
-  // 3. A MÁGICA DA TROCA DE TELAS (5 SEGUNDOS)
+  // 3. A TROCA DE TELAS (5 SEGUNDOS)
   // =========================================================
   mainWindow.once('ready-to-show', () => {
     setTimeout(() => {
@@ -102,15 +107,13 @@ function createWindow() {
       mainWindow.maximize(); 
       mainWindow.show();     
 
-      // Inicia a busca por atualizações no GitHub de forma silenciosa
       autoUpdater.checkForUpdatesAndNotify();
     }, 5000); 
   });
 
   // =========================================================
-  // 4. ESCUTA DO RADAR DE ATUALIZAÇÃO (CORRIGIDO PARA O LOOP)
+  // 4. ESCUTA DO RADAR DE ATUALIZAÇÃO
   // =========================================================
-  // Só avisa a tela do React DEPOIS que o .exe novo baixar completamente
   autoUpdater.on('update-downloaded', () => {
     mainWindow.webContents.executeJavaScript('if(window.triggerUpdateModal) window.triggerUpdateModal();');
   });

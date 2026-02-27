@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, Lock, Loader2, Zap, DownloadCloud, Crown, User, Sparkles } from 'lucide-react';
 
-// ==========================================
-// 1. COMUNICAÇÃO COM A NUVEM (SUPABASE)
-// ==========================================
 import { createClient } from '@supabase/supabase-js';
 
 // ATENÇÃO: COLE SUAS CHAVES DO SUPABASE EXATAMENTE AQUI DENTRO DAS ASPAS
@@ -13,11 +10,8 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ==========================================
-// 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
-// ==========================================
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.33";
+const VERSAO_ATUAL = "1.1.34";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -28,9 +22,6 @@ const obterOuGerarHardwareId = () => {
   return hwId;
 };
 
-// ==========================================
-// FUNÇÕES FORMATADORAS
-// ==========================================
 const formatarCNPJ = (cnpj) => {
   if (!cnpj) return '';
   const num = cnpj.replace(/\D/g, '');
@@ -402,7 +393,8 @@ export default function ImportadorSped() {
         let nums = notasPorSerie[key].sort((a,b) => a - b);
         for (let i = 1; i < nums.length; i++) {
           if (nums[i] - nums[i-1] > 1) { 
-            riscosTemp.push({ tipo: 'NOTA FALTANTE', registro: `Mod/Série: ${key}`, cor: '#f59e0b', detalhe: `Buraco na numeração entre ${nums[i-1]} e ${nums[i]}. Verifique a inutilização.` }); break; 
+            // CORREÇÃO 5: TROCA DA PALAVRA BURACO PARA DESCONTINUIDADE
+            riscosTemp.push({ tipo: 'NOTA FALTANTE', registro: `Mod/Série: ${key}`, cor: '#f59e0b', detalhe: `Descontinuidade na sequência numérica entre ${nums[i-1]} e ${nums[i]}. Verifique a inutilização.` }); break; 
           }
         }
       });
@@ -489,21 +481,36 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // TELA 1 - LOGIN E UPLOAD CENTRALIZADOS E AGRUPADOS
+  // TELA 1 - LOGIN E UPLOAD 
   // =========================================================================
   if (faseAtual === 'login' || faseAtual === 'upload') {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', zIndex: 9999 }}>
-        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } } @keyframes flutuar { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } } .nuvem-animada { animation: flutuar 3s ease-in-out infinite; display: block; margin: 0 auto 20px; }`}</style>
+        <style>{`@keyframes spin { 100% { transform: rotate(360deg); } } @keyframes flutuar { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } } .nuvem-animada { animation: flutuar 3s ease-in-out infinite; display: block; margin: 0 auto 20px; }
+                 .update-bar { background: #004080; color: #fff; padding: 12px; display: flex; align-items: center; justify-content: center; gap: 20px; border-bottom: 3px solid #38bdf8; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+                 .btn-update { background: #38bdf8; color: #0f172a; border: none; padding: 8px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
+                 .btn-update:hover { background: #fff; transform: translateY(-1px); }`}</style>
         
-        {/* SELO NO TOPO ESQUERDO ATUALIZADO CONFORME SEU ANEXO (CNPJ - RAZÃO | BOLA | PLANO) */}
+        {/* CORREÇÃO 2: AVISO DE ATUALIZAÇÃO AGORA LOGO NA TELA INICIAL */}
+        {updateNotification && (
+          <div className="update-bar no-print" style={{ position: 'absolute', top: 0, width: '100%' }}>
+            <Sparkles size={24} color="#38bdf8" />
+            <span style={{ fontWeight: '600', fontSize: '15px' }}>Uma nova versão do AUDITTUS está disponível com melhorias de IA e segurança.</span>
+            <button onClick={handleAtualizarAgora} className="btn-update">
+              <RefreshCw size={18} /> Instalar e Reiniciar
+            </button>
+            <button onClick={() => setUpdateNotification(false)} style={{ background: 'transparent', color: '#cbd5e1', border: 'none', cursor: 'pointer', fontSize: '13px', textDecoration: 'underline' }}>Lembrar depois</button>
+          </div>
+        )}
+
+        {/* CORREÇÃO 3.3: SELO E TEXTO COM LIMITE DE TAMANHO (ELLIPSIS) PARA NÃO ATROPELAR */}
         {faseAtual === 'upload' && licencaAtual && (
           <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', zIndex: 50 }}>
-            <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>
+            <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px', maxWidth: '400px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', verticalAlign: 'middle' }}>
               {formatarCNPJ(licencaAtual.identificador_cliente)} {razaoSocialLogada ? `- ${razaoSocialLogada}` : ''}
             </span>
-            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
-            <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
+            <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b'), flexShrink: 0 }}></div>
+            <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', flexShrink: 0 }}>{licencaAtual.plano}</span>
           </div>
         )}
 
@@ -551,7 +558,7 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // TELA DE CARREGAMENTO (PROCESSANDO ARQUIVO)
+  // TELA DE CARREGAMENTO
   // =========================================================================
   if (faseAtual === 'loading') {
     return (
@@ -570,7 +577,7 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // ESTRUTURA PRINCIPAL (DASHBOARD WIDESCREEN COM O SELO NO TOPO ESQUERDO)
+  // ESTRUTURA PRINCIPAL (DASHBOARD WIDESCREEN)
   // =========================================================================
   return (
     <div className="main-container">
@@ -597,9 +604,6 @@ export default function ImportadorSped() {
         .btn-dl { background: #004080; } .btn-pr { background: #10b981; } .btn-nw { background: #ef4444; }
         .act-btns button:hover { opacity: 0.9; transform: translateY(-2px); }
         
-        .cfop-row { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f0f4f8; font-size: 14px; }
-        .leg-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f8fafc; border-radius: 10px; margin-bottom: 8px; }
-        
         ::-webkit-scrollbar { width: 8px; height: 8px; } 
         ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; } 
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -620,14 +624,13 @@ export default function ImportadorSped() {
 
       {faseAtual === 'dashboard' && (
         <>
-          {/* SELO NO TOPO ESQUERDO DO DASHBOARD ATUALIZADO CONFORME SEU ANEXO (CNPJ - RAZÃO | BOLA | PLANO) */}
           {licencaAtual && (
             <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', zIndex: 50 }}>
-              <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>
+              <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px', maxWidth: '400px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', verticalAlign: 'middle' }}>
                 {formatarCNPJ(licencaAtual.identificador_cliente)} {razaoSocialLogada ? `- ${razaoSocialLogada}` : ''}
               </span>
-              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
-              <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b'), flexShrink: 0 }}></div>
+              <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', flexShrink: 0 }}>{licencaAtual.plano}</span>
             </div>
           )}
 
@@ -670,19 +673,40 @@ export default function ImportadorSped() {
                     <div className="card-dash" style={{ margin: 0 }}>
                       <h3 className="card-title"><ArrowRightLeft size={20}/> Volume de Operações</h3>
                       <div style={{ height: 260 }}>
-                        <ResponsiveContainer><PieChart><Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={70} outerRadius={95} paddingAngle={5} label={renderCustomLabel}>{dadosGraficoOperacoes.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i+1]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
+                        {/* CORREÇÃO 3.1: RAIO MENOR PARA O TEXTO "RESPIRAR" */}
+                        <ResponsiveContainer>
+                          <PieChart margin={{ top: 25, right: 25, bottom: 25, left: 25 }}>
+                            <Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={60} outerRadius={80} paddingAngle={5} label={renderCustomLabel}>
+                              {dadosGraficoOperacoes.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i+1]}/>)}
+                            </Pie>
+                            <Tooltip formatter={v=>formatarMoeda(v)}/><Legend/>
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
 
+                    {/* CORREÇÃO 3.2: RESUMO CFOP DIVIDIDO EM DUAS COLUNAS LADO A LADO */}
                     <div className="card-dash" style={{ margin: 0 }}>
                       <h3 className="card-title">Resumo por CFOP</h3>
-                      <div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: '10px' }}>
-                        {listaCfops.saidas.slice(0,8).map((it,idx)=>(
-                          <div key={idx} className="cfop-row">
-                            <span style={{ fontWeight: 'bold', color: '#64748b' }}>{it.cfop}</span>
-                            <strong style={{ color: '#004080' }}>{formatarMoeda(it.valor)}</strong>
-                          </div>
-                        ))}
+                      <div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: '5px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <div>
+                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#10b981', display: 'block', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>↘ Entradas</span>
+                          {listaCfops.entradas.slice(0,7).map((it,idx)=>(
+                            <div key={`e-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f4f8', fontSize: '12px' }}>
+                              <span style={{ fontWeight: 'bold', color: '#64748b' }}>{it.cfop}</span>
+                              <strong style={{ color: '#10b981' }}>{formatarMoeda(it.valor)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#3b82f6', display: 'block', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>↗ Saídas</span>
+                          {listaCfops.saidas.slice(0,7).map((it,idx)=>(
+                            <div key={`s-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f4f8', fontSize: '12px' }}>
+                              <span style={{ fontWeight: 'bold', color: '#64748b' }}>{it.cfop}</span>
+                              <strong style={{ color: '#004080' }}>{formatarMoeda(it.valor)}</strong>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -709,7 +733,15 @@ export default function ImportadorSped() {
                     <div className="card-dash" style={{ margin: 0 }}>
                       <h3 className="card-title">Apuração de ICMS</h3>
                       <div style={{ height: 300 }}>
-                        <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosGraficoIcms} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
+                        {/* CORREÇÃO 4: MARGEM E RAIO AJUSTADOS PARA FATIAS FINAS */}
+                        <ResponsiveContainer>
+                          <PieChart margin={{ top: 25, right: 30, bottom: 25, left: 30 }}>
+                            <Pie data={dadosGraficoIcms} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={4} label={renderCustomLabel}>
+                              {dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}
+                            </Pie>
+                            <Tooltip formatter={v=>formatarMoeda(v)}/><Legend/>
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
                     </div>
 
@@ -820,7 +852,14 @@ export default function ImportadorSped() {
                       <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
                       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
                         <div style={{ height: 300 }}>
-                          <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
+                          <ResponsiveContainer>
+                            <PieChart margin={{ top: 25, right: 30, bottom: 25, left: 30 }}>
+                              <Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={4} label={renderCustomLabel}>
+                                {dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
+                              </Pie>
+                              <Tooltip formatter={v=>formatarMoeda(v)}/>
+                            </PieChart>
+                          </ResponsiveContainer>
                         </div>
                         <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
                           {dadosRoscaEntradas.map((it, idx)=>(
@@ -837,7 +876,14 @@ export default function ImportadorSped() {
                       <h3 className="card-title"><Activity size={24} /> Tributação das Saídas</h3>
                       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
                         <div style={{ height: 300 }}>
-                          <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
+                          <ResponsiveContainer>
+                            <PieChart margin={{ top: 25, right: 30, bottom: 25, left: 30 }}>
+                              <Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={4} label={renderCustomLabel}>
+                                {dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
+                              </Pie>
+                              <Tooltip formatter={v=>formatarMoeda(v)}/>
+                            </PieChart>
+                          </ResponsiveContainer>
                         </div>
                         <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
                           {dadosTributacaoSaida.map((it, idx)=>(
@@ -855,7 +901,14 @@ export default function ImportadorSped() {
                     <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', alignItems: 'center' }}>
                       <div style={{ height: 350 }}>
-                        <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosEstados} dataKey="value" innerRadius={80} outerRadius={120} paddingAngle={4} label={renderCustomLabel}>{dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
+                        <ResponsiveContainer>
+                          <PieChart margin={{ top: 25, right: 40, bottom: 25, left: 40 }}>
+                            <Pie data={dadosEstados} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
+                              {dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}
+                            </Pie>
+                            <Tooltip formatter={v=>formatarMoeda(v)}/>
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
                       <div style={{maxHeight:'320px', overflowY:'auto', paddingRight: '10px'}}>
                         {dadosEstados.map((it, idx)=>(
