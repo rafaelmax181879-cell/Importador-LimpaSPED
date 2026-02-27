@@ -13,8 +13,8 @@ function createWindow() {
   // 1. A TELA DE ABERTURA SEPARADA (SPLASH SCREEN NATIVA)
   // =========================================================
   splashWindow = new BrowserWindow({
-    width: 500,
-    height: 320,
+    width: 600,
+    height: 420,
     transparent: true, 
     frame: false,      
     alwaysOnTop: true, 
