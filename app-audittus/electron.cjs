@@ -21,8 +21,8 @@ function createWindow() {
     show: true
   });
 
-  // Pega o caminho absoluto da imagem do SPED para o fundo
-  const imagePath = `file://${path.join(__dirname, 'image_d785e2.png').replace(/\\/g, '/')}`;
+  // Pega o caminho absoluto da SUA imagem do SPED (agora com o nome SPED.png)
+  const imagePath = `file://${path.join(__dirname, 'SPED.png').replace(/\\/g, '/')}`;
 
   const splashHTML = `
     <!DOCTYPE html>
@@ -39,11 +39,14 @@ function createWindow() {
           border-radius: 16px; 
           border: 1px solid rgba(255,255,255,0.1);
           
-          /* A MÁGICA: Película Escura + A Imagem do SPED no Fundo */
+          /* A MÁGICA: Película Escura + A Imagem do SPED no Fundo centralizada no quadro */
           background: 
             linear-gradient(rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.95)), 
             url('${imagePath}') center center no-repeat;
-          background-size: 50%;
+          
+          /* Tamanho ajustado para ocupar a área do quadro azul que você desenhou */
+          background-size: 55%; 
+          
           box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
         }
         h1 { font-size: 32px; margin: 0 0 10px 0; font-weight: 900; letter-spacing: 2px; text-shadow: 0 4px 10px rgba(0,0,0,0.5); }
@@ -63,7 +66,7 @@ function createWindow() {
       <h3>SPED FISCAL</h3>
       <div class="progress-container"><div class="progress-bar"></div></div>
       <p>Carregando módulos de auditoria...</p>
-      <p class="version">Versão 1.1.32</p>
+      <p class="version">Versão 1.1.33</p>
     </body>
     </html>
   `;

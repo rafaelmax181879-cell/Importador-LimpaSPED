@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.32";
+const VERSAO_ATUAL = "1.1.33";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -294,21 +294,15 @@ export default function ImportadorSped() {
         if (cols[1] === '0150') { mPart[cols[2]] = cols[3]; mPartEst[cols[2]] = cols[8] ? (mapUfIbgeLocal[cols[8].substring(0,2)] || 'Outros') : 'N/A'; }
         if (cols[1] === '0200') { mProd[cols[2]] = cols[3]; }
 
-        // =========================================================================
-        // CORREÇÃO MATEMÁTICA: LEITURA EXATA DE VALORES (C100 e D100)
-        // =========================================================================
         if (cols[1] === 'C100' || cols[1] === 'D100') {
            numDocAtual = cols[8] || 'S/N'; 
            
-           // Bloqueia e ignora notas Canceladas ou Denegadas
            const codSit = cols[6];
            const isCancelado = ['02', '03', '04', '05'].includes(codSit); 
            opAt = isCancelado ? 'CANCELADO' : cols[2]; 
 
            let vlD = 0;
            if (!isCancelado) {
-               // C100 lê o valor total na coluna 12. 
-               // D100 (Frete) lê o valor total na coluna 15.
                if (cols[1] === 'C100') {
                    vlD = parseFloat(cols[12]?.replace(',', '.')) || 0; 
                } else if (cols[1] === 'D100') {
@@ -337,7 +331,6 @@ export default function ImportadorSped() {
            }
         }
         
-        // C170 agora também respeita se a nota principal foi cancelada
         if (cols[1] === 'C170') { 
             const vlI = parseFloat(cols[7]?.replace(',', '.')) || 0; 
             if (opAt === '1') vProd[cols[3]] = (vProd[cols[3]] || 0) + vlI; 
@@ -503,10 +496,13 @@ export default function ImportadorSped() {
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', zIndex: 9999 }}>
         <style>{`@keyframes spin { 100% { transform: rotate(360deg); } } @keyframes flutuar { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } } .nuvem-animada { animation: flutuar 3s ease-in-out infinite; display: block; margin: 0 auto 20px; }`}</style>
         
+        {/* SELO NO TOPO ESQUERDO ATUALIZADO CONFORME SEU ANEXO (CNPJ - RAZÃO | BOLA | PLANO) */}
         {faseAtual === 'upload' && licencaAtual && (
-          <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+          <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', zIndex: 50 }}>
+            <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>
+              {formatarCNPJ(licencaAtual.identificador_cliente)} {razaoSocialLogada ? `- ${razaoSocialLogada}` : ''}
+            </span>
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
-            <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>{formatarCNPJ(licencaAtual.identificador_cliente)}</span>
             <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
           </div>
         )}
@@ -517,9 +513,6 @@ export default function ImportadorSped() {
             <Shield size={64} color="#004080" style={{ margin: '0 auto 15px auto', display: 'block' }} />
             <h1 style={{ color: '#004080', margin: '0 0 5px 0', fontSize: '36px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
             <p style={{ color: '#64748b', fontSize: '15px', margin: '0 0 15px 0' }}>Inteligência Fiscal e Auditoria Digital</p>
-            {faseAtual === 'upload' && razaoSocialLogada && (
-              <h3 style={{ color: '#ef4444', margin: '0', fontSize: '18px', fontWeight: 'bold' }}>Olá, {razaoSocialLogada}</h3>
-            )}
           </div>
 
           {faseAtual === 'login' && (
@@ -577,7 +570,7 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // ESTRUTURA PRINCIPAL (DASHBOARD WIDESCREEN)
+  // ESTRUTURA PRINCIPAL (DASHBOARD WIDESCREEN COM O SELO NO TOPO ESQUERDO)
   // =========================================================================
   return (
     <div className="main-container">
@@ -625,333 +618,337 @@ export default function ImportadorSped() {
         </div>
       )}
 
-      {modalPremiumAberto && (
-        <div className="no-print" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15,23,42,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', padding: '50px', borderRadius: '20px', width: '100%', maxWidth: '550px', textAlign: 'center' }}>
-            <Crown size={70} color="#f59e0b" style={{ margin: '0 auto 20px auto' }} />
-            <h2 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '28px', fontWeight: '900' }}>Cota Gratuita Esgotada!</h2>
-            <p style={{ color: '#475569', fontSize: '18px', lineHeight: '1.6', margin: '0 0 15px 0' }}>Faça um upgrade para o Plano Premium.</p>
-            <button onClick={() => setModalPremiumAberto(false)} style={{ padding: '15px', background: 'transparent', color: '#64748b', border: 'none', fontWeight: 'bold', cursor: 'pointer', textDecoration: 'underline' }}>Voltar</button>
-          </div>
-        </div>
-      )}
-
-      <div className="content-wrapper">
-        
-        <div className="no-print" style={{ marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
-            <h1 style={{ color: '#004080', margin: '0', fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
-            <span style={{ color: '#64748b', fontSize: '14px' }}>Inteligência Fiscal e Auditoria Digital</span>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px' }}>
-            <button onClick={() => setAbaAtiva('home')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><LayoutDashboard size={18} /> Visão Geral</button>
-            <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><Tags size={18} /> Módulo Tributário</button>
-            <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><AlertTriangle size={18} /> Riscos Fiscais</button>
-            <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><FileSearch size={18} /> Relatório de Auditoria</button>
-          </div>
-        </div>
-
-        <div className="print-banner card-dash" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '8px solid #004080', borderLeft: 'none', padding: '25px', alignItems: 'center', borderRadius: '16px', marginBottom: '30px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: '#004080' }}>
-            <Building2 size={36} />
-            <div>
-              <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a', fontWeight: '900' }}>{dadosEmpresa.nome}</h2>
-              <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>CNPJ: {formatarCNPJ(dadosEmpresa.cnpj)}</span>
+      {faseAtual === 'dashboard' && (
+        <>
+          {/* SELO NO TOPO ESQUERDO DO DASHBOARD ATUALIZADO CONFORME SEU ANEXO (CNPJ - RAZÃO | BOLA | PLANO) */}
+          {licencaAtual && (
+            <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', zIndex: 50 }}>
+              <span style={{ fontWeight: '900', color: '#333', fontSize: '14px', letterSpacing: '0.5px' }}>
+                {formatarCNPJ(licencaAtual.identificador_cliente)} {razaoSocialLogada ? `- ${razaoSocialLogada}` : ''}
+              </span>
+              <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
+              <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase' }}>{licencaAtual.plano}</span>
             </div>
-          </div>
-          <div style={{ textAlign: 'right', color: '#0f172a' }}>
-            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}><Calendar size={14}/> PERÍODO</span>
-            <strong style={{ display: 'block', fontSize: '16px', fontWeight: '900' }}>{dadosEmpresa.periodo}</strong>
-          </div>
-        </div>
+          )}
 
-        {abaAtiva === 'home' && (
-          <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
+          <div className="content-wrapper">
             
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
-              
-              <div className="grid-3">
-                <div className="card-dash" style={{ margin: 0 }}>
-                  <h3 className="card-title"><ArrowRightLeft size={20}/> Volume de Operações</h3>
-                  <div style={{ height: 260 }}>
-                    <ResponsiveContainer><PieChart><Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={70} outerRadius={95} paddingAngle={5} label={renderCustomLabel}>{dadosGraficoOperacoes.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i+1]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="card-dash" style={{ margin: 0 }}>
-                  <h3 className="card-title">Resumo por CFOP</h3>
-                  <div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: '10px' }}>
-                    {listaCfops.saidas.slice(0,8).map((it,idx)=>(
-                      <div key={idx} className="cfop-row">
-                        <span style={{ fontWeight: 'bold', color: '#64748b' }}>{it.cfop}</span>
-                        <strong style={{ color: '#004080' }}>{formatarMoeda(it.valor)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="card-dash" style={{ background: '#004080', color: '#fff', padding: 0, overflow: 'hidden', margin: 0, display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                    <Calculator size={20} />
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>VAF Fiscal do Período</h3>
-                  </div>
-                  <div style={{ padding: '20px', flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>+ Saídas Brutas</span><strong>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>- Dev. Vendas</span><strong>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
-                    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', margin: '15px 0' }}></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>- Entradas Brutas</span><strong>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>+ Dev. Compras</span><strong>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
-                  </div>
-                  <div style={{ background: '#fff', color: '#004080', padding: '20px', textAlign: 'center' }}>
-                    <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>= VALOR ADICIONADO GERADO</span>
-                    <strong style={{ fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(dadosVaf.vafTotal)}</strong>
-                  </div>
-                </div>
+            <div className="no-print" style={{ marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
+                <h1 style={{ color: '#004080', margin: '0', fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
+                <span style={{ color: '#64748b', fontSize: '14px' }}>Inteligência Fiscal e Auditoria Digital</span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '25px' }}>
-                <div className="card-dash" style={{ margin: 0 }}>
-                  <h3 className="card-title">Apuração de ICMS</h3>
-                  <div style={{ height: 300 }}>
-                    <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosGraficoIcms} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
-                  <div style={{ display: 'flex', gap: '25px' }}>
-                     <div className="card-dash" style={{ flex: 1, margin: 0, borderBottom: '5px solid #10b981', textAlign: 'center', padding: '25px 15px' }}>
-                         <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>SALDO CREDOR TRANSPORTAR</span>
-                         <h2 style={{ margin: '10px 0 0 0', color: '#10b981', fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
-                     </div>
-                     <div className="card-dash" style={{ flex: 1, margin: 0, borderBottom: '5px solid #ef4444', textAlign: 'center', padding: '25px 15px' }}>
-                         <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>ICMS A RECOLHER</span>
-                         <h2 style={{ margin: '10px 0 0 0', color: '#ef4444', fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
-                     </div>
-                  </div>
-                  <div className="card-dash" style={{ flex: 1, margin: 0 }}>
-                    <h3 className="card-title"><DollarSign size={20}/> Obrigações e Guias</h3>
-                    <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '10px' }}>
-                      {guiasE116.length > 0 ? guiasE116.map((g,i)=>(
-                        <div key={i} className="leg-item" style={{ padding: '15px' }}>
-                          <div>
-                            <strong style={{ display: 'block', color: '#334155', marginBottom: '4px', fontSize: '14px' }}>{getNomeGuia(g.codigo)}</strong>
-                            <span style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12}/> Venc: {formatarDataGuia(g.vencimento)}</span>
-                          </div>
-                          <span style={{ color: '#ef4444', fontWeight: '900', fontSize: '16px' }}>{formatarMoeda(g.valor)}</span>
-                        </div>
-                      )) : <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: '40px', fontSize: '14px', fontWeight: 'bold' }}>Nenhuma guia (E116) encontrada.</p>}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid-2">
-                <div className="card-dash" style={{ margin: 0 }}>
-                  <h3 className="card-title"><Package size={20}/> Top 10 Produtos (Compras)</h3>
-                  <div style={{ maxHeight: 300, overflowY: 'auto', paddingRight: '10px' }}>
-                    {topProdutos.compras.map((p,i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ background: '#10b981', color: '#fff', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>{i+1}</span>
-                          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>{p.nome}</span>
-                        </div>
-                        <strong style={{ color: '#10b981', fontSize: '14px' }}>{formatarMoeda(p.valor)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="card-dash" style={{ margin: 0 }}>
-                  <h3 className="card-title"><Truck size={20}/> Top Fornecedores</h3>
-                  <div style={{ maxHeight: 300, overflowY: 'auto', paddingRight: '10px' }}>
-                    {topFornecedores.map((f,i) => (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ background: '#f59e0b', color: '#fff', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>{i+1}</span>
-                          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>{f.nome}</span>
-                        </div>
-                        <strong style={{ color: '#004080', fontSize: '14px' }}>{formatarMoeda(f.valor)}</strong>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '15px' }}>
+                <button onClick={() => setAbaAtiva('home')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><LayoutDashboard size={18} /> Visão Geral</button>
+                <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><Tags size={18} /> Módulo Tributário</button>
+                <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><AlertTriangle size={18} /> Riscos Fiscais</button>
+                <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><FileSearch size={18} /> Relatório de Auditoria</button>
               </div>
             </div>
 
-            <SidebarAuditoria />
-          </div>
-        )}
-
-        {abaAtiva === 'tributos' && (
-          <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
-              
-              <div className="grid-4">
-                <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #004080', textAlign: 'center', padding: '25px 15px' }}>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>FATURAMENTO ANALISADO</p>
-                  <h2 style={{ margin: 0, color: '#004080', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
-                </div>
-                <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #f59e0b', textAlign: 'center', padding: '25px 15px' }}>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>SUBSTITUIÇÃO (ST)</p>
-                  <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
-                </div>
-                <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #8b5cf6', textAlign: 'center', padding: '25px 15px' }}>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>PRESTAÇÕES DE SERVIÇOS</p>
-                  <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
-                </div>
-                <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #ef4444', textAlign: 'center', padding: '25px 15px' }}>
-                  <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>ISENTAS / NÃO TRIB</p>
-                  <h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
-                </div>
-              </div>
-
-              <div className="card-dash" style={{ margin: 0, background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '8px solid #004080', padding: '30px' }}>
+            <div className="print-banner card-dash" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '8px solid #004080', borderLeft: 'none', padding: '25px', alignItems: 'center', borderRadius: '16px', marginBottom: '30px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: '#004080' }}>
+                <Building2 size={36} />
                 <div>
-                  <h3 style={{ margin: '0 0 5px 0', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', color: '#004080', fontWeight: '900' }}>
-                    <Calculator size={28}/> Alíquota Efetiva de Impostos
-                  </h3>
-                  <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
-                    Percentual representativo da carga tributária a recolher com base no faturamento total analisado.
-                  </p>
-                </div>
-                <div style={{ background: '#004080', color: '#fff', padding: '15px 35px', borderRadius: '12px', fontSize: '32px', fontWeight: '900', boxShadow: '0 10px 25px rgba(0,64,128,0.2)' }}>
-                  {aliquotaEfetiva}%
+                  <h2 style={{ margin: 0, fontSize: '20px', color: '#0f172a', fontWeight: '900' }}>{dadosEmpresa.nome}</h2>
+                  <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 'bold' }}>CNPJ: {formatarCNPJ(dadosEmpresa.cnpj)}</span>
                 </div>
               </div>
-
-              <div className="grid-2">
-                <div className="card-dash" style={{ margin: 0 }}>
-                  <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
-                    <div style={{ height: 300 }}>
-                      <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
-                    </div>
-                    <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
-                      {dadosRoscaEntradas.map((it, idx)=>(
-                        <div key={idx} className="leg-item" style={{ borderLeft: `5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}` }}>
-                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
-                          <strong style={{ fontSize: '14px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card-dash" style={{ margin: 0 }}>
-                  <h3 className="card-title"><Activity size={24} /> Tributação das Saídas</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
-                    <div style={{ height: 300 }}>
-                      <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
-                    </div>
-                    <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
-                      {dadosTributacaoSaida.map((it, idx)=>(
-                        <div key={idx} className="leg-item" style={{ borderLeft: `5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}` }}>
-                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
-                          <strong style={{ fontSize: '14px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+              <div style={{ textAlign: 'right', color: '#0f172a' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '6px', fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase' }}><Calendar size={14}/> PERÍODO</span>
+                <strong style={{ display: 'block', fontSize: '16px', fontWeight: '900' }}>{dadosEmpresa.periodo}</strong>
               </div>
+            </div>
 
-              <div className="card-dash" style={{ margin: 0 }}>
-                <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', alignItems: 'center' }}>
-                  <div style={{ height: 350 }}>
-                    <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosEstados} dataKey="value" innerRadius={80} outerRadius={120} paddingAngle={4} label={renderCustomLabel}>{dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
-                  </div>
-                  <div style={{maxHeight:'320px', overflowY:'auto', paddingRight: '10px'}}>
-                    {dadosEstados.map((it, idx)=>(
-                      <div key={idx} className="leg-item" style={{ borderLeft: `6px solid ${CORES_MAPA[idx%CORES_MAPA.length]}`, padding: '15px' }}>
-                        <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#334155' }}>{it.name}</span>
-                        <strong style={{ fontSize: '18px', color: '#004080' }}>{formatarMoeda(it.value)}</strong>
+            {abaAtiva === 'home' && (
+              <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
+                
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                  
+                  <div className="grid-3">
+                    <div className="card-dash" style={{ margin: 0 }}>
+                      <h3 className="card-title"><ArrowRightLeft size={20}/> Volume de Operações</h3>
+                      <div style={{ height: 260 }}>
+                        <ResponsiveContainer><PieChart><Pie data={dadosGraficoOperacoes} dataKey="value" innerRadius={70} outerRadius={95} paddingAngle={5} label={renderCustomLabel}>{dadosGraficoOperacoes.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i+1]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="card-dash" style={{ margin: 0 }}>
+                      <h3 className="card-title">Resumo por CFOP</h3>
+                      <div style={{ maxHeight: 260, overflowY: 'auto', paddingRight: '10px' }}>
+                        {listaCfops.saidas.slice(0,8).map((it,idx)=>(
+                          <div key={idx} className="cfop-row">
+                            <span style={{ fontWeight: 'bold', color: '#64748b' }}>{it.cfop}</span>
+                            <strong style={{ color: '#004080' }}>{formatarMoeda(it.valor)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="card-dash" style={{ background: '#004080', color: '#fff', padding: 0, overflow: 'hidden', margin: 0, display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                        <Calculator size={20} />
+                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>VAF Fiscal do Período</h3>
+                      </div>
+                      <div style={{ padding: '20px', flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>+ Saídas Brutas</span><strong>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>- Dev. Vendas</span><strong>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
+                        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', margin: '15px 0' }}></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>- Entradas Brutas</span><strong>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>+ Dev. Compras</span><strong>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
+                      </div>
+                      <div style={{ background: '#fff', color: '#004080', padding: '20px', textAlign: 'center' }}>
+                        <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>= VALOR ADICIONADO GERADO</span>
+                        <strong style={{ fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(dadosVaf.vafTotal)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '25px' }}>
+                    <div className="card-dash" style={{ margin: 0 }}>
+                      <h3 className="card-title">Apuração de ICMS</h3>
+                      <div style={{ height: 300 }}>
+                        <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosGraficoIcms} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/><Legend/></PieChart></ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                      <div style={{ display: 'flex', gap: '25px' }}>
+                         <div className="card-dash" style={{ flex: 1, margin: 0, borderBottom: '5px solid #10b981', textAlign: 'center', padding: '25px 15px' }}>
+                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>SALDO CREDOR TRANSPORTAR</span>
+                             <h2 style={{ margin: '10px 0 0 0', color: '#10b981', fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(resumoIcms.saldoCredor)}</h2>
+                         </div>
+                         <div className="card-dash" style={{ flex: 1, margin: 0, borderBottom: '5px solid #ef4444', textAlign: 'center', padding: '25px 15px' }}>
+                             <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>ICMS A RECOLHER</span>
+                             <h2 style={{ margin: '10px 0 0 0', color: '#ef4444', fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(resumoIcms.icmsRecolher)}</h2>
+                         </div>
+                      </div>
+                      <div className="card-dash" style={{ flex: 1, margin: 0 }}>
+                        <h3 className="card-title"><DollarSign size={20}/> Obrigações e Guias</h3>
+                        <div style={{ maxHeight: '180px', overflowY: 'auto', paddingRight: '10px' }}>
+                          {guiasE116.length > 0 ? guiasE116.map((g,i)=>(
+                            <div key={i} className="leg-item" style={{ padding: '15px' }}>
+                              <div>
+                                <strong style={{ display: 'block', color: '#334155', marginBottom: '4px', fontSize: '14px' }}>{getNomeGuia(g.codigo)}</strong>
+                                <span style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12}/> Venc: {formatarDataGuia(g.vencimento)}</span>
+                              </div>
+                              <span style={{ color: '#ef4444', fontWeight: '900', fontSize: '16px' }}>{formatarMoeda(g.valor)}</span>
+                            </div>
+                          )) : <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: '40px', fontSize: '14px', fontWeight: 'bold' }}>Nenhuma guia (E116) encontrada.</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid-2">
+                    <div className="card-dash" style={{ margin: 0 }}>
+                      <h3 className="card-title"><Package size={20}/> Top 10 Produtos (Compras)</h3>
+                      <div style={{ maxHeight: 300, overflowY: 'auto', paddingRight: '10px' }}>
+                        {topProdutos.compras.map((p,i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ background: '#10b981', color: '#fff', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>{i+1}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>{p.nome}</span>
+                            </div>
+                            <strong style={{ color: '#10b981', fontSize: '14px' }}>{formatarMoeda(p.valor)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="card-dash" style={{ margin: 0 }}>
+                      <h3 className="card-title"><Truck size={20}/> Top Fornecedores</h3>
+                      <div style={{ maxHeight: 300, overflowY: 'auto', paddingRight: '10px' }}>
+                        {topFornecedores.map((f,i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <span style={{ background: '#f59e0b', color: '#fff', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', flexShrink: 0 }}>{i+1}</span>
+                              <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>{f.nome}</span>
+                            </div>
+                            <strong style={{ color: '#004080', fontSize: '14px' }}>{formatarMoeda(f.valor)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
+
+                <SidebarAuditoria />
               </div>
-            </div>
-            
-            <SidebarAuditoria />
-          </div>
-        )}
+            )}
 
-        {abaAtiva === 'verificacao' && (
-          <div className="card-dash">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
-              <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><AlertTriangle size={28} color="#f59e0b" /> Radar de Riscos Fiscais</h3>
-              <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}><Printer size={18}/> Exportar em PDF</button>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f59e0b', color: '#fff', textAlign: 'left' }}>
-                  <th style={{ padding: '15px', borderRadius: '10px 0 0 0' }}>Tipo de Risco</th>
-                  <th style={{ padding: '15px' }}>Registro Afetado</th>
-                  <th style={{ padding: '15px' }}>Alerta</th>
-                  <th style={{ padding: '15px', borderRadius: '0 10px 0 0' }}>Detalhe e Orientação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {riscosFiscais.length > 0 ? riscosFiscais.map((r,i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i%2===0?'#fff':'#f8fafc' }}>
-                    <td style={{ padding: '15px', fontWeight: 'bold', color: '#334155' }}>{r.tipo}</td>
-                    <td style={{ padding: '15px', color: '#64748b', fontWeight: '600' }}>{r.registro}</td>
-                    <td style={{ padding: '15px' }}><span style={{ background: r.cor, color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' }}>ATENÇÃO</span></td>
-                    <td style={{ padding: '15px', color: '#475569', lineHeight: '1.5' }}>{r.detalhe}</td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan="4" style={{ padding: '60px', textAlign: 'center' }}>
-                      <CheckCircle size={64} color="#10b981" style={{ margin: '0 auto 15px auto', display: 'block' }} />
-                      <h3 style={{ margin: 0, color: '#10b981', fontSize: '24px' }}>Nenhum Risco Detectado no Arquivo!</h3>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+            {abaAtiva === 'tributos' && (
+              <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                  
+                  <div className="grid-4">
+                    <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #004080', textAlign: 'center', padding: '25px 15px' }}>
+                      <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>FATURAMENTO ANALISADO</p>
+                      <h2 style={{ margin: 0, color: '#004080', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.total)}</h2>
+                    </div>
+                    <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #f59e0b', textAlign: 'center', padding: '25px 15px' }}>
+                      <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>SUBSTITUIÇÃO (ST)</p>
+                      <h2 style={{ margin: 0, color: '#f59e0b', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.st)}</h2>
+                    </div>
+                    <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #8b5cf6', textAlign: 'center', padding: '25px 15px' }}>
+                      <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>PRESTAÇÕES DE SERVIÇOS</p>
+                      <h2 style={{ margin: 0, color: '#8b5cf6', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.servicos)}</h2>
+                    </div>
+                    <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #ef4444', textAlign: 'center', padding: '25px 15px' }}>
+                      <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>ISENTAS / NÃO TRIB</p>
+                      <h2 style={{ margin: 0, color: '#ef4444', fontSize: '24px', fontWeight: '900' }}>{formatarMoeda(resumoTributacao.isento)}</h2>
+                    </div>
+                  </div>
 
-        {abaAtiva === 'auditoria' && (
-          <div className="card-dash">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
-              <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><Shield size={28} color="#10b981" /> Histórico de Correções</h3>
-              <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}><Printer size={18}/> Exportar em PDF</button>
-            </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#004080', color: '#fff', textAlign: 'left' }}>
-                  <th style={{ padding: '15px', borderRadius: '10px 0 0 0' }}>Linha</th>
-                  <th style={{ padding: '15px' }}>Registro</th>
-                  <th style={{ padding: '15px' }}>Ação Realizada</th>
-                  <th style={{ padding: '15px', borderRadius: '0 10px 0 0' }}>Detalhe Fiscal da Correção</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logAuditoria.length > 0 ? logAuditoria.map((l,i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i%2===0?'#fff':'#f8fafc' }}>
-                    <td style={{ padding: '15px', color: '#64748b', fontWeight: 'bold' }}>{l.linha}</td>
-                    <td style={{ padding: '15px', fontWeight: '900', color: '#004080' }}>{l.registro}</td>
-                    <td style={{ padding: '15px' }}><span style={{ background: '#ecfdf5', color: '#047857', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', border: '1px solid #10b981' }}>{l.acao}</span></td>
-                    <td style={{ padding: '15px', color: '#475569', lineHeight: '1.5' }}>{l.detalhe}</td>
-                  </tr>
-                )) : (
-                  <tr>
-                    <td colSpan="4" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
-                      <Shield size={64} color="#cbd5e1" style={{ margin: '0 auto 15px auto', display: 'block' }} />
-                      <h3 style={{ margin: 0, color: '#64748b', fontSize: '20px' }}>Nenhuma intervenção corretiva foi necessária.</h3>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  <div className="card-dash" style={{ margin: 0, background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '8px solid #004080', padding: '30px' }}>
+                    <div>
+                      <h3 style={{ margin: '0 0 5px 0', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', color: '#004080', fontWeight: '900' }}>
+                        <Calculator size={28}/> Alíquota Efetiva de Impostos
+                      </h3>
+                      <p style={{ margin: 0, color: '#64748b', fontSize: '15px' }}>
+                        Percentual representativo da carga tributária a recolher com base no faturamento total analisado.
+                      </p>
+                    </div>
+                    <div style={{ background: '#004080', color: '#fff', padding: '15px 35px', borderRadius: '12px', fontSize: '32px', fontWeight: '900', boxShadow: '0 10px 25px rgba(0,64,128,0.2)' }}>
+                      {aliquotaEfetiva}%
+                    </div>
+                  </div>
 
-        <BotoesAcao />
-      </div>
+                  <div className="grid-2">
+                    <div className="card-dash" style={{ margin: 0 }}>
+                      <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
+                        <div style={{ height: 300 }}>
+                          <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
+                        </div>
+                        <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
+                          {dadosRoscaEntradas.map((it, idx)=>(
+                            <div key={idx} className="leg-item" style={{ borderLeft: `5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}` }}>
+                              <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
+                              <strong style={{ fontSize: '14px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="card-dash" style={{ margin: 0 }}>
+                      <h3 className="card-title"><Activity size={24} /> Tributação das Saídas</h3>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
+                        <div style={{ height: 300 }}>
+                          <ResponsiveContainer><PieChart margin={{ top: 20, right: 30, bottom: 20, left: 30 }}><Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>{dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
+                        </div>
+                        <div style={{maxHeight:'280px', overflowY:'auto', paddingRight: '10px'}}>
+                          {dadosTributacaoSaida.map((it, idx)=>(
+                            <div key={idx} className="leg-item" style={{ borderLeft: `5px solid ${CORES_TRIBUTACAO[idx%CORES_TRIBUTACAO.length]}` }}>
+                              <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{it.name}</span>
+                              <strong style={{ fontSize: '14px', color: '#0f172a' }}>{formatarMoeda(it.value)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card-dash" style={{ margin: 0 }}>
+                    <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', alignItems: 'center' }}>
+                      <div style={{ height: 350 }}>
+                        <ResponsiveContainer><PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}><Pie data={dadosEstados} dataKey="value" innerRadius={80} outerRadius={120} paddingAngle={4} label={renderCustomLabel}>{dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}</Pie><Tooltip formatter={v=>formatarMoeda(v)}/></PieChart></ResponsiveContainer>
+                      </div>
+                      <div style={{maxHeight:'320px', overflowY:'auto', paddingRight: '10px'}}>
+                        {dadosEstados.map((it, idx)=>(
+                          <div key={idx} className="leg-item" style={{ borderLeft: `6px solid ${CORES_MAPA[idx%CORES_MAPA.length]}`, padding: '15px' }}>
+                            <span style={{ fontSize: '15px', fontWeight: 'bold', color: '#334155' }}>{it.name}</span>
+                            <strong style={{ fontSize: '18px', color: '#004080' }}>{formatarMoeda(it.value)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <SidebarAuditoria />
+              </div>
+            )}
+
+            {abaAtiva === 'verificacao' && (
+              <div className="card-dash">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
+                  <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><AlertTriangle size={28} color="#f59e0b" /> Radar de Riscos Fiscais</h3>
+                  <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}><Printer size={18}/> Exportar em PDF</button>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f59e0b', color: '#fff', textAlign: 'left' }}>
+                      <th style={{ padding: '15px', borderRadius: '10px 0 0 0' }}>Tipo de Risco</th>
+                      <th style={{ padding: '15px' }}>Registro Afetado</th>
+                      <th style={{ padding: '15px' }}>Alerta</th>
+                      <th style={{ padding: '15px', borderRadius: '0 10px 0 0' }}>Detalhe e Orientação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {riscosFiscais.length > 0 ? riscosFiscais.map((r,i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i%2===0?'#fff':'#f8fafc' }}>
+                        <td style={{ padding: '15px', fontWeight: 'bold', color: '#334155' }}>{r.tipo}</td>
+                        <td style={{ padding: '15px', color: '#64748b', fontWeight: '600' }}>{r.registro}</td>
+                        <td style={{ padding: '15px' }}><span style={{ background: r.cor, color: '#fff', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', letterSpacing: '0.5px' }}>ATENÇÃO</span></td>
+                        <td style={{ padding: '15px', color: '#475569', lineHeight: '1.5' }}>{r.detalhe}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '60px', textAlign: 'center' }}>
+                          <CheckCircle size={64} color="#10b981" style={{ margin: '0 auto 15px auto', display: 'block' }} />
+                          <h3 style={{ margin: 0, color: '#10b981', fontSize: '24px' }}>Nenhum Risco Detectado no Arquivo!</h3>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {abaAtiva === 'auditoria' && (
+              <div className="card-dash">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
+                  <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><Shield size={28} color="#10b981" /> Histórico de Correções</h3>
+                  <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}><Printer size={18}/> Exportar em PDF</button>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#004080', color: '#fff', textAlign: 'left' }}>
+                      <th style={{ padding: '15px', borderRadius: '10px 0 0 0' }}>Linha</th>
+                      <th style={{ padding: '15px' }}>Registro</th>
+                      <th style={{ padding: '15px' }}>Ação Realizada</th>
+                      <th style={{ padding: '15px', borderRadius: '0 10px 0 0' }}>Detalhe Fiscal da Correção</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logAuditoria.length > 0 ? logAuditoria.map((l,i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #e2e8f0', background: i%2===0?'#fff':'#f8fafc' }}>
+                        <td style={{ padding: '15px', color: '#64748b', fontWeight: 'bold' }}>{l.linha}</td>
+                        <td style={{ padding: '15px', fontWeight: '900', color: '#004080' }}>{l.registro}</td>
+                        <td style={{ padding: '15px' }}><span style={{ background: '#ecfdf5', color: '#047857', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '900', border: '1px solid #10b981' }}>{l.acao}</span></td>
+                        <td style={{ padding: '15px', color: '#475569', lineHeight: '1.5' }}>{l.detalhe}</td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan="4" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>
+                          <Shield size={64} color="#cbd5e1" style={{ margin: '0 auto 15px auto', display: 'block' }} />
+                          <h3 style={{ margin: 0, color: '#64748b', fontSize: '20px' }}>Nenhuma intervenção corretiva foi necessária.</h3>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <BotoesAcao />
+          </div>
+        </>
+      )}
     </div>
   );
 }
