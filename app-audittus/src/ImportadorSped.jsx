@@ -17,7 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // 2. CONFIGURAÇÕES DO SISTEMA E VERSÃO
 // ==========================================
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.31";
+const VERSAO_ATUAL = "1.1.32";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -59,7 +59,6 @@ const renderCustomLabel = ({ percent }) => {
 };
 
 export default function ImportadorSped() {
-  // ATENÇÃO: Já configurado para 'login' para não dar conflito com o Electron
   const [faseAtual, setFaseAtual] = useState('login'); 
 
   const [senhaInput, setSenhaInput] = useState(''); 
@@ -240,7 +239,7 @@ export default function ImportadorSped() {
       }
 
       setNomeOriginal(file.name);
-      const mensagens = ["Lendo estrutura do arquivo SPED...", "Mapeando inteligência de CFOPs...", "Procurando Notas Puladas na série...", "Aplicando rotinas de Auto-Cura Tributária...", "Gerando painéis de Business Intelligence..."];
+      const mensagens = ["Lendo estrutura do arquivo SPED...", "Validando Notas de Fornecedores...", "Filtrando Notas Canceladas...", "Recalculando Inteligência Tributária...", "Gerando painéis de Business Intelligence..."];
       let step = 0; setLoadingText(mensagens[0]);
       const inter = setInterval(() => { step++; if(step < mensagens.length) setLoadingText(mensagens[step]); }, 600);
 
@@ -295,18 +294,40 @@ export default function ImportadorSped() {
         if (cols[1] === '0150') { mPart[cols[2]] = cols[3]; mPartEst[cols[2]] = cols[8] ? (mapUfIbgeLocal[cols[8].substring(0,2)] || 'Outros') : 'N/A'; }
         if (cols[1] === '0200') { mProd[cols[2]] = cols[3]; }
 
+        // =========================================================================
+        // CORREÇÃO MATEMÁTICA: LEITURA EXATA DE VALORES (C100 e D100)
+        // =========================================================================
         if (cols[1] === 'C100' || cols[1] === 'D100') {
-           numDocAtual = cols[8] || 'S/N'; opAt = cols[2]; const vlD = parseFloat(cols[12]?.replace(',', '.')) || 0; 
-           if (opAt === '0') { 
+           numDocAtual = cols[8] || 'S/N'; 
+           
+           // Bloqueia e ignora notas Canceladas ou Denegadas
+           const codSit = cols[6];
+           const isCancelado = ['02', '03', '04', '05'].includes(codSit); 
+           opAt = isCancelado ? 'CANCELADO' : cols[2]; 
+
+           let vlD = 0;
+           if (!isCancelado) {
+               // C100 lê o valor total na coluna 12. 
+               // D100 (Frete) lê o valor total na coluna 15.
+               if (cols[1] === 'C100') {
+                   vlD = parseFloat(cols[12]?.replace(',', '.')) || 0; 
+               } else if (cols[1] === 'D100') {
+                   vlD = parseFloat(cols[15]?.replace(',', '.')) || 0; 
+               }
+           }
+           
+           if (opAt === '0' && vlD > 0) { 
              tEnt += vlD; 
              if (cols[4]) { 
                cForn[cols[4]] = (cForn[cols[4]] || 0) + vlD; 
                const estadoOrigem = mPartEst[cols[4]] || 'Estado Não Mapeado';
                cEstObj[estadoOrigem] = (cEstObj[estadoOrigem] || 0) + vlD; 
              } 
-           } else if (opAt === '1') { tSai += vlD; }
+           } else if (opAt === '1' && vlD > 0) { 
+             tSai += vlD; 
+           }
            
-           if (cols[1] === 'C100') {
+           if (cols[1] === 'C100' && !isCancelado) {
                const numNF = parseInt(cols[8], 10);
                if (cols[2] === '1' && cols[3] === '0' && !isNaN(numNF)) {
                    const key = `${cols[5]}-${cols[7]}`; 
@@ -316,7 +337,12 @@ export default function ImportadorSped() {
            }
         }
         
-        if (cols[1] === 'C170') { const vlI = parseFloat(cols[7]?.replace(',', '.')) || 0; if (opAt === '1') vProd[cols[3]] = (vProd[cols[3]] || 0) + vlI; else if (opAt === '0') cProd[cols[3]] = (cProd[cols[3]] || 0) + vlI; }
+        // C170 agora também respeita se a nota principal foi cancelada
+        if (cols[1] === 'C170') { 
+            const vlI = parseFloat(cols[7]?.replace(',', '.')) || 0; 
+            if (opAt === '1') vProd[cols[3]] = (vProd[cols[3]] || 0) + vlI; 
+            else if (opAt === '0') cProd[cols[3]] = (cProd[cols[3]] || 0) + vlI; 
+        }
         
         if (linha.startsWith('|C191|')) { contC191++; logTemp.push({ linha: numLinha, registro: `C191`, acao: 'Limpeza', detalhe: 'Registro C191 excluído.' }); return; }
         if (linha.startsWith('|C173|')) { contC173++; logTemp.push({ linha: numLinha, registro: `C173`, acao: 'Limpeza', detalhe: 'Registro C173 excluído.' }); return; }
@@ -477,7 +503,6 @@ export default function ImportadorSped() {
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', zIndex: 9999 }}>
         <style>{`@keyframes spin { 100% { transform: rotate(360deg); } } @keyframes flutuar { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } } .nuvem-animada { animation: flutuar 3s ease-in-out infinite; display: block; margin: 0 auto 20px; }`}</style>
         
-        {/* SELO NO TOPO ESQUERDO (Apenas na fase Upload, após validar) */}
         {faseAtual === 'upload' && licencaAtual && (
           <div className="no-print" style={{ position: 'absolute', top: '30px', left: '30px', display: 'inline-flex', alignItems: 'center', gap: '10px', background: '#fff', padding: '8px 16px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
             <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b') }}></div>
@@ -486,10 +511,8 @@ export default function ImportadorSped() {
           </div>
         )}
 
-        {/* BLOCO CENTRAL (LOGIN OU UPLOAD) */}
         <div style={{ background: '#fff', padding: '60px 50px', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.05)', width: '100%', maxWidth: faseAtual === 'login' ? '450px' : '700px', textAlign: 'center', border: '1px solid #e2e8f0', transition: '0.3s' }}>
           
-          {/* HEADER DO BLOCO CENTRAL */}
           <div style={{ marginBottom: '30px' }}>
             <Shield size={64} color="#004080" style={{ margin: '0 auto 15px auto', display: 'block' }} />
             <h1 style={{ color: '#004080', margin: '0 0 5px 0', fontSize: '36px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -499,7 +522,6 @@ export default function ImportadorSped() {
             )}
           </div>
 
-          {/* FORMULÁRIO DE LOGIN */}
           {faseAtual === 'login' && (
             <>
               <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -522,7 +544,6 @@ export default function ImportadorSped() {
             </>
           )}
 
-          {/* CAIXA DE UPLOAD */}
           {faseAtual === 'upload' && (
             <div style={{ position: 'relative', padding: '50px 20px', border: '3px dashed #cbd5e1', borderRadius: '20px', backgroundColor: '#f8fafc', cursor: 'pointer', transition: '0.3s' }} onMouseOver={(e) => e.currentTarget.style.borderColor = '#004080'} onMouseOut={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}>
               <input type="file" accept=".txt" onChange={processarArquivo} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 10 }} />
@@ -556,7 +577,7 @@ export default function ImportadorSped() {
   }
 
   // =========================================================================
-  // ESTRUTURA PRINCIPAL (DASHBOARD WIDESCREEN TOTALMENTE RESTAURADO)
+  // ESTRUTURA PRINCIPAL (DASHBOARD WIDESCREEN)
   // =========================================================================
   return (
     <div className="main-container">
@@ -569,7 +590,6 @@ export default function ImportadorSped() {
         .btn-update { background: #38bdf8; color: #0f172a; border: none; padding: 8px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.3s; }
         .btn-update:hover { background: #fff; transform: translateY(-1px); }
         
-        /* CONTAINER WIDESCREEN */
         .content-wrapper { width: 100%; max-width: 1650px; padding: 30px; margin: 0 auto; box-sizing: border-box; }
         
         .card-dash { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
@@ -618,7 +638,6 @@ export default function ImportadorSped() {
 
       <div className="content-wrapper">
         
-        {/* CABEÇALHO DO SISTEMA E MENU */}
         <div className="no-print" style={{ marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
             <h1 style={{ color: '#004080', margin: '0', fontSize: '28px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -633,7 +652,6 @@ export default function ImportadorSped() {
           </div>
         </div>
 
-        {/* HEADER DA EMPRESA (IDÊNTICO AO LAYOUT ANTIGO) */}
         <div className="print-banner card-dash" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '8px solid #004080', borderLeft: 'none', padding: '25px', alignItems: 'center', borderRadius: '16px', marginBottom: '30px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: '#004080' }}>
             <Building2 size={36} />
@@ -648,16 +666,11 @@ export default function ImportadorSped() {
           </div>
         </div>
 
-        {/* ========================================================================= */}
-        {/* ABA: HOME COM ESTRUTURA WIDESCREEN ORIGINAL TOTALMENTE RESTAURADA */}
-        {/* ========================================================================= */}
         {abaAtiva === 'home' && (
           <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
             
-            {/* COLUNA ESQUERDA (DASHBOARDS PRINCIPAIS) */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
-              {/* LINHA 1: OPERAÇÕES | CFOP | VAF DETALHADO */}
               <div className="grid-3">
                 <div className="card-dash" style={{ margin: 0 }}>
                   <h3 className="card-title"><ArrowRightLeft size={20}/> Volume de Operações</h3>
@@ -678,7 +691,6 @@ export default function ImportadorSped() {
                   </div>
                 </div>
 
-                {/* VAF FISCAL COM DETALHAMENTO (RESTAURADO CONFORME PRINT) */}
                 <div className="card-dash" style={{ background: '#004080', color: '#fff', padding: 0, overflow: 'hidden', margin: 0, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                     <Calculator size={20} />
@@ -698,7 +710,6 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* LINHA 2: APURAÇÃO | (SALDO/ICMS RECOLHER) + GUIAS */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '25px' }}>
                 <div className="card-dash" style={{ margin: 0 }}>
                   <h3 className="card-title">Apuração de ICMS</h3>
@@ -735,7 +746,6 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* LINHA 3: TOP 10 PRODUTOS | TOP FORNECEDORES */}
               <div className="grid-2">
                 <div className="card-dash" style={{ margin: 0 }}>
                   <h3 className="card-title"><Package size={20}/> Top 10 Produtos (Compras)</h3>
@@ -769,19 +779,14 @@ export default function ImportadorSped() {
               </div>
             </div>
 
-            {/* BARRA LATERAL FIXA - AUDITORIA AUTOMÁTICA */}
             <SidebarAuditoria />
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* ABA: MÓDULO TRIBUTÁRIO */}
-        {/* ========================================================================= */}
         {abaAtiva === 'tributos' && (
           <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
-              {/* BORDAS COLORIDAS SUPERIORES */}
               <div className="grid-4">
                 <div className="card-dash" style={{ margin: 0, borderTop: '6px solid #004080', textAlign: 'center', padding: '25px 15px' }}>
                   <p style={{ margin: '0 0 10px 0', fontSize: '12px', fontWeight: 'bold', color: '#64748b' }}>FATURAMENTO ANALISADO</p>
@@ -801,7 +806,6 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* BARRA DA ALÍQUOTA EFETIVA */}
               <div className="card-dash" style={{ margin: 0, background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '8px solid #004080', padding: '30px' }}>
                 <div>
                   <h3 style={{ margin: '0 0 5px 0', fontSize: '22px', display: 'flex', alignItems: 'center', gap: '10px', color: '#004080', fontWeight: '900' }}>
@@ -816,7 +820,6 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* GRÁFICOS LADO A LADO */}
               <div className="grid-2">
                 <div className="card-dash" style={{ margin: 0 }}>
                   <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
@@ -853,7 +856,6 @@ export default function ImportadorSped() {
                 </div>
               </div>
 
-              {/* AQUISIÇÕES ESTADUAIS */}
               <div className="card-dash" style={{ margin: 0 }}>
                 <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', alignItems: 'center' }}>
@@ -872,14 +874,10 @@ export default function ImportadorSped() {
               </div>
             </div>
             
-            {/* AUDITORIA SEMPRE VISÍVEL COMO NO SEU PRINT */}
             <SidebarAuditoria />
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* ABA: RISCOS FISCAIS */}
-        {/* ========================================================================= */}
         {abaAtiva === 'verificacao' && (
           <div className="card-dash">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
@@ -916,9 +914,6 @@ export default function ImportadorSped() {
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* ABA: RELATÓRIO DE AUDITORIA */}
-        {/* ========================================================================= */}
         {abaAtiva === 'auditoria' && (
           <div className="card-dash">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
