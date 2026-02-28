@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.35";
+const VERSAO_ATUAL = "1.1.36";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -442,8 +442,9 @@ const handleLogin = async (e) => {
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       setGuiasE116(listaG); setRiscosFiscais(riscosTemp); setLogAuditoria(logTemp);
-      setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: 3 });
-      
+      const qtdBlocos = (contC191 > 0 || contC173 > 0 || contTextos > 0) ? 3 : 0;
+      setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: qtdBlocos });      
+
       setArquivoProcessado(linhasProcessadas.join('\r\n')); 
       setTimeout(() => { clearInterval(inter); setFaseAtual('dashboard'); }, 3000);
     };
