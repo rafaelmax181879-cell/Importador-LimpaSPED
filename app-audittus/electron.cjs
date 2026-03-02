@@ -71,7 +71,7 @@ function createWindow() {
       <h3>SPED FISCAL</h3>
       <div class="progress-container"><div class="progress-bar"></div></div>
       <p>Carregando módulos de auditoria...</p>
-      <p class="version">Versão 1.1.36</p>
+      <p class="version">Versão 1.1.37</p>
     </body>
     </html>
   `;
