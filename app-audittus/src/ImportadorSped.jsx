@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.37";
+const VERSAO_ATUAL = "1.1.38";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -82,6 +82,12 @@ export default function ImportadorSped() {
   const [logAuditoria, setLogAuditoria] = useState([]);
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
+  // === VARIÁVEIS DO MÓDULO DE ESTOQUE ===
+  const [isMesFevereiro, setIsMesFevereiro] = useState(false);
+  const [anoAnteriorEstoque, setAnoAnteriorEstoque] = useState('');
+  const [estoqueInicial, setEstoqueInicial] = useState(0);
+  const [margemLucro, setMargemLucro] = useState(30);
+  const [estoqueInjetado, setEstoqueInjetado] = useState(false);
 
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
@@ -217,7 +223,79 @@ const handleLogin = async (e) => {
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
     setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
     setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setRiscosFiscais([]);
+    setIsMesFevereiro(false); setEstoqueInjetado(false); setEstoqueInicial(0); setMargemLucro(30);
   };
+const handleInjetarBlocoH = () => {
+    if (!arquivoProcessado) return;
+    
+    // Cálculo do CMV e Estoque Final
+    const totalEntradas = dadosVaf.entradasBrutas - dadosVaf.devCompras;
+    const totalSaidas = dadosVaf.saidasBrutas - dadosVaf.devVendas;
+    const cmv = totalSaidas * (1 - (margemLucro / 100));
+    const estoqueFinalCalc = (parseFloat(estoqueInicial || 0) + totalEntradas) - cmv;
+    
+    let linhas = arquivoProcessado.split('\r\n');
+    
+    // 1. Injetar Produto DIVERSOS-OK se não existir
+    let hasDiversos = linhas.some(l => l.includes('|DIVERSOS-OK|'));
+    if (!hasDiversos) {
+      const index0990 = linhas.findIndex(l => l.startsWith('|0990|'));
+      if (index0990 !== -1) {
+        linhas.splice(index0990, 0, `|0200|DIVERSOS-OK|ESTOQUE GLOBAL DIVERSOS|||UN|00||||||`);
+      }
+    }
+
+    // 2. Limpar Bloco H antigo (se existir) para não duplicar
+    linhas = linhas.filter(l => !l.startsWith('|H'));
+
+    // 3. Criar o novo Bloco H
+    const efFormatado = estoqueFinalCalc.toFixed(2).replace('.', ',');
+    const blocoH = [
+      `|H001|0|`,
+      `|H005|3112${anoAnteriorEstoque}|${efFormatado}|01|`,
+      `|H010|DIVERSOS-OK|UN|1,000|${efFormatado}|${efFormatado}|0||||`,
+      `|H990|4|`
+    ];
+
+    // Inserir antes do Bloco 9
+    const index9001 = linhas.findIndex(l => l.startsWith('|9001|'));
+    linhas.splice(index9001 !== -1 ? index9001 : linhas.length, 0, ...blocoH);
+
+    // 4. Recalcular TODOS os totalizadores afetados (0990 e Bloco 9 inteiro)
+    let contagemRegistros = {};
+    let totalBloco0 = 0;
+    
+    linhas = linhas.filter(l => !l.startsWith('|9900|') && !l.startsWith('|9990|') && !l.startsWith('|9999|'));
+    
+    linhas.forEach(l => {
+      const reg = l.split('|')[1];
+      if (reg) {
+        contagemRegistros[reg] = (contagemRegistros[reg] || 0) + 1;
+        if (reg.startsWith('0')) totalBloco0++;
+      }
+    });
+
+    linhas = linhas.map(l => {
+      if (l.startsWith('|0990|')) return `|0990|${totalBloco0}|`;
+      return l;
+    });
+
+    let linhasBloco9 = [];
+    let numReg9 = 1; 
+    Object.keys(contagemRegistros).sort().forEach(reg => {
+      linhasBloco9.push(`|9900|${reg}|${contagemRegistros[reg]}|`);
+      numReg9++;
+    });
+    numReg9++;
+    linhasBloco9.push(`|9990|${numReg9}|`);
+    linhasBloco9.push(`|9999|${linhas.length + linhasBloco9.length + 1}|`);
+
+    setArquivoProcessado([...linhas, ...linhasBloco9].join('\r\n'));
+    setEstoqueInjetado(true);
+    alert('✅ Sucesso! Produto DIVERSOS-OK e Bloco H foram injetados. O arquivo final já está recalculado e pronto para download.');
+  };
+
+
 
   const processarArquivo = async (event) => {
     const file = event.target.files[0];
@@ -307,7 +385,19 @@ const handleLogin = async (e) => {
         if (cols[1] === '0000') {
           const dtIni = cols[4] || ''; const dtFin = cols[5] || '';
           let pFormatado = 'Período Indefinido';
-          if (dtIni && dtFin) { pFormatado = `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}`; }
+          if (dtIni && dtFin) { 
+            pFormatado = `${dtIni.substring(0,2)}/${dtIni.substring(2,4)}/${dtIni.substring(4,8)} a ${dtFin.substring(0,2)}/${dtFin.substring(2,4)}/${dtFin.substring(4,8)}`; 
+            
+            // LÓGICA DO MÊS 02 PARA O ESTOQUE
+            const mesArquivo = dtIni.substring(2,4);
+            const anoArquivo = dtIni.substring(4,8);
+            if (mesArquivo === '02') {
+              setIsMesFevereiro(true);
+              setAnoAnteriorEstoque((parseInt(anoArquivo) - 1).toString());
+            } else {
+              setIsMesFevereiro(false);
+            }
+          }
           setDadosEmpresa({ nome: cols[6] || 'Não Identificada', cnpj: cols[7] || '', periodo: pFormatado });
         }
         
@@ -677,6 +767,12 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
                 <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><Tags size={18} /> Módulo Tributário</button>
                 <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><AlertTriangle size={18} /> Riscos Fiscais</button>
                 <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><FileSearch size={18} /> Relatório de Auditoria</button>
+                {/* ESSE É O NOVO QUE VOCÊ VAI COLAR LOGO ABAIXO DELE */}
+                {isMesFevereiro && (
+                  <button onClick={() => setAbaAtiva('estoque')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'estoque' ? '#8b5cf6' : '#fff', color: abaAtiva === 'estoque' ? '#fff' : '#8b5cf6', border: '2px solid #8b5cf6', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
+                    <Package size={18} /> Apuração de Estoque
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1025,6 +1121,66 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
                     )}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+{/* === NOVA TELA DE ESTOQUE === */}
+            {abaAtiva === 'estoque' && isMesFevereiro && (
+              <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
+                  <div>
+                    <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0, color: '#8b5cf6' }}><Package size={28} /> Módulo Especial: Inventário (Bloco H)</h3>
+                    <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>Competência de Fevereiro detectada. Apuração do saldo em 31/12/{anoAnteriorEstoque}.</p>
+                  </div>
+                </div>
+
+                <div className="grid-2">
+                  <div style={{ background: '#f8fafc', padding: '25px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                    <h4 style={{ color: '#334155', margin: '0 0 20px 0', fontSize: '16px' }}>Variáveis de Cálculo</h4>
+                    
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>ESTOQUE INICIAL (R$)</label>
+                      <input type="number" value={estoqueInicial} onChange={(e) => setEstoqueInicial(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #cbd5e1', fontSize: '16px', outline: 'none' }} placeholder="Ex: 50000.00" />
+                    </div>
+
+                    <div style={{ marginBottom: '20px' }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>MARGEM DE LUCRO BRUTO (%)</label>
+                      <input type="number" value={margemLucro} onChange={(e) => setMargemLucro(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #cbd5e1', fontSize: '16px', outline: 'none' }} placeholder="Ex: 30" />
+                    </div>
+
+                    <div style={{ background: '#e0e7ff', padding: '15px', borderRadius: '8px', marginTop: '20px' }}>
+                      <span style={{ fontSize: '12px', color: '#4338ca', display: 'flex', gap: '8px' }}>
+                        <AlertCircle size={16} /> O CMV será calculado deduzindo a margem de lucro das Saídas Brutas.
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                      <span style={{ color: '#64748b', fontWeight: 'bold' }}>+ Entradas Líquidas do SPED</span>
+                      <strong style={{ color: '#10b981', fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas - dadosVaf.devCompras)}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+                      <span style={{ color: '#64748b', fontWeight: 'bold' }}>- Saídas (Deduzidas da Margem)</span>
+                      <strong style={{ color: '#ef4444', fontSize: '16px' }}>{formatarMoeda((dadosVaf.saidasBrutas - dadosVaf.devVendas) * (1 - (margemLucro / 100)))}</strong>
+                    </div>
+
+                    <div style={{ background: '#8b5cf6', color: '#fff', padding: '25px', borderRadius: '16px', textAlign: 'center', marginTop: 'auto' }}>
+                      <span style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', opacity: 0.9 }}>ESTOQUE FINAL CALCULADO</span>
+                      <h2 style={{ fontSize: '36px', margin: '10px 0', fontWeight: '900' }}>
+                        {formatarMoeda((parseFloat(estoqueInicial || 0) + (dadosVaf.entradasBrutas - dadosVaf.devCompras)) - ((dadosVaf.saidasBrutas - dadosVaf.devVendas) * (1 - (margemLucro / 100))))}
+                      </h2>
+                    </div>
+
+                    <button 
+                      onClick={handleInjetarBlocoH} 
+                      disabled={estoqueInjetado}
+                      style={{ padding: '16px', background: estoqueInjetado ? '#10b981' : '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: estoqueInjetado ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}>
+                      {estoqueInjetado ? <CheckCircle size={20} /> : <Zap size={20} />}
+                      {estoqueInjetado ? 'Bloco H Injetado no Arquivo!' : 'Injetar Bloco H no SPED'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
