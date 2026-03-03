@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.40";
+const VERSAO_ATUAL = "1.1.41";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -262,71 +262,48 @@ const handleLogin = async (e) => {
   const handleInjetarBlocoH = () => {
     if (!arquivoProcessado) return;
     
-    // Cálculo do CMV e Estoque Final
-    const totalEntradas = dadosVaf.entradasBrutas - dadosVaf.devCompras;
-    const totalSaidas = dadosVaf.saidasBrutas - dadosVaf.devVendas;
-    const cmv = totalSaidas * (1 - (margemLucro / 100));
-    const estoqueFinalCalc = (parseFloat(estoqueInicial || 0) + totalEntradas) - cmv;
-    
-    let linhas = arquivoProcessado.split('\r\n');
-    
-    // 1. Injetar Produto DIVERSOS-OK se não existir
-    let hasDiversos = linhas.some(l => l.includes('|DIVERSOS-OK|'));
-    if (!hasDiversos) {
-      const index0990 = linhas.findIndex(l => l.startsWith('|0990|'));
-      if (index0990 !== -1) {
-        linhas.splice(index0990, 0, `|0200|DIVERSOS-OK|ESTOQUE GLOBAL DIVERSOS|||UN|00||||||`);
-      }
+    // 1. Limpeza Radical: Remove Bloco H, Bloco 9 antigo e registros que causam erro (C191/C173)
+    let linhas = arquivoProcessado.split(/\r?\n/)
+      .filter(l => l.trim() !== "" && !l.startsWith('|H') && !l.startsWith('|9') && !l.startsWith('|C191|') && !l.startsWith('|C173|'));
+
+    // 2. Injetar Produto DIVERSOS-OK (Se não existir)
+    if (!linhas.some(l => l.includes('|DIVERSOS-OK|'))) {
+      const idx0990 = linhas.findIndex(l => l.startsWith('|0990|'));
+      if (idx0990 !== -1) linhas.splice(idx0990, 0, `|0200|DIVERSOS-OK|ESTOQUE GLOBAL DIVERSOS|||UN|00||||||`);
     }
 
-    // 2. Limpar Bloco H antigo (se existir) para não duplicar
-    linhas = linhas.filter(l => !l.startsWith('|H'));
-
-    // 3. Criar o novo Bloco H
-    const efFormatado = estoqueFinalCalc.toFixed(2).replace('.', ',');
-    const blocoH = [
+    // 3. Criar Bloco H com o VALOR EXATO da tela (calculado no Passo 1)
+    const efFormatado = vEstoqueFinal.toFixed(2).replace('.', ',');
+    const novoBlocoH = [
       `|H001|0|`,
       `|H005|3112${anoAnteriorEstoque}|${efFormatado}|01|`,
       `|H010|DIVERSOS-OK|UN|1,000|${efFormatado}|${efFormatado}|0||||`,
       `|H990|4|`
     ];
+    linhas.push(...novoBlocoH);
 
-    // Inserir antes do Bloco 9
-    const index9001 = linhas.findIndex(l => l.startsWith('|9001|'));
-    linhas.splice(index9001 !== -1 ? index9001 : linhas.length, 0, ...blocoH);
-
-    // 4. Recalcular TODOS os totalizadores afetados (0990 e Bloco 9 inteiro)
-    let contagemRegistros = {};
-    let totalBloco0 = 0;
-    
-    linhas = linhas.filter(l => !l.startsWith('|9900|') && !l.startsWith('|9990|') && !l.startsWith('|9999|'));
-    
-    linhas.forEach(l => {
-      const reg = l.split('|')[1];
-      if (reg) {
-        contagemRegistros[reg] = (contagemRegistros[reg] || 0) + 1;
-        if (reg.startsWith('0')) totalBloco0++;
-      }
+    // 4. Reconstrução Total do Bloco 9 (Garante que o validador aceite o arquivo)
+    let contagem = {};
+    linhas.forEach(l => { 
+      const reg = l.split('|')[1]; 
+      if (reg) contagem[reg] = (contagem[reg] || 0) + 1; 
     });
 
-    linhas = linhas.map(l => {
-      if (l.startsWith('|0990|')) return `|0990|${totalBloco0}|`;
-      return l;
+    let bloco9 = [];
+    bloco9.push(`|9001|0|`);
+    contagem['9001'] = 1; contagem['9990'] = 1; contagem['9999'] = 1;
+    contagem['9900'] = Object.keys(contagem).length + 1;
+
+    Object.keys(contagem).sort().forEach(reg => {
+      bloco9.push(`|9900|${reg}|${contagem[reg]}|`);
     });
 
-    let linhasBloco9 = [];
-    let numReg9 = 1; 
-    Object.keys(contagemRegistros).sort().forEach(reg => {
-      linhasBloco9.push(`|9900|${reg}|${contagemRegistros[reg]}|`);
-      numReg9++;
-    });
-    numReg9++;
-    linhasBloco9.push(`|9990|${numReg9}|`);
-    linhasBloco9.push(`|9999|${linhas.length + linhasBloco9.length + 1}|`);
+    bloco9.push(`|9990|${bloco9.length + 1}|`);
+    bloco9.push(`|9999|${linhas.length + bloco9.length + 1}|`);
 
-    setArquivoProcessado([...linhas, ...linhasBloco9].join('\r\n'));
+    setArquivoProcessado([...linhas, ...bloco9].join('\r\n'));
     setEstoqueInjetado(true);
-    alert('✅ Sucesso! Produto DIVERSOS-OK e Bloco H foram injetados. O arquivo final já está recalculado e pronto para download.');
+    alert(`✅ Injetado com Sucesso! Valor do Estoque: ${formatarMoeda(vEstoqueFinal)}`);
   };
 
   const processarArquivo = async (event) => {
@@ -564,10 +541,45 @@ const handleLogin = async (e) => {
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       setGuiasE116(listaG); setRiscosFiscais(riscosTemp); setLogAuditoria(logTemp);
-      const qtdBlocos = (contC191 > 0 || contC173 > 0) ? 3 : 0;
-setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textosRemovidos: contTextos, blocosRecalculados: qtdBlocos });      
+      // === RECONSTRUÇÃO DO BLOCO 9 AUTOMÁTICA (FIX ESTRUTURAL) ===
+      let contagemValidado = {};
+      
+      // 1. Remove o Bloco 9 antigo para não duplicar registros na contagem
+      let linhasSem9 = linhasProcessadas.filter(l => !l.startsWith('|9'));
 
-      setArquivoProcessado(linhasProcessadas.join('\r\n')); 
+      // 2. Conta quantos registros sobraram após a limpeza (C191, textos, etc)
+      linhasSem9.forEach(l => {
+        const reg = l.split('|')[1];
+        if (reg) contagemValidado[reg] = (contagemValidado[reg] || 0) + 1;
+      });
+
+      // 3. Monta o novo Bloco 9 do zero (O Segredo para o validador aceitar)
+      let bloco9Validado = [];
+      bloco9Validado.push(`|9001|0|`);
+      
+      // Adiciona registros de fechamento na contagem
+      contagemValidado['9001'] = 1; 
+      contagemValidado['9990'] = 1; 
+      contagemValidado['9999'] = 1;
+      contagemValidado['9900'] = Object.keys(contagemValidado).length + 1;
+
+      // Ordena alfabeticamente para o validador do governo
+      Object.keys(contagemValidado).sort().forEach(reg => {
+        bloco9Validado.push(`|9900|${reg}|${contagemValidado[reg]}|`);
+      });
+
+      bloco9Validado.push(`|9990|${bloco9Validado.length + 1}|`);
+      bloco9Validado.push(`|9999|${linhasSem9.length + bloco9Validado.length}|`);
+
+      // 4. Atualiza o relatório na lateral e o arquivo pronto para download
+      setRelatorioCorrecoes({ 
+        c191Removidos: contC191, 
+        c173Removidos: contC173, 
+        textosRemovidos: contTextos, 
+        blocosRecalculados: Object.keys(contagemValidado).length 
+      });
+      
+      setArquivoProcessado([...linhasSem9, ...bloco9Validado].join('\r\n'));
       setTimeout(() => { clearInterval(inter); setFaseAtual('dashboard'); }, 3000);
     };
   };
@@ -576,6 +588,14 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
 
   const CORES_TRIBUTACAO = ['#004080', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
   const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272'];
+
+  // --- CÁLCULOS UNIFICADOS (TELA + INJEÇÃO) ---
+  const vEntradas = parseFloat(entradasManuais || (dadosVaf.entradasBrutas - dadosVaf.devCompras) || 0);
+  const vSaidas = parseFloat(saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas) || 0);
+  const vMargemR$ = vSaidas * (parseFloat(margemLucro || 30) / 100);
+  const vCMV = vSaidas - vMargemR$;
+  const vEstoqueInicial = parseFloat(estoqueInicial || 0);
+  const vEstoqueFinal = (vEstoqueInicial + vEntradas) - vCMV; // VALOR EXATO QUE SERÁ INJETADO
 
   const SidebarAuditoria = () => (
     <div className="dash-sidebar no-print" style={{ width: '320px', flexShrink: 0 }}>
@@ -610,7 +630,7 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
     <div className="act-btns no-print" style={{ marginBottom: '50px' }}>
         <button className="btn-dl" onClick={() => { 
           const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); 
-          const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Curado_${nomeOriginal}`; l.click(); 
+          const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Validado_${nomeOriginal}`; l.click(); 
         }}><Download size={20} /> Baixar SPED Validado</button>
         <button className="btn-pr" onClick={() => window.print()}><Printer size={20} /> Salvar Relatório Geral (PDF)</button>
         <button className="btn-nw" onClick={limparDados}><RefreshCw size={20} /> Nova Validação</button>
@@ -1157,102 +1177,78 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
             )}
 
 {/* === NOVA TELA DE ESTOQUE (ESTILO PLANILHA PROFISSIONAL) === */}
-            {abaAtiva === 'estoque' && isMesFevereiro && (
-              <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6', padding: '30px', animation: 'slideIn 0.5s ease' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
-                  <div>
-                    <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0, color: '#8b5cf6', fontSize: '22px' }}><Package size={28} /> Apuração de Inventário (Bloco H)</h3>
-                    <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>Painel de cruzamento fiscal para fechamento. Ajuste os valores base conforme sua planilha.</p>
-                  </div>
+{abaAtiva === 'estoque' && isMesFevereiro && (
+              <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6', padding: '0', overflow: 'hidden', animation: 'slideIn 0.5s ease' }}>
+                <div style={{ padding: '25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: 0, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900' }}>
+                    <Package size={28}/> Apuração VAF / Inventário (Bloco H)
+                  </h3>
+                  <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>
+                    Painel de fechamento fiscal baseado no modelo de auditoria AUDITTUS.
+                  </p>
                 </div>
 
-                <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
-                  {/* Cabeçalho da Planilha */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', background: '#f8fafc', padding: '15px 25px', fontWeight: '900', color: '#475569', borderBottom: '2px solid #e2e8f0', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    <div>Parâmetro Contábil / Fiscal</div>
-                    <div style={{ textAlign: 'right' }}>Valor Apurado</div>
-                  </div>
+                <div style={{ padding: '30px' }}>
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
+                    {/* Cabeçalho da Planilha Digital */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', background: '#f1f5f9', padding: '12px 25px', fontWeight: 'bold', color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>
+                      <span>Descrição do Parâmetro</span>
+                      <span style={{ textAlign: 'right' }}>Valor Apurado</span>
+                    </div>
 
-                  {/* 1. Estoque Inicial */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
-                    <div style={{ fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '10px' }}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:'#cbd5e1'}}></div> Estoque Inicial Declarado</div>
-                    <div>
-                      <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>R$</span>
-                        <input type="number" value={estoqueInicial} onChange={(e) => setEstoqueInicial(e.target.value)} style={{ width: '100%', padding: '12px 15px 12px 40px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', outline: 'none' }} placeholder="0,00" />
+                    {[
+                      { label: 'ESTOQUE INICIAL (Saldo em 31/12)', valor: vEstoqueInicial, type: 'input', key: 'ei' },
+                      { label: 'ENTRADAS NO PERÍODO (Líquidas)', valor: vEntradas, type: 'input', key: 'ent' },
+                      { label: 'SAÍDAS / FATURAMENTO (Líquido)', valor: vSaidas, type: 'input', key: 'sai' },
+                      { label: `MARGEM DE LUCRO ESTIMADA (${margemLucro}%)`, valor: vMargemR$, type: 'calc', color: '#f59e0b' },
+                      { label: 'CMV (Custo da Mercadoria Vendida)', valor: vCMV, type: 'calc', color: '#ef4444' }
+                    ].map((row, i) => (
+                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', padding: '18px 25px', background: i % 2 === 0 ? '#fff' : '#f9fafb', borderBottom: '1px solid #f1f5f9', alignItems: 'center' }}>
+                        <span style={{ fontWeight: '700', color: '#334155', fontSize: '14px' }}>{row.label}</span>
+                        <div style={{ textAlign: 'right' }}>
+                          {row.type === 'input' ? (
+                            <div style={{ position: 'relative', display: 'inline-block' }}>
+                              <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>R$</span>
+                              <input 
+                                type="number" 
+                                value={row.key === 'ei' ? estoqueInicial : row.key === 'ent' ? entradasManuais : saidasManuais}
+                                onChange={(e) => row.key === 'ei' ? setEstoqueInicial(e.target.value) : row.key === 'ent' ? setEntradasManuais(e.target.value) : setSaidasManuais(e.target.value)}
+                                style={{ width: '180px', padding: '10px 10px 10px 30px', borderRadius: '8px', border: '2px solid #e2e8f0', textAlign: 'right', fontWeight: '900', color: '#004080', outline: 'none' }}
+                              />
+                            </div>
+                          ) : (
+                            <strong style={{ color: row.color || '#334155', fontSize: '18px' }}>{formatarMoeda(row.valor)}</strong>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    ))}
 
-                  {/* 2. Entradas */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
-                    <div style={{ fontWeight: '700', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}><Plus size={18}/> Entradas Brutas no Período (SPED)</div>
-                    <div>
-                      <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>R$</span>
-                        <input type="number" value={entradasManuais || (dadosVaf.entradasBrutas - dadosVaf.devCompras)} onChange={(e) => setEntradasManuais(e.target.value)} style={{ width: '100%', padding: '12px 15px 12px 40px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#10b981', outline: 'none' }} placeholder="0,00" />
+                    {/* DESTAQUE DO ESTOQUE FINAL (O VALOR QUE SERÁ INJETADO) */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', padding: '30px 25px', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontWeight: '900', fontSize: '18px', letterSpacing: '0.5px', display: 'block' }}>ESTOQUE FINAL CALCULADO</span>
+                        <span style={{ fontSize: '12px', opacity: 0.8 }}>Valor exato a ser injetado no Bloco H do SPED</span>
                       </div>
+                      <strong style={{ textAlign: 'right', fontSize: '32px', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                        {formatarMoeda(vEstoqueFinal)}
+                      </strong>
                     </div>
                   </div>
 
-                  {/* 3. Saídas */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
-                    <div style={{ fontWeight: '700', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}><Minus size={18}/> Saídas Brutas / Faturamento (SPED)</div>
-                    <div>
-                      <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>R$</span>
-                        <input type="number" value={saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas)} onChange={(e) => setSaidasManuais(e.target.value)} style={{ width: '100%', padding: '12px 15px 12px 40px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#ef4444', outline: 'none' }} placeholder="0,00" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 4. Margem */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #e2e8f0', alignItems: 'center', background: '#f8fafc' }}>
-                    <div style={{ fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '10px' }}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:'#f59e0b'}}></div> Margem de Lucro Bruto (%)</div>
-                    <div>
-                      <div style={{ position: 'relative' }}>
-                        <input type="number" value={margemLucro} onChange={(e) => setMargemLucro(e.target.value)} style={{ width: '100%', padding: '12px 40px 12px 15px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', outline: 'none' }} placeholder="30" />
-                        <span style={{ position: 'absolute', right: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 5. CMV */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '20px 25px', borderBottom: '1px solid #e2e8f0', alignItems: 'center', background: '#fef2f2' }}>
-                    <div style={{ fontWeight: '800', color: '#b91c1c', fontSize: '15px' }}>= Custo da Mercadoria Vendida (CMV)</div>
-                    <div style={{ textAlign: 'right', fontSize: '18px', fontWeight: '900', color: '#b91c1c' }}>
-                      {formatarMoeda((saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas)) * (1 - (margemLucro / 100)))}
-                    </div>
-                  </div>
-
-                  {/* 6. Resultado Final */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '25px', alignItems: 'center', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff' }}>
-                    <div style={{ fontWeight: '900', fontSize: '20px', letterSpacing: '0.5px' }}>ESTOQUE FINAL CALCULADO</div>
-                    <div style={{ textAlign: 'right', fontSize: '28px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                      {formatarMoeda((parseFloat(estoqueInicial || 0) + parseFloat(entradasManuais || (dadosVaf.entradasBrutas - dadosVaf.devCompras))) - ((saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas)) * (1 - (margemLucro / 100))))}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '25px' }}>
                   <button 
-                    onClick={() => {
-                      if (entradasManuais || saidasManuais) {
-                         setDadosVaf(prev => ({
-                           ...prev, 
-                           entradasBrutas: parseFloat(entradasManuais || prev.entradasBrutas),
-                           saidasBrutas: parseFloat(saidasManuais || prev.saidasBrutas),
-                           devCompras: 0,
-                           devVendas: 0
-                         }));
-                      }
-                      setTimeout(() => handleInjetarBlocoH(), 100);
-                    }} 
+                    onClick={handleInjetarBlocoH}
                     disabled={estoqueInjetado}
-                    style={{ padding: '16px 35px', background: estoqueInjetado ? '#10b981' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: estoqueInjetado ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(139, 92, 246, 0.2)' }}
+                    style={{ 
+                      width: '100%', marginTop: '25px', padding: '22px', 
+                      background: estoqueInjetado ? '#10b981' : '#8b5cf6', 
+                      color: '#fff', border: 'none', borderRadius: '15px', 
+                      fontWeight: '900', fontSize: '16px', cursor: 'pointer', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                      gap: '12px', boxShadow: '0 10px 20px rgba(139, 92, 246, 0.2)', transition: '0.3s' 
+                    }}
                   >
-                    {estoqueInjetado ? <CheckCircle size={22} /> : <Zap size={22} />}
-                    {estoqueInjetado ? 'Inventário Atualizado no SPED!' : 'Injetar Inventário no SPED'}
+                    {estoqueInjetado ? <CheckCircle size={24}/> : <Zap size={24}/>}
+                    {estoqueInjetado ? 'INVENTÁRIO ATUALIZADO COM SUCESSO NO ARQUIVO' : 'INJETAR VALORES CALCULADOS NO SPED FISCAL'}
                   </button>
                 </div>
               </div>
