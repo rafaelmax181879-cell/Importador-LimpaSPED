@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.39";
+const VERSAO_ATUAL = "1.1.40";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -826,64 +826,6 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
               <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
                   
-                  {/* --- PASSO 5: INTERFACE DE AJUSTE MANUAL --- */}
-                  <div className="card-dash no-print" style={{ margin: 0, borderLeft: '8px solid #3b82f6' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                      <div style={{ background: '#3b82f6', color: '#fff', padding: '10px', borderRadius: '10px' }}>
-                        <Plus size={24} />
-                      </div>
-                      <div>
-                        <h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: 'bold' }}>Ajuste Manual de Movimentação</h3>
-                        <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Utilize para simular valores ou corrigir omissões de faturamento</p>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>ENTRADAS BRUTAS (R$)</label>
-                        <div style={{ position: 'relative' }}>
-                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>R$</span>
-                          <input 
-                            type="number" 
-                            value={entradasManuais}
-                            onChange={(e) => setEntradasManuais(e.target.value)}
-                            style={{ width: '100%', padding: '12px 12px 12px 35px', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '16px', outline: 'none' }}
-                            placeholder="0,00"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SAÍDAS BRUTAS (R$)</label>
-                        <div style={{ position: 'relative' }}>
-                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>R$</span>
-                          <input 
-                            type="number" 
-                            value={saidasManuais}
-                            onChange={(e) => setSaidasManuais(e.target.value)}
-                            style={{ width: '100%', padding: '12px 12px 12px 35px', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '16px', outline: 'none' }}
-                            placeholder="0,00"
-                          />
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                        <button 
-                          onClick={() => processarTabelaManual({ 
-                            empresa: dadosEmpresa.nome, 
-                            cnpj: dadosEmpresa.cnpj, 
-                            periodo: dadosEmpresa.periodo, 
-                            entradas: entradasManuais, 
-                            saidas: saidasManuais 
-                          })}
-                          style={{ width: '100%', padding: '14px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                        >
-                          <RefreshCw size={18} /> Aplicar Ajustes
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* --- GRÁFICOS ORIGINAIS --- */}
                   <div className="grid-3">
                     <div className="card-dash" style={{ margin: 0 }}>
@@ -1214,62 +1156,104 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
               </div>
             )}
 
-{/* === NOVA TELA DE ESTOQUE === */}
+{/* === NOVA TELA DE ESTOQUE (ESTILO PLANILHA PROFISSIONAL) === */}
             {abaAtiva === 'estoque' && isMesFevereiro && (
-              <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6' }}>
+              <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6', padding: '30px', animation: 'slideIn 0.5s ease' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
                   <div>
-                    <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0, color: '#8b5cf6' }}><Package size={28} /> Módulo Especial: Inventário (Bloco H)</h3>
-                    <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>Competência de Fevereiro detectada. Apuração do saldo em 31/12/{anoAnteriorEstoque}.</p>
+                    <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0, color: '#8b5cf6', fontSize: '22px' }}><Package size={28} /> Apuração de Inventário (Bloco H)</h3>
+                    <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>Painel de cruzamento fiscal para fechamento. Ajuste os valores base conforme sua planilha.</p>
                   </div>
                 </div>
 
-                <div className="grid-2">
-                  <div style={{ background: '#f8fafc', padding: '25px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ color: '#334155', margin: '0 0 20px 0', fontSize: '16px' }}>Variáveis de Cálculo</h4>
-                    
-                    <div style={{ marginBottom: '20px' }}>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>ESTOQUE INICIAL (R$)</label>
-                      <input type="number" value={estoqueInicial} onChange={(e) => setEstoqueInicial(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #cbd5e1', fontSize: '16px', outline: 'none' }} placeholder="Ex: 50000.00" />
-                    </div>
+                <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.02)', overflow: 'hidden' }}>
+                  {/* Cabeçalho da Planilha */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', background: '#f8fafc', padding: '15px 25px', fontWeight: '900', color: '#475569', borderBottom: '2px solid #e2e8f0', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <div>Parâmetro Contábil / Fiscal</div>
+                    <div style={{ textAlign: 'right' }}>Valor Apurado</div>
+                  </div>
 
-                    <div style={{ marginBottom: '20px' }}>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>MARGEM DE LUCRO BRUTO (%)</label>
-                      <input type="number" value={margemLucro} onChange={(e) => setMargemLucro(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '2px solid #cbd5e1', fontSize: '16px', outline: 'none' }} placeholder="Ex: 30" />
-                    </div>
-
-                    <div style={{ background: '#e0e7ff', padding: '15px', borderRadius: '8px', marginTop: '20px' }}>
-                      <span style={{ fontSize: '12px', color: '#4338ca', display: 'flex', gap: '8px' }}>
-                        <AlertCircle size={16} /> O CMV será calculado deduzindo a margem de lucro das Saídas Brutas.
-                      </span>
+                  {/* 1. Estoque Inicial */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
+                    <div style={{ fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '10px' }}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:'#cbd5e1'}}></div> Estoque Inicial Declarado</div>
+                    <div>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>R$</span>
+                        <input type="number" value={estoqueInicial} onChange={(e) => setEstoqueInicial(e.target.value)} style={{ width: '100%', padding: '12px 15px 12px 40px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', outline: 'none' }} placeholder="0,00" />
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                      <span style={{ color: '#64748b', fontWeight: 'bold' }}>+ Entradas Líquidas do SPED</span>
-                      <strong style={{ color: '#10b981', fontSize: '16px' }}>{formatarMoeda(dadosVaf.entradasBrutas - dadosVaf.devCompras)}</strong>
+                  {/* 2. Entradas */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
+                    <div style={{ fontWeight: '700', color: '#10b981', display: 'flex', alignItems: 'center', gap: '8px' }}><Plus size={18}/> Entradas Brutas no Período (SPED)</div>
+                    <div>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>R$</span>
+                        <input type="number" value={entradasManuais || (dadosVaf.entradasBrutas - dadosVaf.devCompras)} onChange={(e) => setEntradasManuais(e.target.value)} style={{ width: '100%', padding: '12px 15px 12px 40px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#10b981', outline: 'none' }} placeholder="0,00" />
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
-                      <span style={{ color: '#64748b', fontWeight: 'bold' }}>- Saídas (Deduzidas da Margem)</span>
-                      <strong style={{ color: '#ef4444', fontSize: '16px' }}>{formatarMoeda((dadosVaf.saidasBrutas - dadosVaf.devVendas) * (1 - (margemLucro / 100)))}</strong>
-                    </div>
-
-                    <div style={{ background: '#8b5cf6', color: '#fff', padding: '25px', borderRadius: '16px', textAlign: 'center', marginTop: 'auto' }}>
-                      <span style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', opacity: 0.9 }}>ESTOQUE FINAL CALCULADO</span>
-                      <h2 style={{ fontSize: '36px', margin: '10px 0', fontWeight: '900' }}>
-                        {formatarMoeda((parseFloat(estoqueInicial || 0) + (dadosVaf.entradasBrutas - dadosVaf.devCompras)) - ((dadosVaf.saidasBrutas - dadosVaf.devVendas) * (1 - (margemLucro / 100))))}
-                      </h2>
-                    </div>
-
-                    <button 
-                      onClick={handleInjetarBlocoH} 
-                      disabled={estoqueInjetado}
-                      style={{ padding: '16px', background: estoqueInjetado ? '#10b981' : '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: estoqueInjetado ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}>
-                      {estoqueInjetado ? <CheckCircle size={20} /> : <Zap size={20} />}
-                      {estoqueInjetado ? 'Bloco H Injetado no Arquivo!' : 'Injetar Bloco H no SPED'}
-                    </button>
                   </div>
+
+                  {/* 3. Saídas */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #f0f4f8', alignItems: 'center' }}>
+                    <div style={{ fontWeight: '700', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '8px' }}><Minus size={18}/> Saídas Brutas / Faturamento (SPED)</div>
+                    <div>
+                      <div style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>R$</span>
+                        <input type="number" value={saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas)} onChange={(e) => setSaidasManuais(e.target.value)} style={{ width: '100%', padding: '12px 15px 12px 40px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#ef4444', outline: 'none' }} placeholder="0,00" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Margem */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '15px 25px', borderBottom: '1px solid #e2e8f0', alignItems: 'center', background: '#f8fafc' }}>
+                    <div style={{ fontWeight: '700', color: '#334155', display: 'flex', alignItems: 'center', gap: '10px' }}><div style={{width:'8px', height:'8px', borderRadius:'50%', background:'#f59e0b'}}></div> Margem de Lucro Bruto (%)</div>
+                    <div>
+                      <div style={{ position: 'relative' }}>
+                        <input type="number" value={margemLucro} onChange={(e) => setMargemLucro(e.target.value)} style={{ width: '100%', padding: '12px 40px 12px 15px', borderRadius: '8px', border: '2px solid #e2e8f0', fontSize: '16px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', outline: 'none' }} placeholder="30" />
+                        <span style={{ position: 'absolute', right: '15px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontWeight: 'bold' }}>%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5. CMV */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '20px 25px', borderBottom: '1px solid #e2e8f0', alignItems: 'center', background: '#fef2f2' }}>
+                    <div style={{ fontWeight: '800', color: '#b91c1c', fontSize: '15px' }}>= Custo da Mercadoria Vendida (CMV)</div>
+                    <div style={{ textAlign: 'right', fontSize: '18px', fontWeight: '900', color: '#b91c1c' }}>
+                      {formatarMoeda((saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas)) * (1 - (margemLucro / 100)))}
+                    </div>
+                  </div>
+
+                  {/* 6. Resultado Final */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr', padding: '25px', alignItems: 'center', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff' }}>
+                    <div style={{ fontWeight: '900', fontSize: '20px', letterSpacing: '0.5px' }}>ESTOQUE FINAL CALCULADO</div>
+                    <div style={{ textAlign: 'right', fontSize: '28px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                      {formatarMoeda((parseFloat(estoqueInicial || 0) + parseFloat(entradasManuais || (dadosVaf.entradasBrutas - dadosVaf.devCompras))) - ((saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas)) * (1 - (margemLucro / 100))))}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '25px' }}>
+                  <button 
+                    onClick={() => {
+                      if (entradasManuais || saidasManuais) {
+                         setDadosVaf(prev => ({
+                           ...prev, 
+                           entradasBrutas: parseFloat(entradasManuais || prev.entradasBrutas),
+                           saidasBrutas: parseFloat(saidasManuais || prev.saidasBrutas),
+                           devCompras: 0,
+                           devVendas: 0
+                         }));
+                      }
+                      setTimeout(() => handleInjetarBlocoH(), 100);
+                    }} 
+                    disabled={estoqueInjetado}
+                    style={{ padding: '16px 35px', background: estoqueInjetado ? '#10b981' : '#8b5cf6', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: estoqueInjetado ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(139, 92, 246, 0.2)' }}
+                  >
+                    {estoqueInjetado ? <CheckCircle size={22} /> : <Zap size={22} />}
+                    {estoqueInjetado ? 'Inventário Atualizado no SPED!' : 'Injetar Inventário no SPED'}
+                  </button>
                 </div>
               </div>
             )}
