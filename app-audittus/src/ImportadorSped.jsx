@@ -16,7 +16,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.44";
+const VERSAO_ATUAL = "1.1.43";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -88,21 +88,20 @@ export default function ImportadorSped() {
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
   // === VARIÁVEIS DO MÓDULO DE ESTOQUE (v1.1.43) ===
-  // Regra: O módulo só deve aparecer se for Período 02
   const [isMesFevereiro, setIsMesFevereiro] = useState(false); 
   const [anoAnteriorEstoque, setAnoAnteriorEstoque] = useState('');
-  
-  // Variáveis para o cálculo de Auditoria (EI + Compras - CMV)
   const [vSaidasTotal, setVSaidasTotal] = useState(0);
   const [vEntradasTotal, setVEntradasTotal] = useState(0);
   const [vEstoqueInicial, setVEstoqueInicial] = useState(0);
   const [margemLucro, setMargemLucro] = useState(30);
-  
-  // Estados para exibir os resultados no Dashboard
   const [vEstoqueFinal, setVEstoqueFinal] = useState(0);
   const [vafTotal, setVafTotal] = useState(0);
   const [cmvTotal, setCmvTotal] = useState(0);
   const [estoqueInjetado, setEstoqueInjetado] = useState(false);
+  
+  // === AS DUAS VARIÁVEIS QUE FALTARAM PARA A TELA NÃO TRAVAR ===
+  const [entradasManuais, setEntradasManuais] = useState(0);
+  const [saidasManuais, setSaidasManuais] = useState(0);
 
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
