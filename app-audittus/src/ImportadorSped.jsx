@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.42";
+const VERSAO_ATUAL = "1.1.43";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -255,6 +255,30 @@ const handleLogin = async (e) => {
     setAbaAtiva('home');
   };
 
+  // === LÓGICA DE AUDITORIA AUTOMÁTICA EM TEMPO REAL (v1.1.42) ===
+  // Monitora as mudanças para calcular o EF e o VAF instantaneamente
+  useEffect(() => {
+    const saidas = parseFloat(vSaidasTotal) || 0;
+    const entradas = parseFloat(vEntradasTotal) || 0;
+    const estoqueInicial = parseFloat(vEstoqueInicial) || 0;
+    const margem = parseFloat(margemLucro) || 0;
+
+    // 1. Cálculo do Lucro/VAF baseado na margem definida
+    const lucroCalculado = saidas * (margem / 100);
+
+    // 2. Cálculo do CMV (Saídas - Lucro)
+    const cmvCalculado = saidas - lucroCalculado;
+
+    // 3. Cálculo do Estoque Final (EI + Compras - CMV)
+    const efResultado = estoqueInicial + entradas - cmvCalculado;
+
+    // Atualiza os estados para refletir no Dashboard e no Bloco H
+    setVEstoqueFinal(efResultado);
+    setVafTotal(lucroCalculado); 
+    setCmvTotal(cmvCalculado);
+
+  }, [vSaidasTotal, vEntradasTotal, vEstoqueInicial, margemLucro]); // Dependências do cálculo
+  
   // =========================================================
  // =========================================================
   // PASSO 4: INJEÇÃO AUTOMÁTICA DE BLOCO H (INVENTÁRIO)
@@ -266,19 +290,31 @@ const handleInjetarBlocoH = () => {
     let linhas = arquivoProcessado.split(/\r?\n/)
       .filter(l => l.trim() !== "" && !l.startsWith('|H') && !l.startsWith('|9') && !l.startsWith('|C191|') && !l.startsWith('|C173|'));
 
-    // 2. INJEÇÃO DO 0200 NO BLOCO 0 (CORREÇÃO DE HIERARQUIA)
+    // 2. INJEÇÃO DO 0200 NO LUGAR CORRETO (BLOCOS DE PRODUTOS)
     if (!linhas.some(l => l.includes('|DIVERSOS-OK|'))) {
-      const idx0990 = linhas.findIndex(l => l.startsWith('|0990|'));
-      // Inserimos exatamente antes do fechamento do Bloco 0 para evitar erro de hierarquia
-      if (idx0990 !== -1) linhas.splice(idx0990, 0, `|0200|DIVERSOS-OK|ESTOQUE GLOBAL DIVERSOS|||UN|00||||||`);
+      // Procura a última linha que começa com |0200|
+      let ultimoIdx0200 = -1;
+      for (let i = 0; i < linhas.length; i++) {
+        if (linhas[i].startsWith('|0200|')) ultimoIdx0200 = i;
+      }
+
+      if (ultimoIdx0200 !== -1) {
+        // Se encontrou outros 0200, insere logo após o último deles
+        linhas.splice(ultimoIdx0200 + 1, 0, `|0200|DIVERSOS-OK|ITENS DIVERSOS|||1|00||||||`);
+      } else {
+        // Se não houver nenhum 0200 (raro), procura o 0190 ou insere antes do 0990
+        const idxReserva = linhas.findIndex(l => l.startsWith('|0190|') || l.startsWith('|0990|'));
+        if (idxReserva !== -1) linhas.splice(idxReserva + 1, 0, `|0200|DIVERSOS-OK|ITENS DIVERSOS|||1|00||||||`);
+      }
     }
 
-    // 3. BLOCO H COM CORREÇÃO DE CAMPOS (H010 com 11 campos conforme manual)
+    /// 3. BLOCO H COM CORREÇÃO: Unidade "1", Conta "55" e Total de 11 campos
     const efFormatado = vEstoqueFinal.toFixed(2).replace('.', ',');
     const novoBlocoH = [
       `|H001|0|`,
       `|H005|3112${anoAnteriorEstoque}|${efFormatado}|01|`,
-      `|H010|DIVERSOS-OK|UN|1,000|${efFormatado}|${efFormatado}|0|||||`, // Adicionado o pipe extra no final
+      // Campo 3: Unidade "1" | Campo 10: Conta "55" | Campo 11: Vazio
+      `|H010|DIVERSOS-OK|1|1,000|${efFormatado}|${efFormatado}|0|||55||`, 
       `|H990|4|`
     ];
     linhas.push(...novoBlocoH);
@@ -1237,6 +1273,44 @@ const handleInjetarBlocoH = () => {
                       </div>
                     ))}
 
+{/* QUADRO DE CONSISTÊNCIA VAF AUTOMÁTICO */}
+<div style={{
+  margin: '15px 0 25px 0',
+  padding: '18px 25px',
+  borderRadius: '12px',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  background: parseFloat(margemLucro) < 0 ? '#fef2f2' : '#f0fdf4', // Fundo dinâmico
+  border: `2px solid ${parseFloat(margemLucro) < 0 ? '#ef4444' : '#22c55e'}`, // Borda dinâmica
+  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+  transition: '0.4s'
+}}>
+  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+    <div style={{
+      width: '12px',
+      height: '12px',
+      borderRadius: '50%',
+      background: parseFloat(margemLucro) < 0 ? '#ef4444' : '#22c55e',
+      boxShadow: `0 0 10px ${parseFloat(margemLucro) < 0 ? '#ef4444' : '#22c55e'}`
+    }}></div>
+    <span style={{ fontWeight: '800', fontSize: '15px', color: '#1e293b', letterSpacing: '0.5px' }}>
+      VAF INCONSISTENTE?
+    </span>
+  </div>
+
+  <span style={{
+    fontWeight: '900',
+    fontSize: '22px',
+    color: parseFloat(margemLucro) < 0 ? '#ef4444' : '#16a34a',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+  }}>
+    {parseFloat(margemLucro) < 0 ? 'SIM' : 'NÃO'}
+    {parseFloat(margemLucro) < 0 ? <AlertTriangle size={24}/> : <CheckCircle size={24}/>}
+  </span>
+</div>
                     {/* DESTAQUE DO ESTOQUE FINAL (O VALOR QUE SERÁ INJETADO) */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', padding: '30px 25px', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff', alignItems: 'center' }}>
                       <div>
