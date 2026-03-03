@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.41";
+const VERSAO_ATUAL = "1.1.42";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -259,45 +259,50 @@ const handleLogin = async (e) => {
  // =========================================================
   // PASSO 4: INJEÇÃO AUTOMÁTICA DE BLOCO H (INVENTÁRIO)
   // =========================================================
-  const handleInjetarBlocoH = () => {
+const handleInjetarBlocoH = () => {
     if (!arquivoProcessado) return;
     
-    // 1. Limpeza Radical: Remove Bloco H, Bloco 9 antigo e registros que causam erro (C191/C173)
+    // 1. LIMPEZA E PREPARAÇÃO
     let linhas = arquivoProcessado.split(/\r?\n/)
       .filter(l => l.trim() !== "" && !l.startsWith('|H') && !l.startsWith('|9') && !l.startsWith('|C191|') && !l.startsWith('|C173|'));
 
-    // 2. Injetar Produto DIVERSOS-OK (Se não existir)
+    // 2. INJEÇÃO DO 0200 NO BLOCO 0 (CORREÇÃO DE HIERARQUIA)
     if (!linhas.some(l => l.includes('|DIVERSOS-OK|'))) {
       const idx0990 = linhas.findIndex(l => l.startsWith('|0990|'));
+      // Inserimos exatamente antes do fechamento do Bloco 0 para evitar erro de hierarquia
       if (idx0990 !== -1) linhas.splice(idx0990, 0, `|0200|DIVERSOS-OK|ESTOQUE GLOBAL DIVERSOS|||UN|00||||||`);
     }
 
-    // 3. Criar Bloco H com o VALOR EXATO da tela (calculado no Passo 1)
+    // 3. BLOCO H COM CORREÇÃO DE CAMPOS (H010 com 11 campos conforme manual)
     const efFormatado = vEstoqueFinal.toFixed(2).replace('.', ',');
     const novoBlocoH = [
       `|H001|0|`,
       `|H005|3112${anoAnteriorEstoque}|${efFormatado}|01|`,
-      `|H010|DIVERSOS-OK|UN|1,000|${efFormatado}|${efFormatado}|0||||`,
+      `|H010|DIVERSOS-OK|UN|1,000|${efFormatado}|${efFormatado}|0|||||`, // Adicionado o pipe extra no final
       `|H990|4|`
     ];
     linhas.push(...novoBlocoH);
 
-    // 4. Reconstrução Total do Bloco 9 (Garante que o validador aceite o arquivo)
+    // 4. RECONTAGEM (O CORAÇÃO DO SISTEMA): Reconstrução do Bloco 9
     let contagem = {};
+    // Semeia a contagem com os próprios registros que vamos criar no Bloco 9
+    contagem['9001'] = 1; contagem['9990'] = 1; contagem['9999'] = 1;
+
     linhas.forEach(l => { 
       const reg = l.split('|')[1]; 
       if (reg) contagem[reg] = (contagem[reg] || 0) + 1; 
     });
 
-    let bloco9 = [];
-    bloco9.push(`|9001|0|`);
-    contagem['9001'] = 1; contagem['9990'] = 1; contagem['9999'] = 1;
+    // O 9900 precisa contar a si mesmo na lista
     contagem['9900'] = Object.keys(contagem).length + 1;
 
+    let bloco9 = [];
+    bloco9.push(`|9001|0|`);
     Object.keys(contagem).sort().forEach(reg => {
       bloco9.push(`|9900|${reg}|${contagem[reg]}|`);
     });
 
+    // Finalizadores com a soma das linhas do Bloco 9 e do arquivo inteiro
     bloco9.push(`|9990|${bloco9.length + 1}|`);
     bloco9.push(`|9999|${linhas.length + bloco9.length + 1}|`);
 
@@ -541,6 +546,15 @@ const handleLogin = async (e) => {
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       setGuiasE116(listaG); setRiscosFiscais(riscosTemp); setLogAuditoria(logTemp);
+     // === AJUSTE DO TOTALIZADOR DO BLOCO C (C990) ===
+      // Contamos quantas linhas do Bloco C restaram após a limpeza de C191/C173
+      const totalLinhasBlocoC = linhasProcessadas.filter(l => l.startsWith('|C')).length;
+      const idxC990 = linhasProcessadas.findIndex(l => l.startsWith('|C990|'));
+      
+      if (idxC990 !== -1) {
+        // Atualizamos o registro C990 com a contagem real (ele incluso) para o PVA aceitar
+        linhasProcessadas[idxC990] = `|C990|${totalLinhasBlocoC}|`;
+      }
       // === RECONSTRUÇÃO DO BLOCO 9 AUTOMÁTICA (FIX ESTRUTURAL) ===
       let contagemValidado = {};
       
@@ -553,17 +567,17 @@ const handleLogin = async (e) => {
         if (reg) contagemValidado[reg] = (contagemValidado[reg] || 0) + 1;
       });
 
-      // 3. Monta o novo Bloco 9 do zero (O Segredo para o validador aceitar)
+      // 3. Monta o novo Bloco 9 do zero (Essencial para o validador PVA)
       let bloco9Validado = [];
       bloco9Validado.push(`|9001|0|`);
       
-      // Adiciona registros de fechamento na contagem
+      // Adiciona registros de fechamento obrigatórios na contagem
       contagemValidado['9001'] = 1; 
       contagemValidado['9990'] = 1; 
       contagemValidado['9999'] = 1;
       contagemValidado['9900'] = Object.keys(contagemValidado).length + 1;
 
-      // Ordena alfabeticamente para o validador do governo
+      // Ordena alfabeticamente (exigência do SPED)
       Object.keys(contagemValidado).sort().forEach(reg => {
         bloco9Validado.push(`|9900|${reg}|${contagemValidado[reg]}|`);
       });

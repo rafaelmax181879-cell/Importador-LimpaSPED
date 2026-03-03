@@ -40,3 +40,48 @@
 .read-the-docs {
   color: #888;
 }
+
+/* ============================================================
+   CONFIGURAÇÃO PARA IMPRESSÃO A4 (EVITAR CORTES NO RELATÓRIO)
+   ============================================================ */
+@media print {
+  @page {
+    size: A4; /* Define o tamanho oficial da folha */
+    margin: 10mm; /* Margem de segurança para a impressora */
+  }
+
+  #root {
+    max-width: none !important; /* Remove o limite de 1280px na impressão */
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body {
+    background: white !important;
+    -webkit-print-color-adjust: exact !important; /* Garante que as cores e gráficos apareçam */
+    print-color-adjust: exact !important;
+  }
+
+  .audittus-report-a4 {
+    width: 210mm !important; /* Largura exata da folha A4 */
+    min-height: 297mm; /* Altura exata da folha A4 */
+    padding: 10mm;
+    margin: 0 auto;
+    overflow: visible !important; /* Garante que nada fique escondido */
+    background: white;
+  }
+
+  /* Impede que cards ou tabelas sejam cortados ao meio entre as páginas */
+  .card-dash, table, .recharts-wrapper {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+
+/* Estilo para visualização no navegador antes de imprimir */
+.audittus-report-a4 {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: left; /* Garante que os textos não fiquem centralizados como no #root */
+}
