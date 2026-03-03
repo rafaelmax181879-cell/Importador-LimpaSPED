@@ -11,7 +11,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.38";
+const VERSAO_ATUAL = "1.1.39";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -88,6 +88,8 @@ export default function ImportadorSped() {
   const [estoqueInicial, setEstoqueInicial] = useState(0);
   const [margemLucro, setMargemLucro] = useState(30);
   const [estoqueInjetado, setEstoqueInjetado] = useState(false);
+  const [entradasManuais, setEntradasManuais] = useState(0);
+  const [saidasManuais, setSaidasManuais] = useState(0);
 
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
@@ -215,6 +217,10 @@ const handleLogin = async (e) => {
     }
   };
 
+// --- PASSO 2: LIMPEZA PARA INCLUSÃO DE DADOS ---
+  // =========================================================
+  // PASSO 2: FUNÇÃO DE LIMPEZA (RESET)
+  // =========================================================
   const limparDados = () => {
     setFaseAtual('upload'); setArquivoProcessado(null); setNomeOriginal(''); setAbaAtiva('home');
     setDadosGraficoIcms([]); setAjustesICMS([]); setResumoIcms({ saldoCredor: 0, icmsRecolher: 0 });
@@ -225,7 +231,35 @@ const handleLogin = async (e) => {
     setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setRiscosFiscais([]);
     setIsMesFevereiro(false); setEstoqueInjetado(false); setEstoqueInicial(0); setMargemLucro(30);
   };
-const handleInjetarBlocoH = () => {
+
+  // =========================================================
+  // PASSO 3: LÓGICA PARA PROCESSAR A TABELA MANUAL
+  // =========================================================
+  const processarTabelaManual = (dadosDaTabela) => {
+    limparDados();
+    setDadosEmpresa({
+      nome: dadosDaTabela.empresa || 'Lançamento Manual',
+      cnpj: dadosDaTabela.cnpj || '00.000.000/0000-00',
+      periodo: dadosDaTabela.periodo || 'N/A'
+    });
+
+    setDadosVaf({
+      entradasBrutas: parseFloat(dadosDaTabela.entradas || 0),
+      saidasBrutas: parseFloat(dadosDaTabela.saidas || 0),
+      devVendas: 0,
+      devCompras: 0,
+      vafTotal: (parseFloat(dadosDaTabela.saidas || 0) - parseFloat(dadosDaTabela.entradas || 0))
+    });
+
+    setFaseAtual('dashboard');
+    setAbaAtiva('home');
+  };
+
+  // =========================================================
+ // =========================================================
+  // PASSO 4: INJEÇÃO AUTOMÁTICA DE BLOCO H (INVENTÁRIO)
+  // =========================================================
+  const handleInjetarBlocoH = () => {
     if (!arquivoProcessado) return;
     
     // Cálculo do CMV e Estoque Final
@@ -294,8 +328,6 @@ const handleInjetarBlocoH = () => {
     setEstoqueInjetado(true);
     alert('✅ Sucesso! Produto DIVERSOS-OK e Bloco H foram injetados. O arquivo final já está recalculado e pronto para download.');
   };
-
-
 
   const processarArquivo = async (event) => {
     const file = event.target.files[0];
@@ -790,11 +822,69 @@ setRelatorioCorrecoes({ c191Removidos: contC191, c173Removidos: contC173, textos
               </div>
             </div>
 
-            {abaAtiva === 'home' && (
+{abaAtiva === 'home' && (
               <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
-                
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
                   
+                  {/* --- PASSO 5: INTERFACE DE AJUSTE MANUAL --- */}
+                  <div className="card-dash no-print" style={{ margin: 0, borderLeft: '8px solid #3b82f6' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                      <div style={{ background: '#3b82f6', color: '#fff', padding: '10px', borderRadius: '10px' }}>
+                        <Plus size={24} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, color: '#004080', fontSize: '18px', fontWeight: 'bold' }}>Ajuste Manual de Movimentação</h3>
+                        <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Utilize para simular valores ou corrigir omissões de faturamento</p>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>ENTRADAS BRUTAS (R$)</label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>R$</span>
+                          <input 
+                            type="number" 
+                            value={entradasManuais}
+                            onChange={(e) => setEntradasManuais(e.target.value)}
+                            style={{ width: '100%', padding: '12px 12px 12px 35px', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '16px', outline: 'none' }}
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '8px' }}>SAÍDAS BRUTAS (R$)</label>
+                        <div style={{ position: 'relative' }}>
+                          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>R$</span>
+                          <input 
+                            type="number" 
+                            value={saidasManuais}
+                            onChange={(e) => setSaidasManuais(e.target.value)}
+                            style={{ width: '100%', padding: '12px 12px 12px 35px', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '16px', outline: 'none' }}
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button 
+                          onClick={() => processarTabelaManual({ 
+                            empresa: dadosEmpresa.nome, 
+                            cnpj: dadosEmpresa.cnpj, 
+                            periodo: dadosEmpresa.periodo, 
+                            entradas: entradasManuais, 
+                            saidas: saidasManuais 
+                          })}
+                          style={{ width: '100%', padding: '14px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        >
+                          <RefreshCw size={18} /> Aplicar Ajustes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* --- GRÁFICOS ORIGINAIS --- */}
                   <div className="grid-3">
                     <div className="card-dash" style={{ margin: 0 }}>
                       <h3 className="card-title"><ArrowRightLeft size={20}/> Volume de Operações</h3>
