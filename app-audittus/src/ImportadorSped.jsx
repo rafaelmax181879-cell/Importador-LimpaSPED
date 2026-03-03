@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { UploadCloud, CheckCircle, AlertCircle, FileText, Download, DollarSign, Calendar, Building2, TrendingUp, TrendingDown, ArrowRightLeft, Printer, RefreshCw, Calculator, Plus, Minus, Equal, Shield, Package, Truck, LayoutDashboard, Tags, Activity, MapPin, AlertTriangle, FileSearch, Lock, Loader2, Zap, DownloadCloud, Crown, User, Sparkles } from 'lucide-react';
+import { 
+  UploadCloud, CheckCircle, AlertCircle, FileText, Download, 
+  DollarSign, Calendar, Building2, TrendingUp, AlertTriangle,
+  Shield, RefreshCw, Loader2, Lock, Zap, Sparkles, Printer, LayoutDashboard,
+  Tags, FileSearch, Package, ArrowRightLeft, Calculator, Truck, Activity, MapPin
+} from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -11,7 +16,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.43";
+const VERSAO_ATUAL = "1.1.44";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -82,14 +87,22 @@ export default function ImportadorSped() {
   const [logAuditoria, setLogAuditoria] = useState([]);
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
-  // === VARIÁVEIS DO MÓDULO DE ESTOQUE ===
-  const [isMesFevereiro, setIsMesFevereiro] = useState(false);
+  // === VARIÁVEIS DO MÓDULO DE ESTOQUE (v1.1.43) ===
+  // Regra: O módulo só deve aparecer se for Período 02
+  const [isMesFevereiro, setIsMesFevereiro] = useState(false); 
   const [anoAnteriorEstoque, setAnoAnteriorEstoque] = useState('');
-  const [estoqueInicial, setEstoqueInicial] = useState(0);
+  
+  // Variáveis para o cálculo de Auditoria (EI + Compras - CMV)
+  const [vSaidasTotal, setVSaidasTotal] = useState(0);
+  const [vEntradasTotal, setVEntradasTotal] = useState(0);
+  const [vEstoqueInicial, setVEstoqueInicial] = useState(0);
   const [margemLucro, setMargemLucro] = useState(30);
+  
+  // Estados para exibir os resultados no Dashboard
+  const [vEstoqueFinal, setVEstoqueFinal] = useState(0);
+  const [vafTotal, setVafTotal] = useState(0);
+  const [cmvTotal, setCmvTotal] = useState(0);
   const [estoqueInjetado, setEstoqueInjetado] = useState(false);
-  const [entradasManuais, setEntradasManuais] = useState(0);
-  const [saidasManuais, setSaidasManuais] = useState(0);
 
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
@@ -255,7 +268,7 @@ const handleLogin = async (e) => {
     setAbaAtiva('home');
   };
 
-  // === LÓGICA DE AUDITORIA AUTOMÁTICA EM TEMPO REAL (v1.1.42) ===
+  // === LÓGICA DE AUDITORIA AUTOMÁTICA EM TEMPO REAL (v1.1.43) ===
   // Monitora as mudanças para calcular o EF e o VAF instantaneamente
   useEffect(() => {
     const saidas = parseFloat(vSaidasTotal) || 0;
@@ -278,7 +291,7 @@ const handleLogin = async (e) => {
     setCmvTotal(cmvCalculado);
 
   }, [vSaidasTotal, vEntradasTotal, vEstoqueInicial, margemLucro]); // Dependências do cálculo
-  
+
   // =========================================================
  // =========================================================
   // PASSO 4: INJEÇÃO AUTOMÁTICA DE BLOCO H (INVENTÁRIO)
@@ -644,8 +657,8 @@ const handleInjetarBlocoH = () => {
   const vSaidas = parseFloat(saidasManuais || (dadosVaf.saidasBrutas - dadosVaf.devVendas) || 0);
   const vMargemR$ = vSaidas * (parseFloat(margemLucro || 30) / 100);
   const vCMV = vSaidas - vMargemR$;
-  const vEstoqueInicial = parseFloat(estoqueInicial || 0);
-  const vEstoqueFinal = (vEstoqueInicial + vEntradas) - vCMV; // VALOR EXATO QUE SERÁ INJETADO
+  const estoqueInicialLocal = parseFloat(vEstoqueInicial || 0);
+  const estoqueFinalLocal = (estoqueInicialLocal + vEntradas) - vCMV; // VALOR EXATO QUE SERÁ INJETADO
 
   const SidebarAuditoria = () => (
     <div className="dash-sidebar no-print" style={{ width: '320px', flexShrink: 0 }}>
