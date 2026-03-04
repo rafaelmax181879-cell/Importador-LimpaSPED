@@ -16,7 +16,8 @@ function createWindow() {
     transparent: true, 
     frame: false,      
     alwaysOnTop: true, 
-    show: true
+    show: true,
+    icon: path.join(__dirname, 'unnamed.ico') // <--- ÍCONE ADICIONADO AQUI
   });
 
   // =========================================================
@@ -71,7 +72,7 @@ function createWindow() {
       <h3>SPED FISCAL</h3>
       <div class="progress-container"><div class="progress-bar"></div></div>
       <p>Carregando módulos de auditoria...</p>
-      <p class="version">Versão 1.1.46</p>
+      <p class="version">Versão 1.1.47</p>
     </body>
     </html>
   `;
@@ -86,6 +87,7 @@ function createWindow() {
     height: 900,
     show: false,
     autoHideMenuBar: true,
+    icon: path.join(__dirname, 'unnamed.ico'), // <--- ÍCONE ADICIONADO AQUI TAMBÉM
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
