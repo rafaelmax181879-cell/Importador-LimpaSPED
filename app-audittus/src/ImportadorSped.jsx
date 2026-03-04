@@ -16,7 +16,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.44";
+const VERSAO_ATUAL = "1.1.45";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -98,6 +98,13 @@ export default function ImportadorSped() {
   const [vafTotal, setVafTotal] = useState(0);
   const [cmvTotal, setCmvTotal] = useState(0);
   const [estoqueInjetado, setEstoqueInjetado] = useState(false);
+  
+  // === ESTADOS DA NOVA CALCULADORA (v1.1.44) ===
+  const [calcEI, setCalcEI] = useState(''); 
+  const [calcCompras, setCalcCompras] = useState('');
+  const [calcSaidas, setCalcSaidas] = useState('');
+  const [calcMargem, setCalcMargem] = useState(30);
+  const [isCalculoAprovado, setIsCalculoAprovado] = useState(false);
   
   // === AS DUAS VARIÁVEIS QUE FALTARAM PARA A TELA NÃO TRAVAR ===
   const [entradasManuais, setEntradasManuais] = useState(0);
@@ -1239,120 +1246,196 @@ const handleInjetarBlocoH = () => {
             )}
 
 {/* === NOVA TELA DE ESTOQUE (ESTILO PLANILHA PROFISSIONAL) === */}
-{abaAtiva === 'estoque' && isMesFevereiro && (
-              <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6', padding: '0', overflow: 'hidden', animation: 'slideIn 0.5s ease' }}>
-                <div style={{ padding: '25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-                  <h3 style={{ margin: 0, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900' }}>
-                    <Package size={28}/> Apuração VAF / Inventário (Bloco H)
-                  </h3>
-                  <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>
-                    Painel de fechamento fiscal baseado no modelo de auditoria AUDITTUS.
-                  </p>
-                </div>
+{abaAtiva === 'estoque' && isMesFevereiro && (() => {
+              // Cálculos matemáticos em tempo real da Calculadora (Planilha)
+              const vCalcEI = parseFloat(calcEI) || 0;
+              const vCalcCompras = parseFloat(calcCompras) || 0;
+              const vCalcSaidas = parseFloat(calcSaidas) || 0;
+              const vCalcMargem = parseFloat(calcMargem) || 0;
 
-                <div style={{ padding: '30px' }}>
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
-                    {/* Cabeçalho da Planilha Digital */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', background: '#f1f5f9', padding: '12px 25px', fontWeight: 'bold', color: '#475569', fontSize: '12px', textTransform: 'uppercase' }}>
-                      <span>Descrição do Parâmetro</span>
-                      <span style={{ textAlign: 'right' }}>Valor Apurado</span>
+              const vCalcLucro = vCalcSaidas * (vCalcMargem / 100);
+              const vCalcCmv = vCalcSaidas - vCalcLucro;
+              const vCalcEF = vCalcEI + vCalcCompras - vCalcCmv;
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', animation: 'slideIn 0.5s ease' }}>
+                  
+                  {/* === ETAPA 1: SUBMÓDULO DE CÁLCULO (Estilo Excel) === */}
+                  <div className="card-dash" style={{ borderTop: '8px solid #10b981', padding: '0', overflow: 'hidden' }}>
+                    <div style={{ padding: '20px 25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h3 style={{ margin: 0, color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900' }}>
+                          <Calculator size={28}/> 1. Submódulo: Calcular Estoque Final
+                        </h3>
+                        <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>
+                          Simule o Inventário informando os valores manuais conforme planilha de auditoria.
+                        </p>
+                      </div>
+                      {isCalculoAprovado && (
+                        <button onClick={() => { setIsCalculoAprovado(false); setEstoqueInjetado(false); }} style={{ padding: '10px 15px', background: '#e2e8f0', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <RefreshCw size={16}/> Editar Cálculo
+                        </button>
+                      )}
                     </div>
 
-                    {[
-                      { label: 'ESTOQUE INICIAL (Saldo em 31/12)', valor: vEstoqueInicial, type: 'input', key: 'ei' },
-                      { label: 'ENTRADAS NO PERÍODO (Líquidas)', valor: vEntradas, type: 'input', key: 'ent' },
-                      { label: 'SAÍDAS / FATURAMENTO (Líquido)', valor: vSaidas, type: 'input', key: 'sai' },
-                      { label: `MARGEM DE LUCRO ESTIMADA (${margemLucro}%)`, valor: vMargemR$, type: 'calc', color: '#f59e0b' },
-                      { label: 'CMV (Custo da Mercadoria Vendida)', valor: vCMV, type: 'calc', color: '#ef4444' }
-                    ].map((row, i) => (
-                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', padding: '18px 25px', background: i % 2 === 0 ? '#fff' : '#f9fafb', borderBottom: '1px solid #f1f5f9', alignItems: 'center' }}>
-                        <span style={{ fontWeight: '700', color: '#334155', fontSize: '14px' }}>{row.label}</span>
-                        <div style={{ textAlign: 'right' }}>
-                          {row.type === 'input' ? (
-                            <div style={{ position: 'relative', display: 'inline-block' }}>
-                              <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>R$</span>
-                              <input 
-                                type="number" 
-                                value={row.key === 'ei' ? vEstoqueInicial : row.key === 'ent' ? entradasManuais : saidasManuais}
-                                onChange={(e) => row.key === 'ei' ? setVEstoqueInicial(e.target.value) : row.key === 'ent' ? setEntradasManuais(e.target.value) : setSaidasManuais(e.target.value)}
-                                style={{ width: '180px', padding: '10px 10px 10px 30px', borderRadius: '8px', border: '2px solid #e2e8f0', textAlign: 'right', fontWeight: '900', color: '#004080', outline: 'none' }}
-                             />
-                            </div>
-                          ) : (
-                            <strong style={{ color: row.color || '#334155', fontSize: '18px' }}>{formatarMoeda(row.valor)}</strong>
-                          )}
+                    <div style={{ padding: '30px', pointerEvents: isCalculoAprovado ? 'none' : 'auto', opacity: isCalculoAprovado ? 0.6 : 1 }}>
+                      <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#fff', maxWidth: '800px', margin: '0 auto' }}>
+                        
+                        {/* ESTOQUE INICIAL */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>ESTOQUE INICIAL (+)</div>
+                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff' }}>
+                            <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
+                            <input type="number" value={calcEI} onChange={(e) => setCalcEI(e.target.value)} placeholder="0,00" style={{ width: '100%', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', fontSize: '16px', outline: 'none' }} />
+                          </div>
                         </div>
-                      </div>
-                    ))}
 
-{/* QUADRO DE CONSISTÊNCIA VAF AUTOMÁTICO */}
-<div style={{
-  margin: '15px 0 25px 0',
-  padding: '18px 25px',
-  borderRadius: '12px',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  background: parseFloat(margemLucro) < 0 ? '#fef2f2' : '#f0fdf4', // Fundo dinâmico
-  border: `2px solid ${parseFloat(margemLucro) < 0 ? '#ef4444' : '#22c55e'}`, // Borda dinâmica
-  boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
-  transition: '0.4s'
-}}>
-  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-    <div style={{
-      width: '12px',
-      height: '12px',
-      borderRadius: '50%',
-      background: parseFloat(margemLucro) < 0 ? '#ef4444' : '#22c55e',
-      boxShadow: `0 0 10px ${parseFloat(margemLucro) < 0 ? '#ef4444' : '#22c55e'}`
-    }}></div>
-    <span style={{ fontWeight: '800', fontSize: '15px', color: '#1e293b', letterSpacing: '0.5px' }}>
-      VAF INCONSISTENTE?
-    </span>
-  </div>
+                        {/* COMPRAS */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>COMPRAS (+)</div>
+                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff' }}>
+                            <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
+                            <input type="number" value={calcCompras} onChange={(e) => setCalcCompras(e.target.value)} placeholder="0,00" style={{ width: '100%', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', fontSize: '16px', outline: 'none' }} />
+                          </div>
+                        </div>
 
-  <span style={{
-    fontWeight: '900',
-    fontSize: '22px',
-    color: parseFloat(margemLucro) < 0 ? '#ef4444' : '#16a34a',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  }}>
-    {parseFloat(margemLucro) < 0 ? 'SIM' : 'NÃO'}
-    {parseFloat(margemLucro) < 0 ? <AlertTriangle size={24}/> : <CheckCircle size={24}/>}
-  </span>
-</div>
-                    {/* DESTAQUE DO ESTOQUE FINAL (O VALOR QUE SERÁ INJETADO) */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', padding: '30px 25px', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff', alignItems: 'center' }}>
-                      <div>
-                        <span style={{ fontWeight: '900', fontSize: '18px', letterSpacing: '0.5px', display: 'block' }}>ESTOQUE FINAL CALCULADO</span>
-                        <span style={{ fontSize: '12px', opacity: 0.8 }}>Valor exato a ser injetado no Bloco H do SPED</span>
+                        {/* ESTOQUE FINAL (RESULTADO DINÂMICO) */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ background: '#e91e63', color: '#fff', padding: '15px', fontWeight: '900', display: 'flex', alignItems: 'center', fontSize: '18px' }}>ESTOQUE FINAL (-)</div>
+                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#000', justifyContent: 'flex-end' }}>
+                            <span style={{ color: '#fff', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
+                            <span style={{ color: '#fff', fontWeight: '900', fontSize: '20px' }}>{formatarMoeda(vCalcEF).replace('R$', '').trim()}</span>
+                          </div>
+                        </div>
+
+                        {/* C.M.V */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>C.M.V</div>
+                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff', justifyContent: 'flex-end' }}>
+                            <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
+                            <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>{formatarMoeda(vCalcCmv).replace('R$', '').trim()}</span>
+                          </div>
+                        </div>
+
+                        {/* LUCRO */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
+                          <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            LUCRO (%)
+                            <input type="number" value={calcMargem} onChange={(e) => setCalcMargem(e.target.value)} style={{ width: '60px', padding: '5px', borderRadius: '4px', border: 'none', textAlign: 'center', fontWeight: 'bold', color: '#000', outline: 'none' }} />
+                          </div>
+                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff', justifyContent: 'flex-end' }}>
+                            <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
+                            <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>{formatarMoeda(vCalcLucro).replace('R$', '').trim()}</span>
+                          </div>
+                        </div>
+
+                        {/* VALOR TOTAL DAS SAÍDAS */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr' }}>
+                          <div style={{ background: '#1b5e20', color: '#fff', padding: '15px', fontWeight: '900', display: 'flex', alignItems: 'center' }}>VALOR TOTAL DAS SAÍDAS</div>
+                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff' }}>
+                            <span style={{ color: '#2563eb', fontWeight: '900', marginRight: '10px' }}>R$</span>
+                            <input type="number" value={calcSaidas} onChange={(e) => setCalcSaidas(e.target.value)} placeholder="0,00" style={{ width: '100%', border: '2px solid #2563eb', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: '900', color: '#2563eb', fontSize: '18px', outline: 'none' }} />
+                          </div>
+                        </div>
+
                       </div>
-                      <strong style={{ textAlign: 'right', fontSize: '32px', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                        {formatarMoeda(vEstoqueFinal)}
-                      </strong>
+
+                      {/* BOTÃO DE APROVAÇÃO E TRANSFERÊNCIA */}
+                      {!isCalculoAprovado && (
+                        <button 
+                          onClick={() => {
+                            // 1. Salva os dados matemáticos nos estados principais
+                            setVEstoqueInicial(vCalcEI);
+                            setVEntradasTotal(vCalcCompras);
+                            setVSaidasTotal(vCalcSaidas);
+                            setVEstoqueFinal(vCalcEF);
+                            setCmvTotal(vCalcCmv);
+                            // 2. Calcula o VAF (Saídas - CMV) e transfere
+                            setVafTotal(vCalcSaidas - vCalcCmv);
+                            // 3. Trava a calculadora e abre o módulo de injeção
+                            setIsCalculoAprovado(true);
+                          }}
+                          style={{ width: '100%', maxWidth: '800px', margin: '30px auto 0 auto', padding: '20px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.3s' }}
+                        >
+                          <CheckCircle size={28}/> APROVAR CÁLCULO E IMPORTAR DADOS
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <button 
-                    onClick={handleInjetarBlocoH}
-                    disabled={estoqueInjetado}
-                    style={{ 
-                      width: '100%', marginTop: '25px', padding: '22px', 
-                      background: estoqueInjetado ? '#10b981' : '#8b5cf6', 
-                      color: '#fff', border: 'none', borderRadius: '15px', 
-                      fontWeight: '900', fontSize: '16px', cursor: 'pointer', 
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                      gap: '12px', boxShadow: '0 10px 20px rgba(139, 92, 246, 0.2)', transition: '0.3s' 
-                    }}
-                  >
-                    {estoqueInjetado ? <CheckCircle size={24}/> : <Zap size={24}/>}
-                    {estoqueInjetado ? 'INVENTÁRIO ATUALIZADO COM SUCESSO NO ARQUIVO' : 'INJETAR VALORES CALCULADOS NO SPED FISCAL'}
-                  </button>
+                  {/* === ETAPA 2: APURAÇÃO VAF E INJEÇÃO (SÓ APARECE SE APROVADO) === */}
+                  {isCalculoAprovado && (
+                    <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6', padding: '0', overflow: 'hidden', animation: 'slideIn 0.5s ease' }}>
+                      <div style={{ padding: '20px 25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <h3 style={{ margin: 0, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900' }}>
+                          <Package size={28}/> 2. Apuração VAF / Inventário (Bloco H)
+                        </h3>
+                        <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>
+                          Dados validados. O sistema verificou a consistência do VAF e liberou a injeção.
+                        </p>
+                      </div>
+
+                      <div style={{ padding: '30px' }}>
+                        <div style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
+                          
+                          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', padding: '15px 25px', borderBottom: '1px solid #f1f5f9' }}>
+                            <span style={{ fontWeight: '700', color: '#64748b' }}>Saídas Totais Importadas</span>
+                            <strong style={{ textAlign: 'right', color: '#334155' }}>{formatarMoeda(vSaidasTotal)}</strong>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', padding: '15px 25px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+                            <span style={{ fontWeight: '700', color: '#64748b' }}>C.M.V Importado</span>
+                            <strong style={{ textAlign: 'right', color: '#ef4444' }}>{formatarMoeda(cmvTotal)}</strong>
+                          </div>
+
+                          {/* QUADRO VAF INCONSISTENTE (Saídas - CMV < 0) */}
+                          <div style={{
+                            margin: '20px 25px', padding: '20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            background: vafTotal < 0 ? '#fef2f2' : '#f0fdf4',
+                            border: `2px solid ${vafTotal < 0 ? '#ef4444' : '#22c55e'}`
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: vafTotal < 0 ? '#ef4444' : '#22c55e', boxShadow: `0 0 10px ${vafTotal < 0 ? '#ef4444' : '#22c55e'}` }}></div>
+                              <span style={{ fontWeight: '800', fontSize: '16px', color: '#1e293b' }}>
+                                VAF INCONSISTENTE? (Resultado: {formatarMoeda(vafTotal)})
+                              </span>
+                            </div>
+                            <span style={{ fontWeight: '900', fontSize: '24px', color: vafTotal < 0 ? '#ef4444' : '#16a34a', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {vafTotal < 0 ? 'SIM' : 'NÃO'}
+                              {vafTotal < 0 ? <AlertTriangle size={26}/> : <CheckCircle size={26}/>}
+                            </span>
+                          </div>
+
+                          {/* ESTOQUE FINAL INJEÇÃO */}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', padding: '30px 25px', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff', alignItems: 'center' }}>
+                            <div>
+                              <span style={{ fontWeight: '900', fontSize: '18px', display: 'block' }}>ESTOQUE FINAL PRONTO PARA INJEÇÃO</span>
+                              <span style={{ fontSize: '13px', opacity: 0.8 }}>Valor validado ({formatarMoeda(vEstoqueFinal)}) será injetado no Bloco H do SPED.</span>
+                            </div>
+                            <strong style={{ textAlign: 'right', fontSize: '32px' }}>{formatarMoeda(vEstoqueFinal)}</strong>
+                          </div>
+                        </div>
+
+                        <button 
+                          onClick={handleInjetarBlocoH}
+                          disabled={estoqueInjetado}
+                          style={{ 
+                            width: '100%', marginTop: '25px', padding: '22px', 
+                            background: estoqueInjetado ? '#10b981' : '#8b5cf6', 
+                            color: '#fff', border: 'none', borderRadius: '15px', 
+                            fontWeight: '900', fontSize: '18px', cursor: 'pointer', 
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                            gap: '12px', boxShadow: '0 10px 20px rgba(139, 92, 246, 0.2)', transition: '0.3s' 
+                          }}
+                        >
+                          {estoqueInjetado ? <CheckCircle size={28}/> : <Zap size={28}/>}
+                          {estoqueInjetado ? 'INVENTÁRIO INJETADO COM SUCESSO NO ARQUIVO' : 'INJETAR ESTOQUE FINAL NO SPED FISCAL'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <BotoesAcao />
           </div>
