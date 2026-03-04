@@ -16,7 +16,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.47";
+const VERSAO_ATUAL = "1.1.48";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -943,18 +943,18 @@ const handleInjetarBlocoH = () => {
                         <div>
                           <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#10b981', display: 'block', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>↘ Entradas</span>
                           {listaCfops.entradas.slice(0,7).map((it,idx)=>(
-                            <div key={`e-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f4f8', fontSize: '12px' }}>
+                            <div key={`e-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #cbd5e1', fontSize: '12px' }}>
                               <span style={{ fontWeight: 'bold', color: '#64748b' }}>{it.cfop}</span>
-                              <strong style={{ color: '#10b981' }}>{formatarMoeda(it.valor)}</strong>
+                              <strong style={{ color: '#059669' }}>{formatarMoeda(it.valor)}</strong>
                             </div>
                           ))}
                         </div>
                         <div>
                           <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#3b82f6', display: 'block', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px' }}>↗ Saídas</span>
                           {listaCfops.saidas.slice(0,7).map((it,idx)=>(
-                            <div key={`s-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f4f8', fontSize: '12px' }}>
+                            <div key={`s-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #cbd5e1', fontSize: '12px' }}>
                               <span style={{ fontWeight: 'bold', color: '#64748b' }}>{it.cfop}</span>
-                              <strong style={{ color: '#004080' }}>{formatarMoeda(it.valor)}</strong>
+                              <strong style={{ color: '#1e3a8a' }}>{formatarMoeda(it.valor)}</strong>
                             </div>
                           ))}
                         </div>
@@ -968,10 +968,10 @@ const handleInjetarBlocoH = () => {
                       </div>
                       <div style={{ padding: '20px', flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>+ Saídas Brutas</span><strong>{formatarMoeda(dadosVaf.saidasBrutas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>- Dev. Vendas</span><strong>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#f97316' }}><span>- Dev. Vendas</span><strong>{formatarMoeda(dadosVaf.devVendas)}</strong></div>
                         <div style={{ borderBottom: '1px solid rgba(255,255,255,0.2)', margin: '15px 0' }}></div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>- Entradas Brutas</span><strong>{formatarMoeda(dadosVaf.entradasBrutas)}</strong></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px' }}><span>+ Dev. Compras</span><strong>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '14px', color: '#15803d' }}><span>+ Dev. Compras</span><strong>{formatarMoeda(dadosVaf.devCompras)}</strong></div>
                       </div>
                       <div style={{ background: '#fff', color: '#004080', padding: '20px', textAlign: 'center' }}>
                         <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>= VALOR ADICIONADO GERADO</span>
