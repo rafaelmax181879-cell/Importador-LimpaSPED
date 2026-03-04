@@ -16,7 +16,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.45";
+const VERSAO_ATUAL = "1.1.46";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -105,6 +105,10 @@ export default function ImportadorSped() {
   const [calcSaidas, setCalcSaidas] = useState('');
   const [calcMargem, setCalcMargem] = useState(30);
   const [isCalculoAprovado, setIsCalculoAprovado] = useState(false);
+
+  // === LANÇAMENTOS MANUAIS - IMPLEMENTO ===
+  const [isEfManual, setIsEfManual] = useState(false);
+  const [manualEF, setManualEF] = useState('');
   
   // === AS DUAS VARIÁVEIS QUE FALTARAM PARA A TELA NÃO TRAVAR ===
   const [entradasManuais, setEntradasManuais] = useState(0);
@@ -1247,20 +1251,31 @@ const handleInjetarBlocoH = () => {
 
 {/* === NOVA TELA DE ESTOQUE (ESTILO PLANILHA PROFISSIONAL) === */}
 {abaAtiva === 'estoque' && isMesFevereiro && (() => {
-              // Cálculos matemáticos em tempo real da Calculadora (Planilha)
+              // 1. Variáveis base da Calculadora
               const vCalcEI = parseFloat(calcEI) || 0;
               const vCalcCompras = parseFloat(calcCompras) || 0;
               const vCalcSaidas = parseFloat(calcSaidas) || 0;
               const vCalcMargem = parseFloat(calcMargem) || 0;
 
-              const vCalcLucro = vCalcSaidas * (vCalcMargem / 100);
-              const vCalcCmv = vCalcSaidas - vCalcLucro;
-              const vCalcEF = vCalcEI + vCalcCompras - vCalcCmv;
+              let vCalcCmv, vCalcEF, vCalcLucro;
+
+              // 2. Lógica Inteligente (Bidirecional)
+              if (isEfManual) {
+                // Se o usuário digitou o EF manualmente (ex: zerou)
+                vCalcEF = parseFloat(manualEF) || 0;
+                vCalcCmv = vCalcEI + vCalcCompras - vCalcEF; // CMV é calculado de trás para frente
+                vCalcLucro = vCalcSaidas - vCalcCmv; 
+              } else {
+                // Se está usando a Margem para calcular
+                vCalcLucro = vCalcSaidas * (vCalcMargem / 100);
+                vCalcCmv = vCalcSaidas - vCalcLucro;
+                vCalcEF = vCalcEI + vCalcCompras - vCalcCmv;
+              }
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', animation: 'slideIn 0.5s ease' }}>
                   
-                  {/* === ETAPA 1: SUBMÓDULO DE CÁLCULO (Estilo Excel) === */}
+                  {/* === ETAPA 1: SUBMÓDULO DE CÁLCULO === */}
                   <div className="card-dash" style={{ borderTop: '8px solid #10b981', padding: '0', overflow: 'hidden' }}>
                     <div style={{ padding: '20px 25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
@@ -1268,7 +1283,7 @@ const handleInjetarBlocoH = () => {
                           <Calculator size={28}/> 1. Submódulo: Calcular Estoque Final
                         </h3>
                         <p style={{ margin: '5px 0 0 0', color: '#64748b', fontSize: '14px' }}>
-                          Simule o Inventário informando os valores manuais conforme planilha de auditoria.
+                          Simule o Inventário usando a margem ou DIGITE diretamente o Estoque Final desejado.
                         </p>
                       </div>
                       {isCalculoAprovado && (
@@ -1286,7 +1301,7 @@ const handleInjetarBlocoH = () => {
                           <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>ESTOQUE INICIAL (+)</div>
                           <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff' }}>
                             <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
-                            <input type="number" value={calcEI} onChange={(e) => setCalcEI(e.target.value)} placeholder="0,00" style={{ width: '100%', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', fontSize: '16px', outline: 'none' }} />
+                            <input type="number" value={calcEI} onChange={(e) => { setCalcEI(e.target.value); setIsEfManual(false); }} placeholder="0,00" style={{ width: '100%', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', fontSize: '16px', outline: 'none' }} />
                           </div>
                         </div>
 
@@ -1295,22 +1310,31 @@ const handleInjetarBlocoH = () => {
                           <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>COMPRAS (+)</div>
                           <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff' }}>
                             <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
-                            <input type="number" value={calcCompras} onChange={(e) => setCalcCompras(e.target.value)} placeholder="0,00" style={{ width: '100%', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', fontSize: '16px', outline: 'none' }} />
+                            <input type="number" value={calcCompras} onChange={(e) => { setCalcCompras(e.target.value); setIsEfManual(false); }} placeholder="0,00" style={{ width: '100%', border: '1px solid #cbd5e1', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a', fontSize: '16px', outline: 'none' }} />
                           </div>
                         </div>
 
-                        {/* ESTOQUE FINAL (RESULTADO DINÂMICO) */}
+                        {/* ESTOQUE FINAL (AGORA EDITÁVEL) */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
-                          <div style={{ background: '#e91e63', color: '#fff', padding: '15px', fontWeight: '900', display: 'flex', alignItems: 'center', fontSize: '18px' }}>ESTOQUE FINAL (-)</div>
-                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#000', justifyContent: 'flex-end' }}>
+                          <div style={{ background: '#e91e63', color: '#fff', padding: '15px', fontWeight: '900', display: 'flex', alignItems: 'center', fontSize: '18px' }}>
+                            ESTOQUE FINAL (-) 
+                            {isEfManual && <span style={{fontSize: '10px', background: '#fff', color: '#e91e63', padding: '2px 6px', borderRadius: '4px', marginLeft: '10px', fontWeight: '900'}}>MODO MANUAL</span>}
+                          </div>
+                          <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#000', justifyContent: 'flex-end', border: isEfManual ? '2px solid #fcd34d' : 'none' }}>
                             <span style={{ color: '#fff', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
-                            <span style={{ color: '#fff', fontWeight: '900', fontSize: '20px' }}>{formatarMoeda(vCalcEF).replace('R$', '').trim()}</span>
+                            <input 
+                              type="number" 
+                              value={isEfManual ? manualEF : vCalcEF.toFixed(2)} 
+                              onChange={(e) => { setManualEF(e.target.value); setIsEfManual(true); }}
+                              style={{ width: '100%', background: isEfManual ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', padding: '5px', borderRadius: '4px', textAlign: 'right', fontWeight: '900', color: isEfManual ? '#fcd34d' : '#fff', fontSize: '20px', outline: 'none' }}
+                              title="Você pode digitar o Estoque Final desejado (inclusive 0)"
+                            />
                           </div>
                         </div>
 
                         {/* C.M.V */}
                         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
-                          <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>C.M.V</div>
+                          <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center' }}>C.M.V {isEfManual && '(Recalculado p/ Bater o Estoque)'}</div>
                           <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff', justifyContent: 'flex-end' }}>
                             <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
                             <span style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '16px' }}>{formatarMoeda(vCalcCmv).replace('R$', '').trim()}</span>
@@ -1321,7 +1345,11 @@ const handleInjetarBlocoH = () => {
                         <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', borderBottom: '1px solid #e2e8f0' }}>
                           <div style={{ background: '#2e7d32', color: '#fff', padding: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
                             LUCRO (%)
-                            <input type="number" value={calcMargem} onChange={(e) => setCalcMargem(e.target.value)} style={{ width: '60px', padding: '5px', borderRadius: '4px', border: 'none', textAlign: 'center', fontWeight: 'bold', color: '#000', outline: 'none' }} />
+                            {!isEfManual ? (
+                              <input type="number" value={calcMargem} onChange={(e) => { setCalcMargem(e.target.value); setIsEfManual(false); }} style={{ width: '60px', padding: '5px', borderRadius: '4px', border: 'none', textAlign: 'center', fontWeight: 'bold', color: '#000', outline: 'none' }} />
+                            ) : (
+                              <span style={{ background: '#1b5e20', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>AUTO (Calculado via EF)</span>
+                            )}
                           </div>
                           <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff', justifyContent: 'flex-end' }}>
                             <span style={{ color: '#ef4444', fontWeight: 'bold', marginRight: '10px' }}>R$</span>
@@ -1334,25 +1362,22 @@ const handleInjetarBlocoH = () => {
                           <div style={{ background: '#1b5e20', color: '#fff', padding: '15px', fontWeight: '900', display: 'flex', alignItems: 'center' }}>VALOR TOTAL DAS SAÍDAS</div>
                           <div style={{ padding: '10px', display: 'flex', alignItems: 'center', background: '#fff' }}>
                             <span style={{ color: '#2563eb', fontWeight: '900', marginRight: '10px' }}>R$</span>
-                            <input type="number" value={calcSaidas} onChange={(e) => setCalcSaidas(e.target.value)} placeholder="0,00" style={{ width: '100%', border: '2px solid #2563eb', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: '900', color: '#2563eb', fontSize: '18px', outline: 'none' }} />
+                            <input type="number" value={calcSaidas} onChange={(e) => { setCalcSaidas(e.target.value); setIsEfManual(false); }} placeholder="0,00" style={{ width: '100%', border: '2px solid #2563eb', padding: '10px', borderRadius: '6px', textAlign: 'right', fontWeight: '900', color: '#2563eb', fontSize: '18px', outline: 'none' }} />
                           </div>
                         </div>
 
                       </div>
 
-                      {/* BOTÃO DE APROVAÇÃO E TRANSFERÊNCIA */}
+                      {/* BOTÃO DE APROVAÇÃO */}
                       {!isCalculoAprovado && (
                         <button 
                           onClick={() => {
-                            // 1. Salva os dados matemáticos nos estados principais
                             setVEstoqueInicial(vCalcEI);
                             setVEntradasTotal(vCalcCompras);
                             setVSaidasTotal(vCalcSaidas);
-                            setVEstoqueFinal(vCalcEF);
+                            setVEstoqueFinal(vCalcEF); 
                             setCmvTotal(vCalcCmv);
-                            // 2. Calcula o VAF (Saídas - CMV) e transfere
                             setVafTotal(vCalcSaidas - vCalcCmv);
-                            // 3. Trava a calculadora e abre o módulo de injeção
                             setIsCalculoAprovado(true);
                           }}
                           style={{ width: '100%', maxWidth: '800px', margin: '30px auto 0 auto', padding: '20px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.3s' }}
@@ -1387,7 +1412,7 @@ const handleInjetarBlocoH = () => {
                             <strong style={{ textAlign: 'right', color: '#ef4444' }}>{formatarMoeda(cmvTotal)}</strong>
                           </div>
 
-                          {/* QUADRO VAF INCONSISTENTE (Saídas - CMV < 0) */}
+                          {/* QUADRO VAF INCONSISTENTE */}
                           <div style={{
                             margin: '20px 25px', padding: '20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                             background: vafTotal < 0 ? '#fef2f2' : '#f0fdf4',
