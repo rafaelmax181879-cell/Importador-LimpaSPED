@@ -16,7 +16,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.43";
+const VERSAO_ATUAL = "1.1.44";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -1273,10 +1273,10 @@ const handleInjetarBlocoH = () => {
                               <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '12px', fontWeight: 'bold' }}>R$</span>
                               <input 
                                 type="number" 
-                                value={row.key === 'ei' ? estoqueInicial : row.key === 'ent' ? entradasManuais : saidasManuais}
-                                onChange={(e) => row.key === 'ei' ? setEstoqueInicial(e.target.value) : row.key === 'ent' ? setEntradasManuais(e.target.value) : setSaidasManuais(e.target.value)}
+                                value={row.key === 'ei' ? vEstoqueInicial : row.key === 'ent' ? entradasManuais : saidasManuais}
+                                onChange={(e) => row.key === 'ei' ? setVEstoqueInicial(e.target.value) : row.key === 'ent' ? setEntradasManuais(e.target.value) : setSaidasManuais(e.target.value)}
                                 style={{ width: '180px', padding: '10px 10px 10px 30px', borderRadius: '8px', border: '2px solid #e2e8f0', textAlign: 'right', fontWeight: '900', color: '#004080', outline: 'none' }}
-                              />
+                             />
                             </div>
                           ) : (
                             <strong style={{ color: row.color || '#334155', fontSize: '18px' }}>{formatarMoeda(row.valor)}</strong>
