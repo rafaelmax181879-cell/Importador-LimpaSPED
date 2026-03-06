@@ -4,7 +4,7 @@ import {
   UploadCloud, CheckCircle, AlertCircle, FileText, Download, 
   DollarSign, Calendar, Building2, TrendingUp, AlertTriangle,
   Shield, RefreshCw, Loader2, Lock, Zap, Sparkles, Printer, LayoutDashboard,
-  Tags, FileSearch, Package, ArrowRightLeft, Calculator, Truck, Activity, MapPin
+  Tags, FileSearch, Package, ArrowRightLeft, Calculator, Truck, Activity, MapPin, X
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
@@ -16,7 +16,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.48";
+const VERSAO_ATUAL = "1.1.49";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -826,6 +826,45 @@ const handleInjetarBlocoH = () => {
   // =========================================================================
   return (
     <div className="main-container">
+      {/* === CUSTOM TITLE BAR (FRAMELESS) === */}
+      <div className="no-print" style={{ 
+        height: '32px', 
+        width: '100%', 
+        background: '#fff', 
+        display: 'flex', 
+        justifyContent: 'flex-end', 
+        alignItems: 'center', 
+        WebkitAppRegion: 'drag', // Permite arrastar a janela
+        paddingRight: '10px',
+        borderBottom: '1px solid #f1f5f9',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 99999
+      }}>
+        <div 
+          onClick={() => { if(window.require) window.require('electron').ipcRenderer.send('fechar_janela'); }}
+          style={{ 
+            width: '32px', 
+            height: '32px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            cursor: 'pointer', 
+            WebkitAppRegion: 'no-drag', // Garante que o clique funcione
+            transition: '0.2s',
+            borderRadius: '4px'
+          }}
+          onMouseOver={(e) => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#fff'; }}
+          onMouseOut={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#64748b'; }}
+        >
+          <X size={18} color="currentColor" />
+        </div>
+      </div>
+      
+      {/* Compensação para o conteúdo não ficar embaixo da barra */}
+      <div style={{ height: '32px' }} className="no-print"></div>
+
       <style>{`
         body, html, #root { margin: 0; padding: 0; min-height: 100vh; width: 100vw; background: #f0f4f8; overflow-x: hidden; font-family: system-ui, sans-serif; }
         .main-container { flex: 1; width: 100%; min-height: 100vh; position: relative; }
@@ -853,7 +892,86 @@ const handleInjetarBlocoH = () => {
         ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; } 
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         
-        @media print { .no-print { display: none !important; } }
+        @media print { 
+          .no-print, button, .update-bar { display: none !important; }
+          body, html, #root, .main-container { 
+            background: #fff !important; 
+            width: 100% !important; 
+            height: auto !important; 
+            overflow: visible !important; 
+            margin: 0 !important; 
+            padding: 0 !important;
+          }
+          .content-wrapper { 
+            padding: 0 !important; 
+            max-width: 100% !important; 
+            margin: 0 !important; 
+          }
+          
+          /* === CONTROLE DE GRÁFICOS (CRÍTICO) === */
+          .recharts-responsive-container {
+            max-height: 250px !important;
+            max-width: 250px !important;
+            margin: 0 auto !important;
+          }
+          /* Forçar altura dos containers pais dos gráficos */
+          div[style*="height: 260px"], div[style*="height: 300px"], div[style*="height: 350px"] {
+             height: auto !important;
+             max-height: 250px !important;
+             overflow: hidden !important;
+          }
+
+          /* === QUEBRA DE PÁGINA SEGURA === */
+          .card-dash, table, tr, td, th {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          .card-dash { 
+            box-shadow: none !important; 
+            border: 1px solid #ddd !important; 
+            margin-bottom: 20px !important;
+            padding: 15px !important;
+            float: none !important;
+            width: 100% !important;
+          }
+
+          /* === AJUSTE DE GRADE E FONTES === */
+          /* Transforma grids complexos em blocos sequenciais ou grids simples de 2 colunas */
+          .grid-3, .grid-4 {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 20px !important;
+          }
+          .grid-2 {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 20px !important;
+          }
+
+          /* Redução Geral de Fontes para Caber */
+          * { font-size: 10pt !important; }
+          h1 { font-size: 16pt !important; }
+          h2 { font-size: 14pt !important; }
+          h3 { font-size: 12pt !important; }
+          strong { font-size: 10pt !important; }
+          
+          /* Expansão de Listas Rolantes na Impressão */
+          div[style*="overflowY: 'auto'"], div[style*="overflow-y: auto"], div[style*="maxHeight"] {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+          }
+          
+          /* Ajuste Específico Card Escuro (VAF) para Economia de Tinta */
+          .card-dash[style*="background: #004080"] {
+            background: #fff !important;
+            color: #000 !important;
+            border: 2px solid #000 !important;
+          }
+          .card-dash[style*="background: #004080"] * {
+            color: #000 !important;
+          }
+        }
       `}</style>
 
       {updateNotification && (
@@ -975,7 +1093,13 @@ const handleInjetarBlocoH = () => {
                       </div>
                       <div style={{ background: '#fff', color: '#004080', padding: '20px', textAlign: 'center' }}>
                         <span style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#64748b', marginBottom: '5px' }}>= VALOR ADICIONADO GERADO</span>
-                        <strong style={{ fontSize: '28px', fontWeight: '900' }}>{formatarMoeda(dadosVaf.vafTotal)}</strong>
+                        <strong style={{ fontSize: '28px', fontWeight: '900', color: dadosVaf.vafTotal < 0 ? '#ef4444' : '#004080' }}>{formatarMoeda(dadosVaf.vafTotal)}</strong>
+                        {dadosVaf.vafTotal < 0 && (
+                          <div style={{ marginTop: '5px', fontSize: '11px', fontWeight: '900', color: '#ef4444', background: '#fef2f2', padding: '4px', borderRadius: '4px', display: 'inline-block' }}>
+                            <AlertTriangle size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }}/>
+                            ATENÇÃO! VAF NEGATIVO.
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1378,6 +1502,14 @@ const handleInjetarBlocoH = () => {
                             setVEstoqueFinal(vCalcEF); 
                             setCmvTotal(vCalcCmv);
                             setVafTotal(vCalcSaidas - vCalcCmv);
+                            
+                            // CORREÇÃO: Atualizar a margem também para que o useEffect não recalcule errado
+                            if (isEfManual && vCalcSaidas > 0) {
+                                setMargemLucro((vCalcLucro / vCalcSaidas) * 100);
+                            } else {
+                                setMargemLucro(vCalcMargem);
+                            }
+
                             setIsCalculoAprovado(true);
                           }}
                           style={{ width: '100%', maxWidth: '800px', margin: '30px auto 0 auto', padding: '20px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '900', fontSize: '18px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', boxShadow: '0 10px 20px rgba(16, 185, 129, 0.2)', transition: '0.3s' }}
@@ -1434,9 +1566,9 @@ const handleInjetarBlocoH = () => {
                           <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', padding: '30px 25px', background: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)', color: '#fff', alignItems: 'center' }}>
                             <div>
                               <span style={{ fontWeight: '900', fontSize: '18px', display: 'block' }}>ESTOQUE FINAL PRONTO PARA INJEÇÃO</span>
-                              <span style={{ fontSize: '13px', opacity: 0.8 }}>Valor validado ({formatarMoeda(vEstoqueFinal)}) será injetado no Bloco H do SPED.</span>
+                              <span style={{ fontSize: '13px', opacity: 0.8 }}>Valor validado ({formatarMoeda(vCalcEF)}) será injetado no Bloco H do SPED.</span>
                             </div>
-                            <strong style={{ textAlign: 'right', fontSize: '32px' }}>{formatarMoeda(vEstoqueFinal)}</strong>
+                            <strong style={{ textAlign: 'right', fontSize: '32px' }}>{formatarMoeda(vCalcEF)}</strong>
                           </div>
                         </div>
 

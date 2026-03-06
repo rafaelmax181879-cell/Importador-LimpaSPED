@@ -72,7 +72,7 @@ function createWindow() {
       <h3>SPED FISCAL</h3>
       <div class="progress-container"><div class="progress-bar"></div></div>
       <p>Carregando módulos de auditoria...</p>
-      <p class="version">Versão 1.1.48</p>
+      <p class="version">Versão 1.1.49</p>
     </body>
     </html>
   `;
@@ -86,6 +86,7 @@ function createWindow() {
     width: 1400,
     height: 900,
     show: false,
+    frame: false, // REMOVE A BARRA PADRÃO DO WINDOWS
     autoHideMenuBar: true,
     icon: path.join(__dirname, 'unnamed.ico'), // <--- ÍCONE ADICIONADO AQUI TAMBÉM
     webPreferences: {
@@ -125,6 +126,10 @@ app.whenReady().then(createWindow);
 
 ipcMain.on('iniciar_atualizacao', () => {
   autoUpdater.quitAndInstall(false, true); 
+});
+
+ipcMain.on('fechar_janela', () => {
+  if (mainWindow) mainWindow.close();
 });
 
 app.on('window-all-closed', () => {
