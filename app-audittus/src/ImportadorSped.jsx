@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 
 import { createClient } from '@supabase/supabase-js';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 // ATENÇÃO: COLE SUAS CHAVES DO SUPABASE EXATAMENTE AQUI DENTRO DAS ASPAS
 const SUPABASE_URL = "https://quzffabofgnzcfjwuwqm.supabase.co";
@@ -16,7 +18,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.49";
+const VERSAO_ATUAL = "1.1.50";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -117,6 +119,58 @@ export default function ImportadorSped() {
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // === EXPORTAR PDF (v1.1.50) ===
+  const handleExportPdf = async () => {
+    setIsGeneratingPdf(true);
+    const input = document.getElementById('area-pdf'); // ID da div principal
+    if (!input) {
+      alert('Erro: Elemento do relatório não encontrado.');
+      setIsGeneratingPdf(false);
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(input, {
+        scale: 2, // Melhora a qualidade
+        useCORS: true, // Permite carregar imagens externas se houver
+        logging: false,
+        ignoreElements: (element) => element.classList.contains('no-print') // Ignora botões
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait', // Ou 'landscape' se preferir
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210; // Largura A4 em mm
+      const pageHeight = 297; // Altura A4 em mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`AUDITTUS_Relatorio_${dadosEmpresa.nome ? dadosEmpresa.nome.replace(/[^a-z0-9]/gi, '_') : 'Geral'}.pdf`);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      alert('Ocorreu um erro ao gerar o PDF. Tente novamente.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
 
   useEffect(() => {
     window.triggerUpdateModal = () => setUpdateNotification(true);
@@ -705,7 +759,10 @@ const handleInjetarBlocoH = () => {
           const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); 
           const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Validado_${nomeOriginal}`; l.click(); 
         }}><Download size={20} /> Baixar SPED Validado</button>
-        <button className="btn-pr" onClick={() => window.print()}><Printer size={20} /> Salvar Relatório Geral (PDF)</button>
+        <button className="btn-pr" onClick={handleExportPdf} disabled={isGeneratingPdf} style={{ opacity: isGeneratingPdf ? 0.7 : 1, cursor: isGeneratingPdf ? 'wait' : 'pointer' }}>
+          {isGeneratingPdf ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <Printer size={20} />} 
+          {isGeneratingPdf ? 'Gerando PDF...' : 'Salvar Relatório (PDF)'}
+        </button>
         <button className="btn-nw" onClick={limparDados}><RefreshCw size={20} /> Nova Validação</button>
     </div>
   );
@@ -997,7 +1054,7 @@ const handleInjetarBlocoH = () => {
             </div>
           )}
 
-          <div className="content-wrapper">
+          <div className="content-wrapper" id="area-pdf">
             
             <div className="no-print" style={{ marginBottom: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px' }}>
