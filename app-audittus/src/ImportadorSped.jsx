@@ -1652,6 +1652,11 @@ const handleInjetarBlocoH = () => {
             })()}
 
             <BotoesAcao />
+            
+            {/* RODAPÉ DO PDF COM LOGO */}
+            <div className="pdf-footer" style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', opacity: 0.4 }}>
+              <img src="/Perfil_1_facebook_WhatsApp.png" alt="Master Contabilidade" style={{ width: '100px', height: 'auto' }} />
+            </div>
           </div>
         </>
       )}
