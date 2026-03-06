@@ -18,7 +18,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.50";
+const VERSAO_ATUAL = "1.1.51";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
