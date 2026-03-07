@@ -18,7 +18,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.52";
+const VERSAO_ATUAL = "1.1.53";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -90,7 +90,8 @@ export default function ImportadorSped() {
   const [riscosFiscais, setRiscosFiscais] = useState([]);
   // === VARIÁVEIS DO MÓDULO DE ESTOQUE (v1.1.43) ===
   const [hasBlocoH, setHasBlocoH] = useState(false);
-  const [isMesFevereiro, setIsMesFevereiro] = useState(false); 
+  const [itensDivergentes, setItensDivergentes] = useState([]); // Novo estado para NCM x Gênero
+  const [isMesFevereiro, setIsMesFevereiro] = useState(false);  
   const [anoAnteriorEstoque, setAnoAnteriorEstoque] = useState('');
   const [vSaidasTotal, setVSaidasTotal] = useState(0);
   const [vEntradasTotal, setVEntradasTotal] = useState(0);
@@ -306,7 +307,7 @@ const handleLogin = async (e) => {
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
     setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
     setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setRiscosFiscais([]);
-    setIsMesFevereiro(false); setHasBlocoH(false); setEstoqueInjetado(false); setVEstoqueInicial(0); setMargemLucro(30);
+    setIsMesFevereiro(false); setHasBlocoH(false); setEstoqueInjetado(false); setVEstoqueInicial(0); setMargemLucro(30); setItensDivergentes([]);
   };
 
   // =========================================================
@@ -488,8 +489,9 @@ const handleInjetarBlocoH = () => {
       
       let hasIndustrialCfop = false;
       let foundBlocoH = false; // Variável local para detecção
+      let divergenciasTemp = []; // Lista temporária para NCM x Gênero
 
-      let dEnt = { 
+      let dEnt = {  
         'Revenda_Trib_Temp': 0, 
         'Revenda_Ise_Temp': 0, 
         'Substituição Tributária (ST)': 0, 
@@ -533,7 +535,27 @@ const handleInjetarBlocoH = () => {
         }
         
         if (cols[1] === '0150') { mPart[cols[2]] = cols[3]; mPartEst[cols[2]] = cols[8] ? (mapUfIbgeLocal[cols[8].substring(0,2)] || 'Outros') : 'N/A'; }
-        if (cols[1] === '0200') { mProd[cols[2]] = cols[3]; }
+        if (cols[1] === '0200') { 
+          mProd[cols[2]] = cols[3]; 
+          
+          // === NOVA LÓGICA DE AUDITORIA: NCM vs GÊNERO ===
+          const ncm = cols[8] ? cols[8].replace(/\D/g, '') : '';
+          const genero = cols[10] ? cols[10].replace(/\D/g, '') : '';
+          
+          if (ncm.length >= 2) {
+            const prefixoNcm = ncm.substring(0, 2);
+            if (prefixoNcm !== genero) {
+               divergenciasTemp.push({
+                 linha: numLinha,
+                 codigo: cols[2],
+                 descricao: cols[3],
+                 ncm: cols[8],
+                 genero: cols[10],
+                 generoCorreto: prefixoNcm
+               });
+            }
+          }
+        }
 
         if (cols[1] === 'C100' || cols[1] === 'D100') {
            numDocAtual = cols[8] || 'S/N'; 
@@ -661,6 +683,7 @@ const handleInjetarBlocoH = () => {
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       
       setHasBlocoH(foundBlocoH); // Atualiza o estado global
+      setItensDivergentes(divergenciasTemp); // Salva divergências
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       setGuiasE116(listaG); setRiscosFiscais(riscosTemp); setLogAuditoria(logTemp);
@@ -720,6 +743,36 @@ const handleInjetarBlocoH = () => {
 
   const CORES_TRIBUTACAO = ['#004080', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899'];
   const CORES_MAPA = ['#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272'];
+
+  // === AÇÃO DE SANEAMENTO: CORRIGIR GÊNERO ===
+  const handleCorrigirGenero = () => {
+    if (!arquivoProcessado) return;
+    
+    let linhas = arquivoProcessado.split(/\r?\n/);
+    let corrigidos = 0;
+
+    const novasLinhas = linhas.map(linha => {
+      if (linha.startsWith('|0200|')) {
+        let cols = linha.split('|');
+        const ncm = cols[8] ? cols[8].replace(/\D/g, '') : '';
+        const generoAtual = cols[10] ? cols[10].replace(/\D/g, '') : '';
+        
+        if (ncm.length >= 2) {
+          const novoGenero = ncm.substring(0, 2);
+          if (generoAtual !== novoGenero) {
+             cols[10] = novoGenero;
+             corrigidos++;
+             return cols.join('|');
+          }
+        }
+      }
+      return linha;
+    });
+
+    setArquivoProcessado(novasLinhas.join('\r\n'));
+    setItensDivergentes([]); // Limpa a lista de erros
+    alert(`✅ Sucesso! ${corrigidos} itens foram corrigidos e o Gênero foi padronizado.`);
+  };
 
   // --- CÁLCULOS UNIFICADOS (TELA + INJEÇÃO) ---
   const vEntradas = parseFloat(entradasManuais || (dadosVaf.entradasBrutas - dadosVaf.devCompras) || 0);
@@ -1073,11 +1126,9 @@ const handleInjetarBlocoH = () => {
                 <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><AlertTriangle size={18} /> Riscos Fiscais</button>
                 <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><FileSearch size={18} /> Relatório de Auditoria</button>
                 {/* ESSE É O NOVO QUE VOCÊ VAI COLAR LOGO ABAIXO DELE */}
-                {isMesFevereiro && (
-                  <button onClick={() => setAbaAtiva('estoque')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'estoque' ? '#8b5cf6' : '#fff', color: abaAtiva === 'estoque' ? '#fff' : '#8b5cf6', border: '2px solid #8b5cf6', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
-                    <Package size={18} /> Apuração de Estoque
-                  </button>
-                )}
+                <button onClick={() => setAbaAtiva('estoque')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'estoque' ? '#8b5cf6' : '#fff', color: abaAtiva === 'estoque' ? '#fff' : '#8b5cf6', border: '2px solid #8b5cf6', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
+                  <Package size={18} /> Estoque
+                </button>
               </div>
             </div>
 
@@ -1436,7 +1487,7 @@ const handleInjetarBlocoH = () => {
             )}
 
 {/* === NOVA TELA DE ESTOQUE (ESTILO PLANILHA PROFISSIONAL) === */}
-{abaAtiva === 'estoque' && isMesFevereiro && (() => {
+{abaAtiva === 'estoque' && (() => {
               // 1. Variáveis base da Calculadora
               const vCalcEI = parseFloat(calcEI) || 0;
               const vCalcCompras = parseFloat(calcCompras) || 0;
@@ -1461,21 +1512,116 @@ const handleInjetarBlocoH = () => {
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', animation: 'slideIn 0.5s ease' }}>
                   
-                  {hasBlocoH && (
-                    <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
-                      <AlertTriangle size={32} color="#ef4444" />
-                      <div>
-                        <h3 style={{ margin: '0 0 5px 0', color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>Bloqueio de Segurança (Bloco H)</h3>
-                        <p style={{ margin: 0, color: '#7f1d1d', fontSize: '14px' }}>
-                          Atenção: O arquivo SPED importado já possui apuração de estoque informada (Registros H005/H010). O preenchimento manual do Bloco H foi bloqueado para evitar duplicidade.
-                        </p>
+                  {/* === CARD 2: ANÁLISE DO ESTOQUE (UI 2026 - GLASSMORPHISM) === */}
+                  <div className="card-analysis" style={{
+                    background: 'rgba(255, 255, 255, 0.8)',
+                    backdropFilter: 'blur(12px)',
+                    borderRadius: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.5)',
+                    boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)',
+                    padding: '30px',
+                    marginBottom: '20px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <div style={{ background: '#3b82f6', padding: '12px', borderRadius: '12px', color: '#fff', boxShadow: '0 4px 15px rgba(59, 130, 246, 0.3)' }}>
+                          <FileSearch size={28} />
+                        </div>
+                        <div>
+                          <h3 style={{ margin: 0, color: '#1e293b', fontSize: '20px', fontWeight: '800' }}>Auditoria de Cadastro (NCM x Gênero)</h3>
+                          <p style={{ margin: '4px 0 0 0', color: '#64748b', fontSize: '14px' }}>Verificação de integridade dos itens do Bloco 0200.</p>
+                        </div>
                       </div>
+                      
+                      {itensDivergentes.length > 0 ? (
+                        <button 
+                          onClick={handleCorrigirGenero}
+                          style={{
+                            background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '12px 24px',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '10px',
+                            boxShadow: '0 10px 20px rgba(37, 99, 235, 0.2)',
+                            transition: 'all 0.3s ease'
+                          }}
+                          onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 15px 30px rgba(37, 99, 235, 0.3)'; }}
+                          onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 10px 20px rgba(37, 99, 235, 0.2)'; }}
+                        >
+                          <RefreshCw size={20} style={{ animation: 'spin 2s linear infinite' }}/> Realizar Correção dos Itens
+                        </button>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#ecfdf5', padding: '10px 20px', borderRadius: '12px', border: '1px solid #10b981' }}>
+                          <CheckCircle size={24} color="#10b981" />
+                          <span style={{ color: '#065f46', fontWeight: 'bold' }}>Cadastro 100% Íntegro</span>
+                        </div>
+                      )}
                     </div>
-                  )}
 
-                  {/* === ETAPA 1: SUBMÓDULO DE CÁLCULO === */}
-                  <div className="card-dash" style={{ borderTop: '8px solid #10b981', padding: '0', overflow: 'hidden', pointerEvents: hasBlocoH ? 'none' : 'auto', opacity: hasBlocoH ? 0.5 : 1 }}>
-                    <div style={{ padding: '20px 25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {itensDivergentes.length > 0 ? (
+                      <div style={{ maxHeight: '400px', overflowY: 'auto', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                          <thead style={{ background: '#f8fafc', position: 'sticky', top: 0 }}>
+                            <tr>
+                              <th style={{ padding: '15px', textAlign: 'left', color: '#64748b' }}>Item</th>
+                              <th style={{ padding: '15px', textAlign: 'left', color: '#64748b' }}>Descrição</th>
+                              <th style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>NCM (Campo 09)</th>
+                              <th style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>Gênero Atual (Campo 11)</th>
+                              <th style={{ padding: '15px', textAlign: 'center', color: '#64748b' }}>Ação</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {itensDivergentes.slice(0, 100).map((item, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', background: '#fff', transition: 'background 0.2s' }}>
+                                <td style={{ padding: '12px 15px', fontWeight: 'bold', color: '#334155' }}>{item.codigo}</td>
+                                <td style={{ padding: '12px 15px', color: '#475569', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.descricao}</td>
+                                <td style={{ padding: '12px 15px', textAlign: 'center' }}>
+                                  <span style={{ background: '#dbeafe', color: '#1e40af', padding: '4px 10px', borderRadius: '20px', fontWeight: 'bold', fontSize: '12px' }}>
+                                    {item.ncm}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 15px', textAlign: 'center' }}>
+                                  <span style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: '20px', fontWeight: 'bold', fontSize: '12px' }}>
+                                    {item.genero || 'Vazio'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 15px', textAlign: 'center', color: '#10b981', fontWeight: 'bold' }}>
+                                  → {item.generoCorreto}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {itensDivergentes.length > 100 && (
+                          <div style={{ padding: '10px', textAlign: 'center', color: '#64748b', background: '#f1f5f9' }}>
+                            ... e mais {itensDivergentes.length - 100} itens com divergência.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '40px', background: 'rgba(255,255,255,0.5)', borderRadius: '12px' }}>
+                         <Sparkles size={48} color="#10b981" style={{ marginBottom: '15px' }} />
+                         <h3 style={{ margin: 0, color: '#065f46' }}>Tudo Certo!</h3>
+                         <p style={{ color: '#64748b' }}>Todos os itens possuem Gênero compatível com o NCM.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {isMesFevereiro && (
+                    <div className="card-dash" style={{ borderTop: '8px solid #10b981', padding: '0', overflow: 'hidden', opacity: hasBlocoH ? 0.6 : 1, pointerEvents: hasBlocoH ? 'none' : 'auto' }}>
+                      {hasBlocoH && (
+                        <div style={{ background: '#fef2f2', padding: '15px', borderBottom: '1px solid #fee2e2', display: 'flex', alignItems: 'center', gap: '10px', color: '#ef4444', fontWeight: 'bold' }}>
+                          <Lock size={18} /> BLOCO H JÁ EXISTENTE NO ARQUIVO. EDIÇÃO BLOQUEADA.
+                        </div>
+                      )}
+                      
+                      <div style={{ padding: '20px 25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
                       <div>
                         <h3 style={{ margin: 0, color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900' }}>
                           <Calculator size={28}/> 1. Submódulo: Calcular Estoque Final
@@ -1593,9 +1739,9 @@ const handleInjetarBlocoH = () => {
                       )}
                     </div>
                   </div>
+                  )}
 
-                  {/* === ETAPA 2: APURAÇÃO VAF E INJEÇÃO (SÓ APARECE SE APROVADO) === */}
-                  {isCalculoAprovado && (
+                  {isMesFevereiro && isCalculoAprovado && (
                     <div className="card-dash" style={{ borderTop: '8px solid #8b5cf6', padding: '0', overflow: 'hidden', animation: 'slideIn 0.5s ease' }}>
                       <div style={{ padding: '20px 25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
                         <h3 style={{ margin: 0, color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900' }}>
