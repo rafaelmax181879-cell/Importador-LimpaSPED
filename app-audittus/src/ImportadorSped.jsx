@@ -18,7 +18,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.51";
+const VERSAO_ATUAL = "1.1.52";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -52,7 +52,6 @@ const getNomeGuia = (cod) => {
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
 
 const renderCustomLabel = ({ percent }) => {
-  if (percent < 0.01) return null; 
   return `${(percent * 100).toFixed(1)}%`;
 };
 
@@ -90,6 +89,7 @@ export default function ImportadorSped() {
   const [dadosRoscaEntradas, setDadosRoscaEntradas] = useState([]);
   const [riscosFiscais, setRiscosFiscais] = useState([]);
   // === VARIÁVEIS DO MÓDULO DE ESTOQUE (v1.1.43) ===
+  const [hasBlocoH, setHasBlocoH] = useState(false);
   const [isMesFevereiro, setIsMesFevereiro] = useState(false); 
   const [anoAnteriorEstoque, setAnoAnteriorEstoque] = useState('');
   const [vSaidasTotal, setVSaidasTotal] = useState(0);
@@ -306,7 +306,7 @@ const handleLogin = async (e) => {
     setRelatorioCorrecoes({ c191Removidos: 0, c173Removidos: 0, textosRemovidos: 0, blocosRecalculados: 0 });
     setTopProdutos({ vendas: [], compras: [] }); setTopFornecedores([]); setDadosTributacaoSaida([]);
     setResumoTributacao({ st: 0, servicos: 0, isento: 0, total: 0 }); setDadosEstados([]); setLogAuditoria([]); setDadosRoscaEntradas([]); setRiscosFiscais([]);
-    setIsMesFevereiro(false); setEstoqueInjetado(false); setEstoqueInicial(0); setMargemLucro(30);
+    setIsMesFevereiro(false); setHasBlocoH(false); setEstoqueInjetado(false); setVEstoqueInicial(0); setMargemLucro(30);
   };
 
   // =========================================================
@@ -487,6 +487,8 @@ const handleInjetarBlocoH = () => {
       let mTribSaida = {}, vST = 0, vServ = 0, vIse = 0, tAnalise = 0, cEstObj = {}; 
       
       let hasIndustrialCfop = false;
+      let foundBlocoH = false; // Variável local para detecção
+
       let dEnt = { 
         'Revenda_Trib_Temp': 0, 
         'Revenda_Ise_Temp': 0, 
@@ -508,6 +510,8 @@ const handleInjetarBlocoH = () => {
 
       linhasOriginais.forEach((linhaOriginal) => {
         numLinha++; let linha = linhaOriginal; let cols = linha.split('|');
+
+        if (cols[1] === 'H005' || cols[1] === 'H010') { foundBlocoH = true; }
 
         if (cols[1] === '0000') {
           const dtIni = cols[4] || ''; const dtFin = cols[5] || '';
@@ -656,6 +660,7 @@ const handleInjetarBlocoH = () => {
       setDadosGraficoIcms([{ name: 'Créditos', value: totalCred }, { name: 'Débitos', value: totalDeb }]);
       setDadosGraficoOperacoes([{ name: 'Total Entradas', value: tEnt }, { name: 'Total Saídas', value: tSai }]);
       
+      setHasBlocoH(foundBlocoH); // Atualiza o estado global
       setResumoIcms({ saldoCredor: sCredFinal, icmsRecolher: iRecFinal });
       setResumoTributacao({ st: vST, servicos: vServ, isento: vIse, total: tAnalise });
       setGuiasE116(listaG); setRiscosFiscais(riscosTemp); setLogAuditoria(logTemp);
@@ -1164,10 +1169,10 @@ const handleInjetarBlocoH = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '25px' }}>
                     <div className="card-dash" style={{ margin: 0 }}>
                       <h3 className="card-title">Apuração de ICMS</h3>
-                      <div style={{ height: 300 }}>
+                      <div style={{ height: 350 }}>
                         {/* CORREÇÃO 4: MARGEM E RAIO AJUSTADOS PARA FATIAS FINAS */}
                         <ResponsiveContainer>
-                          <PieChart margin={{ top: 25, right: 30, bottom: 25, left: 30 }}>
+                          <PieChart margin={{ top: 30, right: 40, bottom: 30, left: 40 }}>
                             <Pie data={dadosGraficoIcms} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={4} label={renderCustomLabel}>
                               {dadosGraficoIcms.map((e,i)=><Cell key={i} fill={i===0?'#004080':'#f59e0b'}/>)}
                             </Pie>
@@ -1283,9 +1288,9 @@ const handleInjetarBlocoH = () => {
                     <div className="card-dash" style={{ margin: 0 }}>
                       <h3 className="card-title"><Activity size={24} /> Segregação das Entradas</h3>
                       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
-                        <div style={{ height: 300 }}>
+                        <div style={{ height: 350 }}>
                           <ResponsiveContainer>
-                            <PieChart margin={{ top: 25, right: 30, bottom: 25, left: 30 }}>
+                            <PieChart margin={{ top: 30, right: 40, bottom: 30, left: 40 }}>
                               <Pie data={dadosRoscaEntradas} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={4} label={renderCustomLabel}>
                                 {dadosRoscaEntradas.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
                               </Pie>
@@ -1307,9 +1312,9 @@ const handleInjetarBlocoH = () => {
                     <div className="card-dash" style={{ margin: 0 }}>
                       <h3 className="card-title"><Activity size={24} /> Tributação das Saídas</h3>
                       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '20px', alignItems: 'center' }}>
-                        <div style={{ height: 300 }}>
+                        <div style={{ height: 350 }}>
                           <ResponsiveContainer>
-                            <PieChart margin={{ top: 25, right: 30, bottom: 25, left: 30 }}>
+                            <PieChart margin={{ top: 30, right: 40, bottom: 30, left: 40 }}>
                               <Pie data={dadosTributacaoSaida} dataKey="value" innerRadius={60} outerRadius={85} paddingAngle={4} label={renderCustomLabel}>
                                 {dadosTributacaoSaida.map((e,i)=><Cell key={i} fill={CORES_TRIBUTACAO[i%CORES_TRIBUTACAO.length]}/>)}
                               </Pie>
@@ -1332,9 +1337,9 @@ const handleInjetarBlocoH = () => {
                   <div className="card-dash" style={{ margin: 0 }}>
                     <h3 className="card-title"><MapPin size={24} /> Aquisições por Estado (Origem)</h3>
                     <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '30px', alignItems: 'center' }}>
-                      <div style={{ height: 350 }}>
+                      <div style={{ height: 400 }}>
                         <ResponsiveContainer>
-                          <PieChart margin={{ top: 25, right: 40, bottom: 25, left: 40 }}>
+                          <PieChart margin={{ top: 30, right: 50, bottom: 30, left: 50 }}>
                             <Pie data={dadosEstados} dataKey="value" innerRadius={70} outerRadius={100} paddingAngle={4} label={renderCustomLabel}>
                               {dadosEstados.map((e,i)=><Cell key={i} fill={CORES_MAPA[i%CORES_MAPA.length]}/>)}
                             </Pie>
@@ -1456,8 +1461,20 @@ const handleInjetarBlocoH = () => {
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '25px', animation: 'slideIn 0.5s ease' }}>
                   
+                  {hasBlocoH && (
+                    <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: '12px', padding: '20px', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                      <AlertTriangle size={32} color="#ef4444" />
+                      <div>
+                        <h3 style={{ margin: '0 0 5px 0', color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>Bloqueio de Segurança (Bloco H)</h3>
+                        <p style={{ margin: 0, color: '#7f1d1d', fontSize: '14px' }}>
+                          Atenção: O arquivo SPED importado já possui apuração de estoque informada (Registros H005/H010). O preenchimento manual do Bloco H foi bloqueado para evitar duplicidade.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* === ETAPA 1: SUBMÓDULO DE CÁLCULO === */}
-                  <div className="card-dash" style={{ borderTop: '8px solid #10b981', padding: '0', overflow: 'hidden' }}>
+                  <div className="card-dash" style={{ borderTop: '8px solid #10b981', padding: '0', overflow: 'hidden', pointerEvents: hasBlocoH ? 'none' : 'auto', opacity: hasBlocoH ? 0.5 : 1 }}>
                     <div style={{ padding: '20px 25px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <h3 style={{ margin: 0, color: '#10b981', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '900' }}>
