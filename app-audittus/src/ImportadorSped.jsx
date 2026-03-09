@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from './AuthContext';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { 
   UploadCloud, CheckCircle, AlertCircle, FileText, Download, 
@@ -18,7 +19,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.54";
+const VERSAO_ATUAL = "1.1.55";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -120,6 +121,56 @@ export default function ImportadorSped() {
   const [updateNotification, setUpdateNotification] = useState(false);
   const [diasRestantesAtualizacao, setDiasRestantesAtualizacao] = useState(null);
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
+  
+  // === NOVO AUTH SYSTEM ===
+  const { login, user, office, isAuthenticated, logout, updatePasswordStatus } = useAuth();
+  const [logoEscritorio, setLogoEscritorio] = useState(null);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+
+  // Identificação Dinâmica
+  useEffect(() => {
+    const checkEmail = async () => {
+      if (senhaInput.includes('@') && senhaInput.length > 5) {
+          const { data } = await supabase
+            .from('colaboradores')
+            .select('escritorio_id, escritorios(logo_url)')
+            .eq('email', senhaInput.trim())
+            .single();
+          
+          if (data?.escritorios?.logo_url) {
+            setLogoEscritorio(data.escritorios.logo_url);
+          }
+      }
+    };
+    const timer = setTimeout(checkEmail, 800);
+    return () => clearTimeout(timer);
+  }, [senhaInput]);
+
+  const handleTrocarSenha = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      alert("A nova senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    
+    try {
+      // Atualiza senha e remove flag de troca obrigatória
+      const { error } = await supabase
+        .from('colaboradores')
+        .update({ senha: newPassword, trocar_senha: false }) 
+        .eq('id', user.id);
+
+      if (error) throw error;
+
+      alert("Senha alterada com sucesso!");
+      updatePasswordStatus();
+      setShowPasswordChange(false);
+      setFaseAtual('upload');
+    } catch (error) {
+      alert("Erro ao alterar senha: " + error.message);
+    }
+  };
+
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // === EXPORTAR PDF (v1.1.50) ===
@@ -221,6 +272,31 @@ const handleLogin = async (e) => {
     const hwId = obterOuGerarHardwareId();
 
     try {
+      // === NOVO: LOGIN CORPORATIVO ===
+      if (ident.includes('@')) {
+         const { data: colab, error: errColab } = await supabase
+           .from('colaboradores')
+           .select('*, escritorios(*)')
+           .eq('email', ident)
+           .single();
+         
+         if (colab) {
+            login(colab, colab.escritorios);
+            setRazaoSocialLogada(colab.escritorios.razao_social_completa || colab.nome_completo);
+            // Colaboradores têm acesso total (simulado como premium)
+            setLicencaAtual({ plano: 'premium', identificador_cliente: ident, limite_maquinas: 999 }); 
+
+            if (colab.trocar_senha) {
+               setShowPasswordChange(true);
+               setFaseAtual('change_password');
+            } else {
+               setFaseAtual('upload');
+            }
+            setIsProcessandoLoading(false);
+            return;
+         }
+      }
+
       let razaoEncontrada = '';
       const apenasNumeros = ident.replace(/\D/g, '');
       if (apenasNumeros.length === 14) {
@@ -876,7 +952,32 @@ const handleInjetarBlocoH = () => {
           <h1 style={{ color: '#ef4444', margin: '0 0 15px' }}>Sistema Obsoleto</h1>
           <p style={{ color: '#475569', fontSize: '18px', marginBottom: '20px' }}>Atualização obrigatória para continuar.</p>
           <button onClick={handleAtualizarAgora} style={{ width: '100%', padding: '15px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-            <DownloadCloud size={18} /> Forçar Atualização
+            <Download size={18} /> Forçar Atualização
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // === TELA DE TROCA DE SENHA (PRIMEIRO ACESSO) ===
+  if (faseAtual === 'change_password') {
+    return (
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f0f4f8', zIndex: 9999 }}>
+        <div style={{ background: '#fff', padding: '60px 80px', borderRadius: '24px', boxShadow: '0 25px 50px rgba(0,0,0,0.1)', textAlign: 'center', maxWidth: '500px' }}>
+          <Lock size={60} color="#ef4444" style={{ marginBottom: '20px' }} />
+          <h2 style={{ color: '#004080', margin: '0 0 10px 0' }}>Segurança Primeiro</h2>
+          <p style={{ color: '#64748b', marginBottom: '30px' }}>Para continuar, você precisa definir uma nova senha segura.</p>
+          
+          <input 
+            type="password" 
+            placeholder="Nova Senha (min. 6 caracteres)" 
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            style={{ width: '100%', padding: '15px', borderRadius: '12px', border: '1px solid #cbd5e1', marginBottom: '20px', fontSize: '16px' }}
+          />
+          
+          <button onClick={handleTrocarSenha} style={{ width: '100%', padding: '15px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+            Atualizar Senha e Entrar
           </button>
         </div>
       </div>
@@ -917,8 +1018,13 @@ const handleInjetarBlocoH = () => {
           </div>
         )}
 
-        <div style={{ background: '#fff', padding: '60px 50px', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.05)', width: '100%', maxWidth: faseAtual === 'login' ? '450px' : '700px', textAlign: 'center', border: '1px solid #e2e8f0', transition: '0.3s' }}>
+        <div style={{ position: 'relative', background: '#fff', padding: '60px 50px', borderRadius: '24px', boxShadow: '0 20px 40px rgba(0,0,0,0.05)', width: '100%', maxWidth: faseAtual === 'login' ? '450px' : '700px', textAlign: 'center', border: '1px solid #e2e8f0', transition: '0.3s' }}>
           
+          {/* LOGO DO ESCRITÓRIO DINÂMICA (LOGIN) */}
+          {faseAtual === 'login' && logoEscritorio && (
+            <img src={logoEscritorio} alt="Logo Escritório" style={{ position: 'absolute', top: '20px', right: '20px', height: '40px', objectFit: 'contain', padding: '5px', borderRadius: '8px', background: '#fff' }} />
+          )}
+
           <div style={{ marginBottom: '30px' }}>
             <Shield size={64} color="#004080" style={{ margin: '0 auto 15px auto', display: 'block' }} />
             <h1 style={{ color: '#004080', margin: '0 0 5px 0', fontSize: '36px', fontWeight: '900', letterSpacing: '-1px' }}>AUDITTUS</h1>
@@ -1153,6 +1259,11 @@ const handleInjetarBlocoH = () => {
               <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: licencaAtual.plano === 'premium' ? '#10b981' : (licencaAtual.plano === 'admin' ? '#3b82f6' : '#f59e0b'), flexShrink: 0 }}></div>
               <span style={{ background: licencaAtual.plano === 'premium' ? '#ecfdf5' : '#fef3c7', color: licencaAtual.plano === 'premium' ? '#047857' : '#d97706', padding: '4px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: '900', textTransform: 'uppercase', flexShrink: 0 }}>{licencaAtual.plano}</span>
             </div>
+          )}
+
+          {/* LOGO DO ESCRITÓRIO NO DASHBOARD */}
+          {office?.logo_url && (
+             <img src={office.logo_url} alt="Logo Escritório" className="no-print" style={{ position: 'absolute', top: '30px', right: '30px', height: '60px', objectFit: 'contain', zIndex: 50, background: '#fff', padding: '5px', borderRadius: '8px', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }} />
           )}
 
           <div className="content-wrapper" id="area-pdf">
@@ -1859,9 +1970,26 @@ const handleInjetarBlocoH = () => {
 
             <BotoesAcao />
             
-            {/* RODAPÉ DO PDF COM LOGO */}
-            <div className="pdf-footer" style={{ marginTop: '40px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', opacity: 0.4 }}>
-              <img src="/Perfil_1_facebook_WhatsApp.png" alt="Master Contabilidade" style={{ width: '100px', height: 'auto' }} />
+            {/* NOVO RODAPÉ WHITE LABEL */}
+            <div className="pdf-footer" style={{ marginTop: '50px', breakInside: 'avoid' }}>
+               {/* Assinatura do Analista */}
+               {user && (
+                 <div style={{ textAlign: 'center', marginBottom: '20px', color: '#64748b' }}>
+                    <div style={{ borderTop: '1px solid #cbd5e1', width: '300px', margin: '0 auto 10px' }}></div>
+                    <strong style={{ display: 'block', fontSize: '14px', color: '#334155' }}>{user.nome_completo}</strong>
+                    <span style={{ fontSize: '12px' }}>{user.cargo || 'Analista Fiscal/Contábil'}</span>
+                 </div>
+               )}
+
+               {/* Bloco do Escritório */}
+               <div style={{ background: '#f8fafc', padding: '20px 40px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
+                  <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 'bold' }}>
+                     {office?.razao_social_completa || 'AUDITTUS - Inteligência Fiscal'}
+                  </div>
+                  {office?.logo_url && (
+                    <img src={office.logo_url} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
+                  )}
+               </div>
             </div>
           </div>
         </>
