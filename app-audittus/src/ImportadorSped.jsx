@@ -19,7 +19,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.2.1";
+const VERSAO_ATUAL = "1.2.2";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -259,13 +259,14 @@ const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
     
-    const email = emailInput.trim();
+    // Normalização Rigorosa
+    const email = emailInput.trim().toLowerCase();
     const senha = senhaInput.trim();
 
     if (!email) { setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); return; }
     
     // BACKDOOR DO ADMIN
-    if (email === SENHA_ADMIN) {
+    if (email === SENHA_ADMIN.toLowerCase()) {
       setLicencaAtual({ plano: 'admin', identificador_cliente: 'Acesso Mestre' });
       setRazaoSocialLogada('Administrador');
       setFaseAtual('upload');
@@ -283,10 +284,9 @@ const handleLogin = async (e) => {
     const hwId = obterOuGerarHardwareId();
 
     try {
-      // === LOGIN v1.2.0: COLABORADOR (EMAIL + SENHA) ===
+      // === LOGIN v1.2.1: COLABORADOR (EMAIL + SENHA) ===
+      // Prioridade TOTAL para Auth do Supabase se tiver @
       if (email.includes('@')) {
-         const cleanEmail = email.toLowerCase();
-
          if (!senha) {
            setErroLogin('Por favor, digite sua senha.');
            setIsProcessandoLoading(false);
@@ -295,14 +295,14 @@ const handleLogin = async (e) => {
 
          // 1. TENTATIVA DE AUTENTICAÇÃO (Auth Supabase)
          const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-            email: cleanEmail,
+            email: email,
             password: senha
          });
 
          if (authError) {
             console.error("Erro Auth:", authError);
-            setErroLogin('Falha na autenticação: Verifique E-mail e Senha.');
-            // alert(`Erro detalhado: ${authError.message}`); // Opcional para debug
+            setErroLogin(`Falha na autenticação: ${authError.message}`);
+            alert(`Erro de Login: ${authError.message} | Código: ${authError.status || 'N/A'}`);
             setIsProcessandoLoading(false);
             return;
          }
@@ -317,7 +317,9 @@ const handleLogin = async (e) => {
              
              if (errColab || !colab) {
                 console.error("Erro Dados Colab:", errColab);
+                const msgErro = errColab ? errColab.message : 'Perfil não encontrado';
                 setErroLogin('Usuário autenticado, mas perfil de colaborador não encontrado.');
+                alert(`Erro de Perfil: ${msgErro}`);
                 setIsProcessandoLoading(false);
                 return;
              }
@@ -325,7 +327,7 @@ const handleLogin = async (e) => {
              // SUCESSO!
              login(colab, colab.escritorios);
              setRazaoSocialLogada(colab.escritorios.razao_social_completa || colab.nome_completo);
-             setLicencaAtual({ plano: 'premium', identificador_cliente: cleanEmail, limite_maquinas: 999 }); 
+             setLicencaAtual({ plano: 'premium', identificador_cliente: email, limite_maquinas: 999 }); 
 
              if (colab.trocar_senha) {
                 setShowPasswordChange(true);
@@ -2041,7 +2043,7 @@ const handleInjetarBlocoH = () => {
                {/* Bloco do Escritório */}
                <div style={{ background: '#f8fafc', padding: '20px 40px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
                   <div style={{ color: '#64748b', fontSize: '12px', fontWeight: 'bold' }}>
-                     {office?.razao_social_completa || 'AUDITTUS - Inteligência Fiscal'}
+                     {office?.razao_social_completa || 'Escritório Contábil'}
                   </div>
                   {office?.logo_url && (
                     <img src={office.logo_url} alt="Logo" style={{ height: '40px', objectFit: 'contain' }} />
