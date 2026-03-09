@@ -18,7 +18,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.53";
+const VERSAO_ATUAL = "1.1.54";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -378,11 +378,11 @@ const handleInjetarBlocoH = () => {
 
       if (ultimoIdx0200 !== -1) {
         // Se encontrou outros 0200, insere logo após o último deles
-        linhas.splice(ultimoIdx0200 + 1, 0, `|0200|DIVERSOS-OK|ITENS DIVERSOS|||1|00||||||`);
+        linhas.splice(ultimoIdx0200 + 1, 0, `|0200|DIVERSOS-OK|ITENS DIVERSOS|||1|00|||||||`);
       } else {
         // Se não houver nenhum 0200 (raro), procura o 0190 ou insere antes do 0990
         const idxReserva = linhas.findIndex(l => l.startsWith('|0190|') || l.startsWith('|0990|'));
-        if (idxReserva !== -1) linhas.splice(idxReserva + 1, 0, `|0200|DIVERSOS-OK|ITENS DIVERSOS|||1|00||||||`);
+        if (idxReserva !== -1) linhas.splice(idxReserva + 1, 0, `|0200|DIVERSOS-OK|ITENS DIVERSOS|||1|00|||||||`);
       }
     }
 
@@ -416,8 +416,38 @@ const handleInjetarBlocoH = () => {
       bloco9.push(`|9900|${reg}|${contagem[reg]}|`);
     });
 
+    // Recalcular Totalizadores de Blocos
+    const totalizarBloco = (bloco, registroFechamento) => {
+        const total = linhas.filter(l => l.startsWith(`|${bloco}`)).length;
+        const idx = linhas.findIndex(l => l.startsWith(`|${registroFechamento}|`));
+        if (idx !== -1) {
+            // Se já existe, atualiza (considerando que o fechamento conta na soma, dependendo do manual, mas geralmente C990 inclui C001 a C990)
+            // No caso do SPED Fiscal, o registro de encerramento do bloco contém a quantidade de linhas do bloco (incluindo abertura e encerramento).
+            // Como estamos contando todas as linhas que começam com o bloco (ex: |C...), isso já inclui C001 e C990 se eles estiverem na lista 'linhas'.
+            // Porém, a lista 'linhas' pode ter o fechamento antigo. Vamos garantir.
+            linhas[idx] = `|${registroFechamento}|${total}|`;
+        }
+    };
+    
+    // As linhas já contêm o Bloco H injetado e outros blocos. O Bloco 9 está sendo reconstruído separadamente.
+    // Vamos reconstruir os fechamentos ANTES de gerar o Bloco 9 final e juntar tudo.
+    
+    // Atualiza fechamentos na lista 'linhas'
+    ['0','C','D','E','G','H','K','1'].forEach(b => {
+       const reg = `${b}990`;
+       // Filtra linhas do bloco atual na lista 'linhas'
+       const count = linhas.filter(l => l.startsWith(`|${b}`)).length;
+       if (count > 0) {
+           const idx = linhas.findIndex(l => l.startsWith(`|${reg}|`));
+           if (idx !== -1) {
+               linhas[idx] = `|${reg}|${count}|`;
+           }
+       }
+    });
+
     // Finalizadores com a soma das linhas do Bloco 9 e do arquivo inteiro
     bloco9.push(`|9990|${bloco9.length + 1}|`);
+    // Soma total: linhas (dados) + bloco9 (novos)
     bloco9.push(`|9999|${linhas.length + bloco9.length + 1}|`);
 
     setArquivoProcessado([...linhas, ...bloco9].join('\r\n'));
@@ -721,6 +751,19 @@ const handleInjetarBlocoH = () => {
       // Ordena alfabeticamente (exigência do SPED)
       Object.keys(contagemValidado).sort().forEach(reg => {
         bloco9Validado.push(`|9900|${reg}|${contagemValidado[reg]}|`);
+      });
+
+      // === RECÁLCULO DE TOTALIZADORES DOS BLOCOS (C990, D990, E990, H990, etc) ===
+      // Atualiza fechamentos na lista 'linhasSem9'
+      ['0','C','D','E','G','H','K','1'].forEach(b => {
+         const reg = `${b}990`;
+         const total = linhasSem9.filter(l => l.startsWith(`|${b}`)).length;
+         if (total > 0) {
+             const idx = linhasSem9.findIndex(l => l.startsWith(`|${reg}|`));
+             if (idx !== -1) {
+                 linhasSem9[idx] = `|${reg}|${total}|`;
+             }
+         }
       });
 
       bloco9Validado.push(`|9990|${bloco9Validado.length + 1}|`);
