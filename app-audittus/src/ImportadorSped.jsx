@@ -19,7 +19,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.1.55";
+const VERSAO_ATUAL = "1.2.0";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -59,7 +59,10 @@ const renderCustomLabel = ({ percent }) => {
 export default function ImportadorSped() {
   const [faseAtual, setFaseAtual] = useState('login'); 
 
+  // === DADOS DE LOGIN v1.2.0 ===
+  const [emailInput, setEmailInput] = useState(''); 
   const [senhaInput, setSenhaInput] = useState(''); 
+  
   const [erroLogin, setErroLogin] = useState('');
   const [loadingText, setLoadingText] = useState('');
   const [isProcessandoLoading, setIsProcessandoLoading] = useState(false);
@@ -128,24 +131,28 @@ export default function ImportadorSped() {
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [newPassword, setNewPassword] = useState('');
 
-  // Identificação Dinâmica
+  // Identificação Dinâmica (v1.2.0)
   useEffect(() => {
     const checkEmail = async () => {
-      if (senhaInput.includes('@') && senhaInput.length > 5) {
+      if (emailInput.includes('@') && emailInput.length > 5) {
           const { data } = await supabase
             .from('colaboradores')
             .select('escritorio_id, escritorios(logo_url)')
-            .eq('email', senhaInput.trim())
+            .eq('email', emailInput.trim())
             .single();
           
           if (data?.escritorios?.logo_url) {
             setLogoEscritorio(data.escritorios.logo_url);
+          } else {
+            setLogoEscritorio(null);
           }
+      } else {
+        setLogoEscritorio(null);
       }
     };
     const timer = setTimeout(checkEmail, 800);
     return () => clearTimeout(timer);
-  }, [senhaInput]);
+  }, [emailInput]);
 
   const handleTrocarSenha = async () => {
     if (!newPassword || newPassword.length < 6) {
@@ -251,10 +258,14 @@ export default function ImportadorSped() {
 const handleLogin = async (e) => {
     e.preventDefault();
     setErroLogin('');
-    const ident = senhaInput.trim();
-    if (!ident) { setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); return; }
     
-    if (ident === SENHA_ADMIN) {
+    const email = emailInput.trim();
+    const senha = senhaInput.trim();
+
+    if (!email) { setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); return; }
+    
+    // BACKDOOR DO ADMIN
+    if (email === SENHA_ADMIN) {
       setLicencaAtual({ plano: 'admin', identificador_cliente: 'Acesso Mestre' });
       setRazaoSocialLogada('Administrador');
       setFaseAtual('upload');
@@ -272,19 +283,25 @@ const handleLogin = async (e) => {
     const hwId = obterOuGerarHardwareId();
 
     try {
-      // === NOVO: LOGIN CORPORATIVO ===
-      if (ident.includes('@')) {
+      // === LOGIN v1.2.0: COLABORADOR (EMAIL + SENHA) ===
+      if (email.includes('@')) {
+         if (!senha) {
+           setErroLogin('Por favor, digite sua senha.');
+           setIsProcessandoLoading(false);
+           return;
+         }
+
          const { data: colab, error: errColab } = await supabase
            .from('colaboradores')
            .select('*, escritorios(*)')
-           .eq('email', ident)
+           .eq('email', email)
+           .eq('senha', senha) // Validação direta (idealmente seria hash, mas mantendo padrão atual)
            .single();
          
          if (colab) {
             login(colab, colab.escritorios);
             setRazaoSocialLogada(colab.escritorios.razao_social_completa || colab.nome_completo);
-            // Colaboradores têm acesso total (simulado como premium)
-            setLicencaAtual({ plano: 'premium', identificador_cliente: ident, limite_maquinas: 999 }); 
+            setLicencaAtual({ plano: 'premium', identificador_cliente: email, limite_maquinas: 999 }); 
 
             if (colab.trocar_senha) {
                setShowPasswordChange(true);
@@ -294,11 +311,17 @@ const handleLogin = async (e) => {
             }
             setIsProcessandoLoading(false);
             return;
+         } else {
+           setErroLogin('E-mail ou senha incorretos.');
+           setIsProcessandoLoading(false);
+           return;
          }
       }
 
+      // === LOGIN LEGADO (CNPJ APENAS) ===
+      // Mantido para compatibilidade com licenças antigas que usam apenas CNPJ
       let razaoEncontrada = '';
-      const apenasNumeros = ident.replace(/\D/g, '');
+      const apenasNumeros = email.replace(/\D/g, '');
       if (apenasNumeros.length === 14) {
         try {
           const resApi = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${apenasNumeros}`);
@@ -1033,23 +1056,37 @@ const handleInjetarBlocoH = () => {
 
           {faseAtual === 'login' && (
             <>
-              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <div>
+              <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ textAlign: 'left' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#64748b', fontWeight: 'bold', fontSize: '14px' }}>E-mail ou CNPJ</label>
                   <input 
                     type="text" 
-                    placeholder="E-mail ou CNPJ da Licença" 
+                    placeholder="usuario@escritorio.com" 
+                    value={emailInput} 
+                    onChange={(e) => setEmailInput(e.target.value)} 
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px', borderRadius: '10px', border: '2px solid #cbd5e1', fontSize: '15px', outline: 'none', transition: '0.3s' }} 
+                  />
+                </div>
+                
+                <div style={{ textAlign: 'left' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', color: '#64748b', fontWeight: 'bold', fontSize: '14px' }}>Senha</label>
+                  <input 
+                    type="password" 
+                    placeholder="••••••••" 
                     value={senhaInput} 
                     onChange={(e) => setSenhaInput(e.target.value)} 
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '16px', borderRadius: '12px', border: '2px solid #cbd5e1', fontSize: '16px', textAlign: 'center', outline: 'none', transition: '0.3s' }} 
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '14px', borderRadius: '10px', border: '2px solid #cbd5e1', fontSize: '15px', outline: 'none', transition: '0.3s' }} 
                   />
-                  {erroLogin && <span style={{ color: '#ef4444', fontSize: '13px', display: 'block', marginTop: '8px', fontWeight: 'bold' }}>{erroLogin}</span>}
                 </div>
-                <button type="submit" disabled={isProcessandoLoading} style={{ padding: '16px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}>
+
+                {erroLogin && <span style={{ color: '#ef4444', fontSize: '13px', display: 'block', fontWeight: 'bold', background: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fee2e2' }}>{erroLogin}</span>}
+                
+                <button type="submit" disabled={isProcessandoLoading} style={{ marginTop: '10px', padding: '16px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s', boxShadow: '0 4px 10px rgba(0,64,128,0.2)' }}>
                   {isProcessandoLoading ? <Loader2 size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Lock size={18} />} 
-                  {isProcessandoLoading ? 'Conectando ao Servidor...' : 'Acessar Sistema'}
+                  {isProcessandoLoading ? 'Verificando Credenciais...' : 'Entrar no Sistema'}
                 </button>
               </form>
-              <p style={{ marginTop: '25px', fontSize: '12px', color: '#94a3b8' }}>Se for o seu primeiro acesso, 1 análise será liberada gratuitamente.</p>
+              <p style={{ marginTop: '25px', fontSize: '12px', color: '#94a3b8' }}>Versão {VERSAO_ATUAL} | AUDITTUS &copy; 2026</p>
             </>
           )}
 
