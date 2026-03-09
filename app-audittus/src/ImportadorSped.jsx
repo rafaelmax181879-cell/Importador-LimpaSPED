@@ -19,7 +19,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.2.0";
+const VERSAO_ATUAL = "1.2.1";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -285,36 +285,56 @@ const handleLogin = async (e) => {
     try {
       // === LOGIN v1.2.0: COLABORADOR (EMAIL + SENHA) ===
       if (email.includes('@')) {
+         const cleanEmail = email.toLowerCase();
+
          if (!senha) {
            setErroLogin('Por favor, digite sua senha.');
            setIsProcessandoLoading(false);
            return;
          }
 
-         const { data: colab, error: errColab } = await supabase
-           .from('colaboradores')
-           .select('*, escritorios(*)')
-           .eq('email', email)
-           .eq('senha', senha) // Validação direta (idealmente seria hash, mas mantendo padrão atual)
-           .single();
-         
-         if (colab) {
-            login(colab, colab.escritorios);
-            setRazaoSocialLogada(colab.escritorios.razao_social_completa || colab.nome_completo);
-            setLicencaAtual({ plano: 'premium', identificador_cliente: email, limite_maquinas: 999 }); 
+         // 1. TENTATIVA DE AUTENTICAÇÃO (Auth Supabase)
+         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: senha
+         });
 
-            if (colab.trocar_senha) {
-               setShowPasswordChange(true);
-               setFaseAtual('change_password');
-            } else {
-               setFaseAtual('upload');
-            }
+         if (authError) {
+            console.error("Erro Auth:", authError);
+            setErroLogin('Falha na autenticação: Verifique E-mail e Senha.');
+            // alert(`Erro detalhado: ${authError.message}`); // Opcional para debug
             setIsProcessandoLoading(false);
             return;
-         } else {
-           setErroLogin('E-mail ou senha incorretos.');
-           setIsProcessandoLoading(false);
-           return;
+         }
+
+         if (authData?.user) {
+             // 2. BUSCA DADOS DO COLABORADOR PELO ID DO USUÁRIO (Evita bloqueio RLS)
+             const { data: colab, error: errColab } = await supabase
+               .from('colaboradores')
+               .select('*, escritorios(*)')
+               .eq('id', authData.user.id) // Busca pelo UUID retornado pelo Auth
+               .single();
+             
+             if (errColab || !colab) {
+                console.error("Erro Dados Colab:", errColab);
+                setErroLogin('Usuário autenticado, mas perfil de colaborador não encontrado.');
+                setIsProcessandoLoading(false);
+                return;
+             }
+
+             // SUCESSO!
+             login(colab, colab.escritorios);
+             setRazaoSocialLogada(colab.escritorios.razao_social_completa || colab.nome_completo);
+             setLicencaAtual({ plano: 'premium', identificador_cliente: cleanEmail, limite_maquinas: 999 }); 
+
+             if (colab.trocar_senha) {
+                setShowPasswordChange(true);
+                setFaseAtual('change_password');
+             } else {
+                setFaseAtual('upload');
+             }
+             setIsProcessandoLoading(false);
+             return;
          }
       }
 
@@ -332,7 +352,7 @@ const handleLogin = async (e) => {
         } catch (errApi) { console.log("Aviso: Falha ao buscar razão social."); }
       }
 
-      let { data: licenca, error } = await supabase.from('licencas_clientes').select('*').eq('identificador_cliente', ident).single();
+      let { data: licenca, error } = await supabase.from('licencas_clientes').select('*').eq('identificador_cliente', email).single();
       if (error && error.code !== 'PGRST116') { throw new Error("Erro de conexão."); }
 
       // =========================================================================
@@ -341,7 +361,7 @@ const handleLogin = async (e) => {
       if (!licenca) {
         // Cliente Novo
         const novaLicenca = { 
-          identificador_cliente: ident, 
+          identificador_cliente: email, 
           hardware_id: hwId, // Mantido por segurança na transição
           maquinas_vinculadas: [hwId],
           limite_maquinas: 1,
