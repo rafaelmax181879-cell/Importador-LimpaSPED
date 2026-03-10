@@ -19,7 +19,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.2.2";
+const VERSAO_ATUAL = "1.2.3";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -131,27 +131,8 @@ export default function ImportadorSped() {
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [newPassword, setNewPassword] = useState('');
 
-  // Identificação Dinâmica (v1.2.0)
   useEffect(() => {
-    const checkEmail = async () => {
-      if (emailInput.includes('@') && emailInput.length > 5) {
-          const { data } = await supabase
-            .from('colaboradores')
-            .select('escritorio_id, escritorios(logo_url)')
-            .eq('email', emailInput.trim())
-            .single();
-          
-          if (data?.escritorios?.logo_url) {
-            setLogoEscritorio(data.escritorios.logo_url);
-          } else {
-            setLogoEscritorio(null);
-          }
-      } else {
-        setLogoEscritorio(null);
-      }
-    };
-    const timer = setTimeout(checkEmail, 800);
-    return () => clearTimeout(timer);
+    setLogoEscritorio(null);
   }, [emailInput]);
 
   const handleTrocarSenha = async () => {
@@ -161,13 +142,15 @@ export default function ImportadorSped() {
     }
     
     try {
-      // Atualiza senha e remove flag de troca obrigatória
-      const { error } = await supabase
+      const { error: authUpdateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (authUpdateError) throw authUpdateError;
+
+      const { error: profileUpdateError } = await supabase
         .from('colaboradores')
-        .update({ senha: newPassword, trocar_senha: false }) 
+        .update({ trocar_senha: false }) 
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (profileUpdateError) throw profileUpdateError;
 
       alert("Senha alterada com sucesso!");
       updatePasswordStatus();
@@ -273,20 +256,11 @@ const handleLogin = async (e) => {
       return;
     }
 
-    const mem = navigator.deviceMemory || 4;
-    const cores = navigator.hardwareConcurrency || 4;
-    if (mem < 2 || cores < 2) {
-      setErroLogin('Erro FATAL: Ambiente de execução gráfico não suportado.');
-      return;
-    }
-
-    setIsProcessandoLoading(true);
-    const hwId = obterOuGerarHardwareId();
-
     try {
       // === LOGIN v1.2.1: COLABORADOR (EMAIL + SENHA) ===
       // Prioridade TOTAL para Auth do Supabase se tiver @
       if (email.includes('@')) {
+         setIsProcessandoLoading(true);
          if (!senha) {
            setErroLogin('Por favor, digite sua senha.');
            setIsProcessandoLoading(false);
@@ -303,6 +277,9 @@ const handleLogin = async (e) => {
             console.error("Erro Auth:", authError);
             setErroLogin(`Falha na autenticação: ${authError.message}`);
             alert(`Erro de Login: ${authError.message} | Código: ${authError.status || 'N/A'}`);
+            if ((authError.message || '').toLowerCase().includes('email not confirmed')) {
+              alert('Email not confirmed. Para permitir login sem confirmação, desative a confirmação de e-mail nas configurações de Auth do Supabase (Authentication > Providers > Email).');
+            }
             setIsProcessandoLoading(false);
             return;
          }
@@ -328,6 +305,7 @@ const handleLogin = async (e) => {
              login(colab, colab.escritorios);
              setRazaoSocialLogada(colab.escritorios.razao_social_completa || colab.nome_completo);
              setLicencaAtual({ plano: 'premium', identificador_cliente: email, limite_maquinas: 999 }); 
+             setLogoEscritorio(colab.escritorios?.logo_url || null);
 
              if (colab.trocar_senha) {
                 setShowPasswordChange(true);
@@ -338,7 +316,19 @@ const handleLogin = async (e) => {
              setIsProcessandoLoading(false);
              return;
          }
+         setIsProcessandoLoading(false);
+         return;
       }
+
+      const mem = navigator.deviceMemory || 4;
+      const cores = navigator.hardwareConcurrency || 4;
+      if (mem < 2 || cores < 2) {
+        setErroLogin('Erro FATAL: Ambiente de execução gráfico não suportado.');
+        return;
+      }
+
+      setIsProcessandoLoading(true);
+      const hwId = obterOuGerarHardwareId();
 
       // === LOGIN LEGADO (CNPJ APENAS) ===
       // Mantido para compatibilidade com licenças antigas que usam apenas CNPJ
@@ -411,8 +401,40 @@ const handleLogin = async (e) => {
       setFaseAtual('upload');
     } catch (err) { 
       setErroLogin('Erro de rede: Verifique sua conexão com a internet.'); 
+      alert(`Erro: ${err.message || err} | Código: ${err.status || 'N/A'}`);
     } finally { 
       setIsProcessandoLoading(false); 
+    }
+  };
+
+  const handleDebugRafael = async () => {
+    const debugEmail = 'mastercontabil.rafaeldpfiscal@gmail.com';
+    const senha = senhaInput.trim() || window.prompt('Senha do usuário debug:');
+    if (!senha) return;
+
+    setErroLogin('');
+    setIsProcessandoLoading(true);
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: debugEmail,
+        password: senha
+      });
+
+      if (authError) {
+        alert(`Erro de Login: ${authError.message} | Código: ${authError.status || 'N/A'}`);
+        setIsProcessandoLoading(false);
+        return;
+      }
+
+      const debugUser = { id: authData?.user?.id, nome_completo: 'Rafael', cargo: 'Analista Fiscal/Contábil', trocar_senha: false };
+      login(debugUser, null);
+      setRazaoSocialLogada('Rafael');
+      setLicencaAtual({ plano: 'premium', identificador_cliente: debugEmail, limite_maquinas: 999 });
+      setFaseAtual('upload');
+    } catch (err) {
+      alert(`Erro: ${err.message || err} | Código: ${err.status || 'N/A'}`);
+    } finally {
+      setIsProcessandoLoading(false);
     }
   };
 
@@ -1106,6 +1128,10 @@ const handleInjetarBlocoH = () => {
                 <button type="submit" disabled={isProcessandoLoading} style={{ marginTop: '10px', padding: '16px', background: '#004080', color: '#fff', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: 'bold', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s', boxShadow: '0 4px 10px rgba(0,64,128,0.2)' }}>
                   {isProcessandoLoading ? <Loader2 size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Lock size={18} />} 
                   {isProcessandoLoading ? 'Verificando Credenciais...' : 'Entrar no Sistema'}
+                </button>
+
+                <button type="button" onClick={handleDebugRafael} disabled={isProcessandoLoading} style={{ padding: '14px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '13px', fontWeight: '900', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}>
+                  <Shield size={18} /> ENTRAR COMO RAFAEL (DEBUG)
                 </button>
               </form>
               <p style={{ marginTop: '25px', fontSize: '12px', color: '#94a3b8' }}>Versão {VERSAO_ATUAL} | AUDITTUS &copy; 2026</p>
