@@ -13,13 +13,12 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 // ATENÇÃO: COLE SUAS CHAVES DO SUPABASE EXATAMENTE AQUI DENTRO DAS ASPAS
-const SUPABASE_URL = "https://quzffabofgnzcfjwuwqm.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_HCd0W4cL7-AixaPlBgG-PQ_Fg34rowo";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://htloyhexvkyltqrkhxwi.supabase.co";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const SENHA_ADMIN = "Master9713"; 
-const VERSAO_ATUAL = "1.2.3";
+const VERSAO_ATUAL = "1.3.0";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -126,10 +125,22 @@ export default function ImportadorSped() {
   const [sistemaBloqueadoPorAtualizacao, setSistemaBloqueadoPorAtualizacao] = useState(false);
   
   // === NOVO AUTH SYSTEM ===
-  const { login, user, office, isAuthenticated, logout, updatePasswordStatus } = useAuth();
+  const { login, user, office, isAuthenticated, isSuperAdmin, logout, updatePasswordStatus } = useAuth();
   const [logoEscritorio, setLogoEscritorio] = useState(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [gestaoUsuarios, setGestaoUsuarios] = useState([]);
+  const [gestaoFormEmail, setGestaoFormEmail] = useState('');
+  const [gestaoFormNome, setGestaoFormNome] = useState('');
+  const [gestaoFormCargo, setGestaoFormCargo] = useState('');
+  const [gestaoFormCnpjEscritorio, setGestaoFormCnpjEscritorio] = useState('');
+  const [gestaoLoading, setGestaoLoading] = useState(false);
+  const [gestaoSenhaTemporaria, setGestaoSenhaTemporaria] = useState('');
+  const [gestaoErro, setGestaoErro] = useState('');
+  const cnpjEscritorioAtivo = ((office?.cnpj || user?.cnpj_escritorio || '') + '').replace(/\D/g, '');
+  const [difalPendencias, setDifalPendencias] = useState([]);
+  const [difalLoading, setDifalLoading] = useState(false);
+  const [difalErro, setDifalErro] = useState('');
 
   useEffect(() => {
     setLogoEscritorio(null);
@@ -247,14 +258,6 @@ const handleLogin = async (e) => {
     const senha = senhaInput.trim();
 
     if (!email) { setErroLogin('Por favor, informe seu E-mail ou CNPJ.'); return; }
-    
-    // BACKDOOR DO ADMIN
-    if (email === SENHA_ADMIN.toLowerCase()) {
-      setLicencaAtual({ plano: 'admin', identificador_cliente: 'Acesso Mestre' });
-      setRazaoSocialLogada('Administrador');
-      setFaseAtual('upload');
-      return;
-    }
 
     try {
       // === LOGIN v1.2.1: COLABORADOR (EMAIL + SENHA) ===
@@ -407,34 +410,364 @@ const handleLogin = async (e) => {
     }
   };
 
-  const handleDebugRafael = async () => {
-    const debugEmail = 'mastercontabil.rafaeldpfiscal@gmail.com';
-    const senha = senhaInput.trim() || window.prompt('Senha do usuário debug:');
-    if (!senha) return;
-
-    setErroLogin('');
-    setIsProcessandoLoading(true);
+  const carregarGestaoUsuarios = async () => {
+    if (!isSuperAdmin) return;
+    setGestaoErro('');
+    setGestaoLoading(true);
     try {
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: debugEmail,
-        password: senha
+      const { data, error } = await supabase.functions.invoke('gestao-super-admin', {
+        body: { action: 'list_users' }
       });
+      if (error) throw error;
+      setGestaoUsuarios(Array.isArray(data?.users) ? data.users : []);
+    } catch (err) {
+      setGestaoErro(err?.message || 'Erro ao carregar usuários.');
+    } finally {
+      setGestaoLoading(false);
+    }
+  };
 
-      if (authError) {
-        alert(`Erro de Login: ${authError.message} | Código: ${authError.status || 'N/A'}`);
-        setIsProcessandoLoading(false);
+  const handleCriarUsuarioGestao = async (e) => {
+    e.preventDefault();
+    if (!isSuperAdmin) return;
+
+    setGestaoErro('');
+    setGestaoSenhaTemporaria('');
+    setGestaoLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('gestao-super-admin', {
+        body: {
+          action: 'create_user',
+          email: gestaoFormEmail,
+          nome: gestaoFormNome,
+          cargo: gestaoFormCargo,
+          cnpj_escritorio: gestaoFormCnpjEscritorio,
+        }
+      });
+      if (error) throw error;
+
+      const tempPassword = data?.created?.temp_password || '';
+      if (tempPassword) {
+        setGestaoSenhaTemporaria(tempPassword);
+        alert(`Usuário criado: ${data?.created?.email}\nSenha temporária: ${tempPassword}`);
+      } else {
+        alert(`Usuário criado: ${data?.created?.email}`);
+      }
+
+      setGestaoFormEmail('');
+      setGestaoFormNome('');
+      setGestaoFormCargo('');
+      setGestaoFormCnpjEscritorio('');
+      await carregarGestaoUsuarios();
+    } catch (err) {
+      setGestaoErro(err?.message || 'Erro ao criar usuário.');
+    } finally {
+      setGestaoLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (faseAtual === 'dashboard' && abaAtiva === 'gestao' && isSuperAdmin) {
+      carregarGestaoUsuarios();
+    }
+  }, [faseAtual, abaAtiva, isSuperAdmin]);
+
+  const DIFAL_TARGET_CFOPS = new Set(['2556', '2407', '2551']);
+  const DIFAL_AJ_CODES = new Set(['RO40000001', 'RO40000002']);
+
+  const parseSpedNumber = (value) => {
+    const raw = `${value ?? ''}`.trim();
+    if (!raw) return 0;
+    const normalized = raw.includes(',')
+      ? raw.replace(/\./g, '').replace(',', '.')
+      : raw;
+    const n = Number.parseFloat(normalized);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const formatSpedNumber = (value) => {
+    const n = Number.isFinite(value) ? value : 0;
+    return n.toFixed(2).replace('.', ',');
+  };
+
+  const buildSpedLine = (fields) => `|${fields.join('|')}|`;
+
+  const analisarDifalPendencias = (conteudo) => {
+    const linhas = `${conteudo || ''}`.split(/\r?\n/);
+    const pendencias = [];
+
+    let nota = null;
+
+    const finalizarNota = () => {
+      if (!nota) return;
+      if (nota.cfops.size > 0 && !nota.temC197) {
+        pendencias.push({
+          indiceInicio: nota.indiceInicio,
+          numDoc: nota.numDoc,
+          serie: nota.serie,
+          cfops: Array.from(nota.cfops),
+          valorOperacao: nota.valorOperacao,
+          valorIcmsOrigem: nota.valorIcmsOrigem,
+        });
+      }
+      nota = null;
+    };
+
+    for (let i = 0; i < linhas.length; i++) {
+      const cols = linhas[i].split('|');
+      const reg = cols[1];
+
+      if (reg === 'C100') {
+        finalizarNota();
+        nota = {
+          indiceInicio: i,
+          numDoc: (cols[8] || '').trim(),
+          serie: (cols[7] || '').trim(),
+          valorOperacao: parseSpedNumber(cols[12]),
+          valorIcmsOrigem: parseSpedNumber(cols[22]),
+          cfops: new Set(),
+          temC197: false,
+        };
+        continue;
+      }
+
+      if (!nota) continue;
+
+      if (reg && !reg.startsWith('C')) {
+        finalizarNota();
+        continue;
+      }
+
+      if (reg === 'C170') {
+        const cfop = (cols[11] || '').trim();
+        if (DIFAL_TARGET_CFOPS.has(cfop)) nota.cfops.add(cfop);
+      }
+
+      if (reg === 'C190') {
+        const cfop = (cols[3] || '').trim();
+        if (DIFAL_TARGET_CFOPS.has(cfop)) nota.cfops.add(cfop);
+      }
+
+      if (reg === 'C197') {
+        const codAj = (cols[2] || '').trim();
+        if (DIFAL_AJ_CODES.has(codAj)) nota.temC197 = true;
+      }
+    }
+
+    finalizarNota();
+    return pendencias;
+  };
+
+  useEffect(() => {
+    if (!arquivoProcessado) {
+      setDifalPendencias([]);
+      return;
+    }
+    setDifalPendencias(analisarDifalPendencias(arquivoProcessado));
+    setDifalErro('');
+  }, [arquivoProcessado]);
+
+  const mapearNotasDifal = (linhas) => {
+    const notas = [];
+    let nota = null;
+
+    const finalizarNota = (endExclusive) => {
+      if (!nota) return;
+      nota.endExclusive = endExclusive;
+      notas.push(nota);
+      nota = null;
+    };
+
+    for (let i = 0; i < linhas.length; i++) {
+      const cols = linhas[i].split('|');
+      const reg = cols[1];
+
+      if (reg === 'C100') {
+        finalizarNota(i);
+        nota = {
+          startIndex: i,
+          endExclusive: null,
+          numDoc: (cols[8] || '').trim(),
+          serie: (cols[7] || '').trim(),
+          valorOperacao: parseSpedNumber(cols[12]),
+          valorIcmsOrigem: parseSpedNumber(cols[22]),
+          cfops: new Set(),
+          temC197: false,
+        };
+        continue;
+      }
+
+      if (!nota) continue;
+
+      if (reg && !reg.startsWith('C')) {
+        finalizarNota(i);
+        continue;
+      }
+
+      if (reg === 'C170') {
+        const cfop = (cols[11] || '').trim();
+        if (DIFAL_TARGET_CFOPS.has(cfop)) nota.cfops.add(cfop);
+      }
+
+      if (reg === 'C190') {
+        const cfop = (cols[3] || '').trim();
+        if (DIFAL_TARGET_CFOPS.has(cfop)) nota.cfops.add(cfop);
+      }
+
+      if (reg === 'C197') {
+        const codAj = (cols[2] || '').trim();
+        if (DIFAL_AJ_CODES.has(codAj)) nota.temC197 = true;
+      }
+    }
+
+    finalizarNota(linhas.length);
+    return notas;
+  };
+
+  const reconstruirBloco9 = (linhas) => {
+    const linhasSem9 = linhas.filter(l => !l.startsWith('|9'));
+    const contagem = {};
+
+    linhasSem9.forEach(l => {
+      const reg = l.split('|')[1];
+      if (reg) contagem[reg] = (contagem[reg] || 0) + 1;
+    });
+
+    contagem['9001'] = 1;
+    contagem['9990'] = 1;
+    contagem['9999'] = 1;
+    contagem['9900'] = Object.keys(contagem).length + 1;
+
+    ['0', 'C', 'D', 'E', 'G', 'H', 'K', '1'].forEach(b => {
+      const reg = `${b}990`;
+      const total = linhasSem9.filter(l => l.startsWith(`|${b}`)).length;
+      if (total > 0) {
+        const idx = linhasSem9.findIndex(l => l.startsWith(`|${reg}|`));
+        if (idx !== -1) linhasSem9[idx] = `|${reg}|${total}|`;
+      }
+    });
+
+    const bloco9 = [];
+    bloco9.push(`|9001|0|`);
+
+    Object.keys(contagem).sort().forEach(reg => {
+      bloco9.push(`|9900|${reg}|${contagem[reg]}|`);
+    });
+
+    bloco9.push(`|9990|${bloco9.length + 1}|`);
+    bloco9.push(`|9999|${linhasSem9.length + bloco9.length + 1}|`);
+
+    return [...linhasSem9, ...bloco9];
+  };
+
+  const upsertE111 = (linhas, codAj, valor) => {
+    const idxE110 = linhas.findIndex(l => l.startsWith('|E110|'));
+    if (idxE110 === -1) return linhas;
+
+    let fimGrupo = idxE110 + 1;
+    while (fimGrupo < linhas.length && linhas[fimGrupo].startsWith('|E111|')) fimGrupo++;
+
+    const existingIdx = linhas.findIndex((l, idx) => {
+      if (idx <= idxE110 || idx >= fimGrupo) return false;
+      const cols = l.split('|');
+      return cols[1] === 'E111' && (cols[2] || '').trim() === codAj;
+    });
+
+    if (existingIdx !== -1) {
+      const cols = linhas[existingIdx].split('|');
+      const atual = parseSpedNumber(cols[4]);
+      cols[4] = formatSpedNumber(atual + valor);
+      linhas[existingIdx] = cols.join('|');
+      return linhas;
+    }
+
+    const novo = buildSpedLine(['E111', codAj, 'Ajuste DIFAL (Base por Dentro)', formatSpedNumber(valor)]);
+    linhas.splice(fimGrupo, 0, novo);
+    return linhas;
+  };
+
+  const atualizarE110 = (linhas, valorTotal) => {
+    const idxE110 = linhas.findIndex(l => l.startsWith('|E110|'));
+    if (idxE110 === -1) return linhas;
+
+    const cols = linhas[idxE110].split('|');
+
+    const vlAjDebitos = parseSpedNumber(cols[3]);
+    const vlTotAjDebitos = parseSpedNumber(cols[4]);
+    const vlIcmsRecolher = parseSpedNumber(cols[12]);
+
+    cols[3] = formatSpedNumber(vlAjDebitos + valorTotal);
+    cols[4] = formatSpedNumber(vlTotAjDebitos + valorTotal);
+    cols[12] = formatSpedNumber(vlIcmsRecolher + valorTotal);
+
+    linhas[idxE110] = cols.join('|');
+    return linhas;
+  };
+
+  const handleRecalcularInjetarDIFAL = () => {
+    if (!arquivoProcessado) return;
+    if (difalLoading) return;
+
+    setDifalErro('');
+    setDifalLoading(true);
+
+    try {
+      let linhas = `${arquivoProcessado}`.split(/\r?\n/);
+
+      const notas = mapearNotasDifal(linhas);
+      const pendentes = notas.filter(n => n.cfops.size > 0 && !n.temC197);
+
+      if (pendentes.length === 0) {
+        alert('Nenhuma pendência de DIFAL encontrada.');
+        setDifalLoading(false);
         return;
       }
 
-      const debugUser = { id: authData?.user?.id, nome_completo: 'Rafael', cargo: 'Analista Fiscal/Contábil', trocar_senha: false };
-      login(debugUser, null);
-      setRazaoSocialLogada('Rafael');
-      setLicencaAtual({ plano: 'premium', identificador_cliente: debugEmail, limite_maquinas: 999 });
-      setFaseAtual('upload');
+      const totaisPorCodigo = { RO40000001: 0, RO40000002: 0 };
+      const ALIQUOTA_RO = 0.195;
+
+      [...pendentes].sort((a, b) => b.startIndex - a.startIndex).forEach(nota => {
+        const cfops = nota.cfops;
+        const codAj = cfops.has('2551') ? 'RO40000001' : 'RO40000002';
+
+        const valorOperacao = nota.valorOperacao;
+        const valorIcmsOrigem = nota.valorIcmsOrigem;
+
+        if (!Number.isFinite(valorOperacao) || !Number.isFinite(valorIcmsOrigem) || valorOperacao <= 0 || valorIcmsOrigem <= 0) return;
+
+        const novaBase = (valorOperacao - valorIcmsOrigem) / (1 - ALIQUOTA_RO);
+        const icmsInterno = novaBase * ALIQUOTA_RO;
+        const difal = Number((icmsInterno - valorIcmsOrigem).toFixed(2));
+
+        if (!Number.isFinite(difal) || difal <= 0) return;
+
+        totaisPorCodigo[codAj] = (totaisPorCodigo[codAj] || 0) + difal;
+
+        const c195 = buildSpedLine(['C195', '', 'Ajuste de DIFAL']);
+        const c197 = buildSpedLine(['C197', codAj, 'DIFAL SEFIN-RO', '', '', '', formatSpedNumber(difal), '']);
+
+        linhas.splice(nota.endExclusive, 0, c195, c197);
+      });
+
+      const totalDifal = (totaisPorCodigo.RO40000001 || 0) + (totaisPorCodigo.RO40000002 || 0);
+      if (totalDifal <= 0) {
+        setDifalErro('Cálculo resultou em DIFAL zero. Verifique se a nota possui VL_ICMS (origem) no C100.');
+        setDifalLoading(false);
+        return;
+      }
+
+      linhas = atualizarE110(linhas, totalDifal);
+      if (totaisPorCodigo.RO40000001 > 0) linhas = upsertE111(linhas, 'RO40000001', totaisPorCodigo.RO40000001);
+      if (totaisPorCodigo.RO40000002 > 0) linhas = upsertE111(linhas, 'RO40000002', totaisPorCodigo.RO40000002);
+
+      linhas = reconstruirBloco9(linhas);
+      setArquivoProcessado(linhas.join('\r\n'));
+
+      alert(`DIFAL injetado com sucesso. Total: ${formatarMoeda(totalDifal)}`);
     } catch (err) {
-      alert(`Erro: ${err.message || err} | Código: ${err.status || 'N/A'}`);
+      setDifalErro(err?.message || 'Erro ao injetar DIFAL.');
     } finally {
-      setIsProcessandoLoading(false);
+      setDifalLoading(false);
     }
   };
 
@@ -615,6 +948,20 @@ const handleInjetarBlocoH = () => {
       let cnpjArquivo = "";
       for (let i = 0; i < linhasOriginais.length; i++) {
         if (linhasOriginais[i].startsWith('|0000|')) { cnpjArquivo = linhasOriginais[i].split('|')[7]; break; }
+      }
+
+      const cnpjArquivoDigits = (cnpjArquivo || '').replace(/\D/g, '');
+      if (isAuthenticated) {
+        if (!cnpjEscritorioAtivo) {
+          setFaseAtual('upload');
+          alert('Acesso negado: perfil sem CNPJ de escritório.');
+          return;
+        }
+        if (cnpjArquivoDigits && cnpjArquivoDigits !== cnpjEscritorioAtivo) {
+          setFaseAtual('upload');
+          alert('Acesso negado: este arquivo não pertence ao CNPJ do seu escritório.');
+          return;
+        }
       }
 
       if (licencaAtual && licencaAtual.plano !== 'admin') {
@@ -1129,10 +1476,6 @@ const handleInjetarBlocoH = () => {
                   {isProcessandoLoading ? <Loader2 size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Lock size={18} />} 
                   {isProcessandoLoading ? 'Verificando Credenciais...' : 'Entrar no Sistema'}
                 </button>
-
-                <button type="button" onClick={handleDebugRafael} disabled={isProcessandoLoading} style={{ padding: '14px', background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: '12px', fontSize: '13px', fontWeight: '900', cursor: isProcessandoLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: '0.3s' }}>
-                  <Shield size={18} /> ENTRAR COMO RAFAEL (DEBUG)
-                </button>
               </form>
               <p style={{ marginTop: '25px', fontSize: '12px', color: '#94a3b8' }}>Versão {VERSAO_ATUAL} | AUDITTUS &copy; 2026</p>
             </>
@@ -1363,11 +1706,16 @@ const handleInjetarBlocoH = () => {
                 <button onClick={() => setAbaAtiva('home')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'home' ? '#004080' : '#fff', color: abaAtiva === 'home' ? '#fff' : '#004080', border: '2px solid #004080', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><LayoutDashboard size={18} /> Visão Geral</button>
                 <button onClick={() => setAbaAtiva('tributos')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'tributos' ? '#10b981' : '#fff', color: abaAtiva === 'tributos' ? '#fff' : '#10b981', border: '2px solid #10b981', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><Tags size={18} /> Módulo Tributário</button>
                 <button onClick={() => setAbaAtiva('verificacao')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'verificacao' ? '#f59e0b' : '#fff', color: abaAtiva === 'verificacao' ? '#fff' : '#f59e0b', border: '2px solid #f59e0b', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><AlertTriangle size={18} /> Riscos Fiscais</button>
-                <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><FileSearch size={18} /> Relatório de Auditoria</button>
+                <button onClick={() => setAbaAtiva('auditoria')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'auditoria' ? '#ef4444' : '#fff', color: abaAtiva === 'auditoria' ? '#fff' : '#ef4444', border: '2px solid #ef4444', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}><FileSearch size={18} /> Relatórios</button>
                 {/* ESSE É O NOVO QUE VOCÊ VAI COLAR LOGO ABAIXO DELE */}
                 <button onClick={() => setAbaAtiva('estoque')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'estoque' ? '#8b5cf6' : '#fff', color: abaAtiva === 'estoque' ? '#fff' : '#8b5cf6', border: '2px solid #8b5cf6', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
                   <Package size={18} /> Estoque
                 </button>
+                {isSuperAdmin && (
+                  <button onClick={() => setAbaAtiva('gestao')} style={{ padding: '10px 25px', backgroundColor: abaAtiva === 'gestao' ? '#0f172a' : '#fff', color: abaAtiva === 'gestao' ? '#fff' : '#0f172a', border: '2px solid #0f172a', borderRadius: '30px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.3s' }}>
+                    <Shield size={18} /> Painel de Gestão
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1537,6 +1885,83 @@ const handleInjetarBlocoH = () => {
               </div>
             )}
 
+            {abaAtiva === 'gestao' && (
+              <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                  <div className="card-dash" style={{ margin: 0 }}>
+                    <h3 className="card-title"><Shield size={24} /> Painel de Gestão</h3>
+                    {!isSuperAdmin ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontWeight: 'bold' }}>
+                        Acesso restrito.
+                      </div>
+                    ) : (
+                      <>
+                        <form onSubmit={handleCriarUsuarioGestao} style={{ marginTop: '15px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                          <input value={gestaoFormEmail} onChange={(e) => setGestaoFormEmail(e.target.value)} placeholder="E-mail" style={{ padding: '14px', borderRadius: '10px', border: '2px solid #cbd5e1', fontSize: '14px', outline: 'none' }} />
+                          <input value={gestaoFormNome} onChange={(e) => setGestaoFormNome(e.target.value)} placeholder="Nome" style={{ padding: '14px', borderRadius: '10px', border: '2px solid #cbd5e1', fontSize: '14px', outline: 'none' }} />
+                          <input value={gestaoFormCargo} onChange={(e) => setGestaoFormCargo(e.target.value)} placeholder="Cargo" style={{ padding: '14px', borderRadius: '10px', border: '2px solid #cbd5e1', fontSize: '14px', outline: 'none' }} />
+                          <input value={gestaoFormCnpjEscritorio} onChange={(e) => setGestaoFormCnpjEscritorio(e.target.value)} placeholder="CNPJ do Escritório" style={{ padding: '14px', borderRadius: '10px', border: '2px solid #cbd5e1', fontSize: '14px', outline: 'none' }} />
+                          <button type="submit" disabled={gestaoLoading} style={{ gridColumn: '1 / -1', padding: '14px', borderRadius: '12px', border: 'none', background: '#0f172a', color: '#fff', fontWeight: '900', cursor: gestaoLoading ? 'not-allowed' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
+                            {gestaoLoading ? <Loader2 size={18} style={{ animation: 'spin 2s linear infinite' }} /> : <Shield size={18} />} Cadastrar Usuário
+                          </button>
+                        </form>
+
+                        {gestaoErro && (
+                          <div style={{ marginTop: '15px', color: '#ef4444', fontWeight: 'bold', background: '#fef2f2', border: '1px solid #fee2e2', padding: '12px', borderRadius: '10px' }}>
+                            {gestaoErro}
+                          </div>
+                        )}
+
+                        {gestaoSenhaTemporaria && (
+                          <div style={{ marginTop: '15px', color: '#0f172a', fontWeight: 'bold', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '10px' }}>
+                            Senha temporária gerada: {gestaoSenhaTemporaria}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <div className="card-dash" style={{ margin: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                      <h3 className="card-title" style={{ margin: 0 }}><FileText size={24} /> Usuários Cadastrados</h3>
+                      <button onClick={carregarGestaoUsuarios} disabled={!isSuperAdmin || gestaoLoading} style={{ padding: '10px 16px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', fontWeight: '900', cursor: (!isSuperAdmin || gestaoLoading) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <RefreshCw size={16} /> Atualizar Lista
+                      </button>
+                    </div>
+
+                    {gestaoLoading ? (
+                      <div style={{ textAlign: 'center', padding: '30px', color: '#64748b', fontWeight: 'bold' }}>Carregando...</div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc' }}>
+                              <th style={{ textAlign: 'left', padding: '12px', fontSize: '12px', color: '#64748b' }}>E-mail</th>
+                              <th style={{ textAlign: 'left', padding: '12px', fontSize: '12px', color: '#64748b' }}>Nome</th>
+                              <th style={{ textAlign: 'left', padding: '12px', fontSize: '12px', color: '#64748b' }}>Escritório</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gestaoUsuarios.length > 0 ? gestaoUsuarios.map((u, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: '12px', fontWeight: 'bold', color: '#0f172a' }}>{u.email}</td>
+                                <td style={{ padding: '12px', color: '#475569', fontWeight: '600' }}>{u.nome}</td>
+                                <td style={{ padding: '12px', color: '#475569', fontWeight: '600' }}>{u.escritorio}</td>
+                              </tr>
+                            )) : (
+                              <tr>
+                                <td colSpan="3" style={{ padding: '30px', textAlign: 'center', color: '#94a3b8', fontWeight: 'bold' }}>Nenhum usuário encontrado.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {abaAtiva === 'tributos' && (
               <div style={{ display: 'flex', gap: '25px', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '25px' }}>
@@ -1694,6 +2119,90 @@ const handleInjetarBlocoH = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f4f8', paddingBottom: '15px' }}>
                   <h3 className="card-title" style={{ border: 'none', padding: 0, margin: 0 }}><Shield size={28} color="#10b981" /> Histórico de Correções</h3>
                   <button onClick={() => window.print()} className="btn-pr no-print" style={{ background: '#ef4444', margin: 0 }}><Printer size={18}/> Exportar em PDF</button>
+                </div>
+                <div className="no-print">
+                  <div className="tw-mb-6 tw-rounded-2xl tw-border tw-bg-white tw-p-5 tw-shadow-sm tw-flex tw-items-start tw-justify-between tw-gap-4">
+                    <div className="tw-flex tw-items-start tw-gap-4">
+                      <div className={`tw-rounded-xl tw-p-3 tw-text-white ${difalPendencias.length > 0 ? 'tw-bg-red-500' : 'tw-bg-emerald-500'}`}>
+                        <Zap size={22} />
+                      </div>
+                      <div>
+                        <div className="tw-font-extrabold tw-text-slate-900 tw-text-base">Auditor DIFAL Automático (SEFIN-RO)</div>
+                        {difalPendencias.length > 0 ? (
+                          <div className="tw-mt-1 tw-text-slate-600 tw-font-semibold tw-text-sm">
+                            {difalPendencias.length} nota(s) pendente(s) sem C197 para CFOP 2556/2407/2551.
+                          </div>
+                        ) : (
+                          <div className="tw-mt-1 tw-text-slate-600 tw-font-semibold tw-text-sm">
+                            Nenhuma pendência detectada para CFOP 2556/2407/2551.
+                          </div>
+                        )}
+                        <div className="tw-mt-2 tw-text-xs tw-text-slate-500 tw-font-semibold">
+                          Base por Dentro (RO 19,5%): Nova Base = (VL_DOC - VL_ICMS Origem) / (1 - 0,195). DIFAL = ICMS Interno - VL_ICMS Origem.
+                        </div>
+                        {difalPendencias.length > 0 && (
+                          <details className="tw-mt-4 tw-rounded-xl tw-border tw-bg-slate-50 tw-p-4">
+                            <summary className="tw-cursor-pointer tw-select-none tw-font-extrabold tw-text-slate-800 tw-text-sm">
+                              Ver notas pendentes
+                            </summary>
+                            <div className="tw-mt-4 tw-overflow-hidden tw-rounded-xl tw-border tw-bg-white">
+                              <div className="tw-max-h-64 tw-overflow-auto">
+                                <table className="tw-w-full tw-border-collapse">
+                                  <thead className="tw-sticky tw-top-0 tw-bg-white tw-border-b">
+                                    <tr>
+                                      <th className="tw-text-left tw-px-4 tw-py-3 tw-text-xs tw-font-extrabold tw-text-slate-600">Nº da Nota</th>
+                                      <th className="tw-text-left tw-px-4 tw-py-3 tw-text-xs tw-font-extrabold tw-text-slate-600">Série</th>
+                                      <th className="tw-text-left tw-px-4 tw-py-3 tw-text-xs tw-font-extrabold tw-text-slate-600">CFOP</th>
+                                      <th className="tw-text-right tw-px-4 tw-py-3 tw-text-xs tw-font-extrabold tw-text-slate-600">Valor da Operação</th>
+                                      <th className="tw-text-right tw-px-4 tw-py-3 tw-text-xs tw-font-extrabold tw-text-slate-600">ICMS Origem</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {difalPendencias.slice(0, 500).map((p, idx) => (
+                                      <tr key={idx} className="tw-border-b last:tw-border-b-0">
+                                        <td className="tw-px-4 tw-py-3 tw-text-sm tw-font-extrabold tw-text-slate-900">{p.numDoc || '-'}</td>
+                                        <td className="tw-px-4 tw-py-3 tw-text-sm tw-font-semibold tw-text-slate-700">{p.serie || '-'}</td>
+                                        <td className="tw-px-4 tw-py-3 tw-text-sm tw-font-bold tw-text-slate-700">{Array.isArray(p.cfops) ? p.cfops.join(', ') : '-'}</td>
+                                        <td className="tw-px-4 tw-py-3 tw-text-sm tw-font-extrabold tw-text-slate-900 tw-text-right">{formatarMoeda(p.valorOperacao || 0)}</td>
+                                        <td className="tw-px-4 tw-py-3 tw-text-sm tw-font-extrabold tw-text-slate-900 tw-text-right">{formatarMoeda(p.valorIcmsOrigem || 0)}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                              {difalPendencias.length > 500 && (
+                                <div className="tw-px-4 tw-py-3 tw-text-xs tw-font-bold tw-text-slate-600 tw-bg-slate-50 tw-border-t">
+                                  Mostrando 500 de {difalPendencias.length} notas pendentes.
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        )}
+                        {difalErro && (
+                          <div className="tw-mt-3 tw-rounded-xl tw-border tw-border-red-200 tw-bg-red-50 tw-p-3 tw-text-red-700 tw-font-bold tw-text-sm">
+                            {difalErro}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="tw-flex tw-flex-col tw-items-end tw-gap-2">
+                      <button
+                        onClick={handleRecalcularInjetarDIFAL}
+                        disabled={difalPendencias.length === 0 || difalLoading}
+                        className={`tw-rounded-xl tw-px-4 tw-py-3 tw-font-extrabold tw-text-sm tw-shadow-sm tw-transition tw-flex tw-items-center tw-gap-2 ${
+                          difalPendencias.length > 0 && !difalLoading
+                            ? 'tw-bg-slate-900 tw-text-white hover:tw-bg-slate-800'
+                            : 'tw-bg-slate-200 tw-text-slate-500 tw-cursor-not-allowed'
+                        }`}
+                      >
+                        {difalLoading ? <Loader2 size={18} className="tw-animate-spin" /> : <Zap size={18} />}
+                        Recalcular e Injetar DIFAL (Base Dupla)
+                      </button>
+                      <div className="tw-text-xs tw-text-slate-500 tw-font-bold tw-text-right">
+                        Injeta C195/C197 e atualiza E111/E110 + Bloco 9.
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
