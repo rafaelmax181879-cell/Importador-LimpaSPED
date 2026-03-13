@@ -1,12 +1,16 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
 
-const SUPER_ADMIN_EMAIL = "rafael.max181873@gmail.com";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
@@ -29,11 +33,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-      },
+      headers: corsHeaders,
     });
   }
 
@@ -54,15 +54,22 @@ serve(async (req) => {
   });
 
   const { data: authUserData, error: authUserError } = await authClient.auth.getUser(bearerToken);
-  const callerEmail = (authUserData?.user?.email ?? "").trim().toLowerCase();
-
-  if (authUserError || !authUserData?.user || callerEmail !== SUPER_ADMIN_EMAIL) {
-    return json({ error: "Unauthorized" }, 401);
-  }
+  if (authUserError || !authUserData?.user?.id) return json({ error: "Unauthorized" }, 401);
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
+
+  const callerUserId = authUserData.user.id;
+  const { data: callerColab, error: callerColabError } = await adminClient
+    .from("colaboradores")
+    .select("cargo")
+    .eq("id", callerUserId)
+    .maybeSingle();
+
+  if (callerColabError || (callerColab?.cargo ?? "").trim().toUpperCase() !== "SUPER ADMIN") {
+    return json({ error: "Unauthorized" }, 401);
+  }
 
   const body = await req.json().catch(() => ({}));
   const action = typeof body?.action === "string" ? body.action : "";
@@ -107,6 +114,7 @@ serve(async (req) => {
       email,
       password: tempPassword,
       email_confirm: true,
+      user_metadata: { primeiro_acesso: true },
     });
 
     if (createdAuthError || !createdAuth?.user?.id) {
