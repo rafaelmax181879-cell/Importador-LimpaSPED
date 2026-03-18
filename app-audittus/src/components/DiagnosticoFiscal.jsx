@@ -244,6 +244,31 @@ export default function DiagnosticoFiscal({ arquivoProcessado, dadosEmpresa }) {
 
     const left = 14
     let y = 18
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const footerY = 282
+    const footerWidth = 196 - left
+
+    const addFooter = () => {
+      doc.setFillColor(30, 64, 175)
+      doc.rect(left, footerY, footerWidth, 1.6, 'F')
+
+      doc.setTextColor(15, 23, 42)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      const nomeColab = `${user?.nome_completo || ''}`.trim()
+      const cargoColab = `${user?.cargo || ''}`.trim()
+      doc.text(nomeColab, left, footerY + 7)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(71, 85, 105)
+      doc.setFontSize(9)
+      doc.text(cargoColab, left, footerY + 11)
+
+      doc.setTextColor(148, 163, 184)
+      doc.setFontSize(7)
+      const aviso = 'Este diagnóstico é gerado com base no arquivo fiscal fornecido e visa apoiar decisões gerenciais.'
+      const avisoLines = doc.splitTextToSize(aviso, footerWidth)
+      doc.text(avisoLines, left, footerY + 15)
+    }
 
     doc.setFontSize(14)
     doc.setTextColor(15, 23, 42)
@@ -286,17 +311,16 @@ export default function DiagnosticoFiscal({ arquivoProcessado, dadosEmpresa }) {
 
     const cred = diagnostico.creditos
     const textoCred = cred.topNcm
-      ? `Oportunidade de Créditos: O principal gerador de crédito de ICMS no período foi o NCM ${cred.topNcm}, com ${formatBRL(cred.topValor)}. Direcione a revisão de cadastro (NCM/CST) e parametrizações de compra para assegurar consistência do crédito e capturar oportunidades de ganho operacional sem aumentar risco.`
-      : `Oportunidade de Créditos: Não foi possível identificar um NCM predominante para crédito de ICMS com base nos valores informados nos itens. Recomenda-se validar o preenchimento de ICMS nas linhas de produto e a consistência do cadastro (0200/C170).`
+      ? `Oportunidade de Créditos: A principal classificação fiscal (NCM ${cred.topNcm}) concentrou ${formatBRL(cred.topValor)} em créditos de ICMS no período. Recomenda-se revisar cadastro e parametrizações fiscais de compra (NCM/CST/alíquotas) para garantir consistência do crédito e capturar oportunidades com segurança.`
+      : `Oportunidade de Créditos: Não foi possível identificar uma classificação fiscal predominante para crédito de ICMS com base nos valores informados. Recomenda-se validar o preenchimento de ICMS nos itens e a consistência do cadastro fiscal para evitar perda de crédito por inconsistências.`
 
     const dif = diagnostico.difalSaude
     const difPerc = `${(dif.difalPerc * 100).toFixed(2)}%`
-    const textoDifal = `Impacto de Compras Interestaduais: Compras internas (RO) totalizaram ${formatBRL(dif.comprasRO)} e compras interestaduais totalizaram ${formatBRL(dif.comprasInter)}. Pelo modelo Base Dupla RO (19,5%), o impacto estimado do DIFAL sobre aquisições fora do estado é de ${formatBRL(dif.difalEstimado)} (≈ ${difPerc} do valor interestadual). Esse diferencial tende a elevar o custo efetivo de compra; priorize análise de origem e estratégia de suprimento para otimizar a relação custo-benefício.`
+    const textoDifal = `Impacto de Compras Interestaduais: Compras internas (RO) totalizaram ${formatBRL(dif.comprasRO)} e compras de outros estados totalizaram ${formatBRL(dif.comprasInter)}. Pelo modelo de cálculo com alíquota interna de 19,5%, o impacto estimado do diferencial de alíquota (DIFAL) sobre aquisições fora do estado é de ${formatBRL(dif.difalEstimado)} (≈ ${difPerc} do valor de outros estados). Esse diferencial tende a elevar o custo efetivo de compra; priorize análise de origem e estratégia de suprimento para otimizar a relação custo-benefício.`
 
     const wrap = (text, maxWidth) => doc.splitTextToSize(text, maxWidth)
 
-    const drawDonut = ({ cx, cy, outerR, innerR, perc }) => {
-      const clamped = Math.max(0, Math.min(1, Number.isFinite(perc) ? perc : 0))
+    const drawDonut = ({ cx, cy, outerR, innerR, slices, centerText }) => {
       const toRad = (deg) => (deg * Math.PI) / 180
       const polar = (r, deg) => [cx + r * Math.cos(toRad(deg)), cy + r * Math.sin(toRad(deg))]
 
@@ -307,20 +331,47 @@ export default function DiagnosticoFiscal({ arquivoProcessado, dadosEmpresa }) {
       doc.circle(cx, cy, innerR, 'F')
 
       const startDeg = -90
-      const endDeg = startDeg + 360 * clamped
-      const step = 4
-      doc.setFillColor(30, 64, 175)
-      doc.setDrawColor(30, 64, 175)
+      const step = 2
+      let current = startDeg
 
-      for (let a = startDeg; a < endDeg; a += step) {
-        const a0 = a
-        const a1 = Math.min(a + step, endDeg)
-        const [o0x, o0y] = polar(outerR, a0)
-        const [o1x, o1y] = polar(outerR, a1)
-        const [i0x, i0y] = polar(innerR, a0)
-        const [i1x, i1y] = polar(innerR, a1)
-        doc.triangle(o0x, o0y, o1x, o1y, i1x, i1y, 'F')
-        doc.triangle(o0x, o0y, i1x, i1y, i0x, i0y, 'F')
+      const normalized = (slices || [])
+        .map((s) => ({ ...s, value: Math.max(0, Number.isFinite(s.value) ? s.value : 0) }))
+        .filter((s) => s.value > 0)
+
+      const total = normalized.reduce((acc, s) => acc + s.value, 0) || 1
+      const parts = normalized.map((s) => ({ ...s, value: s.value / total }))
+
+      for (const s of parts) {
+        const span = 360 * s.value
+        const end = current + span
+        const [r, g, b] = s.color
+        doc.setFillColor(r, g, b)
+        doc.setDrawColor(r, g, b)
+
+        for (let a = current; a < end; a += step) {
+          const a0 = a
+          const a1 = Math.min(a + step, end)
+          const [o0x, o0y] = polar(outerR, a0)
+          const [o1x, o1y] = polar(outerR, a1)
+          const [i0x, i0y] = polar(innerR, a0)
+          const [i1x, i1y] = polar(innerR, a1)
+          doc.triangle(o0x, o0y, o1x, o1y, i1x, i1y, 'F')
+          doc.triangle(o0x, o0y, i1x, i1y, i0x, i0y, 'F')
+        }
+
+        const pct = Math.round(s.value * 100)
+        if (pct >= 6) {
+          const mid = current + span / 2
+          const labelR = (innerR + outerR) / 2
+          const [lx, ly] = polar(labelR, mid)
+          const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(10)
+          doc.setTextColor(luminance < 0.55 ? 255 : 15, luminance < 0.55 ? 255 : 23, luminance < 0.55 ? 255 : 42)
+          doc.text(`${pct}%`, lx, ly + 1, { align: 'center' })
+        }
+
+        current = end
       }
 
       doc.setFillColor(255, 255, 255)
@@ -328,8 +379,29 @@ export default function DiagnosticoFiscal({ arquivoProcessado, dadosEmpresa }) {
 
       doc.setFont('helvetica', 'bold')
       doc.setTextColor(15, 23, 42)
-      doc.setFontSize(12)
-      doc.text(`${Math.round(clamped * 100)}%`, cx, cy + 1, { align: 'center' })
+      doc.setFontSize(16)
+      doc.text(centerText, cx, cy + 2, { align: 'center' })
+    }
+
+    const drawLegend = ({ x, y, width, slices }) => {
+      const colW = width / 2
+      const rowH = 7
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(51, 65, 85)
+
+      for (let i = 0; i < slices.length; i++) {
+        const s = slices[i]
+        const col = i % 2
+        const row = Math.floor(i / 2)
+        const lx = x + col * colW
+        const ly = y + row * rowH
+        const [r, g, b] = s.color
+        doc.setFillColor(r, g, b)
+        doc.rect(lx, ly - 4, 4, 4, 'F')
+        doc.text(s.label, lx + 7, ly - 1)
+      }
+      return y + Math.ceil(slices.length / 2) * rowH
     }
 
     const bloco = (titulo, texto) => {
@@ -347,45 +419,66 @@ export default function DiagnosticoFiscal({ arquivoProcessado, dadosEmpresa }) {
     }
 
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
+    doc.setFontSize(12)
     doc.setTextColor(30, 64, 175)
-    doc.text('1) Análise de Dependência', left, y)
+    doc.text('1) Dependência de Compras (Concentração)', left, y)
 
-    const donutCx = 176
-    const donutCy = y + 12
-    drawDonut({ cx: donutCx, cy: donutCy, outerR: 12, innerR: 7, perc: conc.topPerc || 0 })
+    const concPct = Math.max(0, Math.min(100, Math.round((conc.topPerc || 0) * 100)))
+    const concSlices = [
+      { label: 'Fornecedor líder', value: conc.topPerc || 0, color: [30, 64, 175] },
+      { label: 'Demais fornecedores', value: 1 - (conc.topPerc || 0), color: [226, 232, 240] },
+    ]
 
-    y += 6
+    const donutCx = pageWidth / 2
+    const donutCy = y + 78
+    drawDonut({ cx: donutCx, cy: donutCy, outerR: 70, innerR: 42, slices: concSlices, centerText: `${concPct}%` })
+    y = donutCy + 70 + 12
+    y = drawLegend({ x: left, y, width: footerWidth, slices: concSlices }) + 6
+
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(51, 65, 85)
-    const concLines = wrap(textoConc, 132)
+    const concLines = wrap(textoConc, footerWidth)
     doc.text(concLines, left, y)
-    y += Math.max(concLines.length * 5 + 6, 28)
+    y += concLines.length * 5 + 10
 
-    bloco('2) Oportunidade de Créditos', textoCred)
-    bloco('3) Impacto de Compras Interestaduais', textoDifal)
+    addFooter()
 
-    doc.setDrawColor(30, 64, 175)
-    doc.setLineWidth(0.8)
-    doc.line(left, 282, 196, 282)
-
+    doc.addPage()
+    y = 18
+    doc.setFontSize(14)
     doc.setTextColor(15, 23, 42)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    const nomeColab = `${user?.nome_completo || ''}`.trim()
-    const cargoColab = `${user?.cargo || ''}`.trim()
-    doc.text(nomeColab, left, 288)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(71, 85, 105)
-    doc.setFontSize(9)
-    doc.text(cargoColab, left, 292)
+    doc.text('Diagnóstico Fiscal Inteligente', left, y)
+    y += 8
+    doc.setDrawColor(226, 232, 240)
+    doc.setLineWidth(0.4)
+    doc.line(left, y, 196, y)
+    y += 12
 
-    doc.setTextColor(148, 163, 184)
-    doc.setFontSize(7)
-    const aviso = 'Este diagnóstico é gerado com base nos arquivos XML fornecidos e visa auxiliar na gestão gerencial da empresa.'
-    const avisoLines = doc.splitTextToSize(aviso, 182)
-    doc.text(avisoLines, left, 296)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.setTextColor(30, 64, 175)
+    doc.text('2) Perfil de Compras (Origem)', left, y)
+
+    const totalComprasOrigem = (dif.comprasRO || 0) + (dif.comprasInter || 0)
+    const roPerc = totalComprasOrigem > 0 ? dif.comprasRO / totalComprasOrigem : 0
+    const interPerc = totalComprasOrigem > 0 ? dif.comprasInter / totalComprasOrigem : 0
+    const interPct = Math.max(0, Math.min(100, Math.round(interPerc * 100)))
+
+    const origemSlices = [
+      { label: 'Compras internas (RO)', value: roPerc, color: [22, 163, 74] },
+      { label: 'Compras de outros estados', value: interPerc, color: [245, 158, 11] },
+    ]
+
+    const donutCy2 = y + 78
+    drawDonut({ cx: donutCx, cy: donutCy2, outerR: 70, innerR: 42, slices: origemSlices, centerText: `${interPct}%` })
+    y = donutCy2 + 70 + 12
+    y = drawLegend({ x: left, y, width: footerWidth, slices: origemSlices }) + 10
+
+    bloco('3) Oportunidade de Créditos', textoCred)
+    bloco('4) Impacto de Compras Interestaduais', textoDifal)
+
+    addFooter()
 
     doc.save(`diagnostico-fiscal-audittus.pdf`)
   }

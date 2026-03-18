@@ -19,7 +19,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_jWvo2DbWUScgNG88QMplGQ_a0iOpsVi";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const VERSAO_ATUAL = "1.2.4";
+const VERSAO_ATUAL = "1.2.5";
 
 const obterOuGerarHardwareId = () => {
   let hwId = localStorage.getItem('audittus_hw_id');
@@ -51,6 +51,28 @@ const getNomeGuia = (cod) => {
 };
 
 const formatarMoeda = (valor) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+
+const sanitizarTextoSped = (texto) => {
+  const normalizado = (texto ?? '')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '')
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return normalizado.substring(0, 254);
+};
+
+const encodeIso88591 = (texto) => {
+  const str = (texto ?? '').toString();
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    bytes[i] = code <= 0xff ? code : 0x3f;
+  }
+  return bytes;
+};
 
 const renderCustomLabel = ({ percent }) => {
   return `${(percent * 100).toFixed(1)}%`;
@@ -465,7 +487,18 @@ const handleInjetarBlocoH = () => {
       `|H010|DIVERSOS-OK|1|1,000|${efFormatado}|${efFormatado}|0|||55||`, 
       `|H990|4|`
     ];
-    linhas.push(...novoBlocoH);
+    let idxG990 = -1;
+    for (let i = 0; i < linhas.length; i++) {
+      if (linhas[i].startsWith('|G990|')) idxG990 = i;
+    }
+
+    const idxBloco1 = linhas.findIndex(l => {
+      const reg = l.split('|')[1];
+      return reg && reg.length === 4 && reg.startsWith('1');
+    });
+
+    const insertPos = idxG990 !== -1 ? idxG990 + 1 : (idxBloco1 !== -1 ? idxBloco1 : linhas.length);
+    linhas.splice(insertPos, 0, ...novoBlocoH);
 
     // 4. RECONTAGEM (O CORAÇÃO DO SISTEMA): Reconstrução do Bloco 9
     let contagem = {};
@@ -614,6 +647,12 @@ const handleInjetarBlocoH = () => {
         numLinha++; let linha = linhaOriginal; let cols = linha.split('|');
 
         if (cols[1] === 'H005' || cols[1] === 'H010') { foundBlocoH = true; }
+
+        if (cols[1] === '0450') {
+          cols[3] = sanitizarTextoSped(cols[3]);
+          linha = cols.join('|');
+          cols = linha.split('|');
+        }
 
         if (cols[1] === '0000') {
           const dtIni = cols[4] || ''; const dtFin = cols[5] || '';
@@ -927,7 +966,8 @@ const handleInjetarBlocoH = () => {
   const BotoesAcao = () => (
     <div className="act-btns no-print" style={{ marginBottom: '50px' }}>
         <button className="btn-dl" onClick={() => { 
-          const b = new Blob([arquivoProcessado], { type: 'text/plain;charset=windows-1252' }); 
+          const bytes = encodeIso88591(arquivoProcessado);
+          const b = new Blob([bytes], { type: 'text/plain;charset=ISO-8859-1' }); 
           const l = document.createElement('a'); l.href = URL.createObjectURL(b); l.download = `AUDITTUS_Validado_${nomeOriginal}`; l.click(); 
         }}><Download size={20} /> Baixar SPED Validado</button>
         <button className="btn-pr" onClick={handleExportPdf} disabled={isGeneratingPdf} style={{ opacity: isGeneratingPdf ? 0.7 : 1, cursor: isGeneratingPdf ? 'wait' : 'pointer' }}>
@@ -1417,7 +1457,7 @@ const handleInjetarBlocoH = () => {
                               </div>
                               <span style={{ color: '#ef4444', fontWeight: '900', fontSize: '16px' }}>{formatarMoeda(g.valor)}</span>
                             </div>
-                          )) : <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: '40px', fontSize: '14px', fontWeight: 'bold' }}>Nenhuma guia (E116) encontrada.</p>}
+                          )) : <p style={{ textAlign: 'center', color: '#94a3b8', marginTop: '40px', fontSize: '14px', fontWeight: 'bold' }}>Nenhuma guia de recolhimento de impostos identificada no período.</p>}
                         </div>
                       </div>
                     </div>
@@ -1927,7 +1967,7 @@ const handleInjetarBlocoH = () => {
                             <strong style={{ textAlign: 'right', color: '#ef4444' }}>{formatarMoeda(cmvTotal)}</strong>
                           </div>
 
-                          {/* QUADRO VAF INCONSISTENTE */}
+                          {/* QUADRO VAF INCONSISTENTE - ANALISE DO VAF FISCAL DO PERIODO */}
                           <div style={{
                             margin: '20px 25px', padding: '20px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                             background: vafTotal < 0 ? '#fef2f2' : '#f0fdf4',
